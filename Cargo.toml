@@ -8,17 +8,7 @@ license = "MIT"
 repository = "https://github.com/threadexio/channels-rs"
 documentation = "https://docs.rs/channels"
 readme = "README.md"
-keywords = [
-	"async",
-	"protocol",
-	"network",
-	"client",
-	"networking",
-	"server",
-	"io",
-	"stream",
-	"channel",
-]
+keywords = ["client", "networking", "server", "stream", "channel"]
 categories = ["Network programming"]
 
 [dependencies]
