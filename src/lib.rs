@@ -1,6 +1,6 @@
 //! Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`](`std::io::Read`) and [`std::io::Write`](`std::io::Write`).
 //!
-//! This crate is similar to [`std::sync::mpsc`](std::sync::mpsc) in term of the API, and most of the documentation
+//! This crate is similar to [`std::sync::mpsc`](std::sync::mpsc) in terms of the API, and most of the documentation
 //! for that module carries over to this crate.
 //!
 //! An important note, when an object is sent through a [`Sender`](Sender), which was passed into [`channel()`](channel),
