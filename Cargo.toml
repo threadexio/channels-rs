@@ -1,0 +1,29 @@
+[package]
+name = "channels"
+description = "Bidirectional channel-like communication over generic Read/Write streams"
+version = "0.1.0"
+edition = "2021"
+authors = ["1337"]
+license = "MIT"
+repository = "https://github.com/threadexio/channels-rs"
+documentation = "https://docs.rs/channels"
+readme = "README.md"
+keywords = [
+	"async",
+	"protocol",
+	"network",
+	"client",
+	"networking",
+	"server",
+	"io",
+	"stream",
+	"channel",
+]
+categories = ["Network programming"]
+
+[dependencies]
+serde = { version = "*", features = ["derive"] }
+bincode = "*"
+
+[features]
+mt = []
