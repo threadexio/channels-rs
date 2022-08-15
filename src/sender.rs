@@ -50,4 +50,4 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 	}
 }
 
-//unsafe impl<T: Serialize, W: Write> Send for Sender<T, W> {}
+unsafe impl<T: Serialize, W: Write> Send for Sender<T, W> {}

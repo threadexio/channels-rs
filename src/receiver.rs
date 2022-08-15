@@ -72,58 +72,7 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 		}
 
 		unreachable!()
-
-		/*
-		// check if we haven't read a message header yet
-		if self.msg_header.is_none() {
-			// continuously read to complete the header, if any error is encountered return immediately
-			// when working with non-blocking sockets this code returns WouldBlock if there is no data,
-			// this is the desired behavior
-			while self.recv_cursor != MESSAGE_HEADER_SIZE {
-				match reader.read(&mut self.recv_buf[self.recv_cursor..MESSAGE_HEADER_SIZE]) {
-					Ok(v) => self.recv_cursor += v,
-					Err(e) => match e.kind() {
-						io::ErrorKind::Interrupted => continue,
-						_ => return Err(e),
-					},
-				};
-			}
-
-			self.recv_cursor = 0;
-			self.msg_header = Some(
-				bincode!()
-					.deserialize(&self.recv_buf[..MESSAGE_HEADER_SIZE])
-					.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?,
-			);
-		}
-
-		if let Some(ref hdr) = self.msg_header {
-			while self.recv_cursor != hdr.payload_len as usize {
-				match reader.read(&mut self.recv_buf[self.recv_cursor..hdr.payload_len as usize]) {
-					Ok(v) => self.recv_cursor += v,
-					Err(e) => match e.kind() {
-						io::ErrorKind::Interrupted => continue,
-						_ => return Err(e),
-					},
-				};
-			}
-
-			let data = bincode!()
-				.deserialize(&self.recv_buf[..hdr.payload_len as usize])
-				.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?;
-
-			self.recv_cursor = 0;
-			self.msg_header = None;
-
-			return Ok(data);
-		}
-
-		return Err(io::Error::new(
-			io::ErrorKind::WouldBlock,
-			"failed to fill buffer",
-		));
-		*/
 	}
 }
 
-//unsafe impl<T: DeserializeOwned, R: Read> Send for Receiver<T, R> {}
+unsafe impl<T: DeserializeOwned, R: Read> Send for Receiver<T, R> {}
