@@ -1,7 +1,7 @@
 [package]
 name = "channels"
 description = "Bidirectional channel-like communication over generic Read/Write streams"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["1337"]
 license = "MIT"
@@ -16,4 +16,3 @@ serde = { version = "^1.0", features = ["derive"] }
 bincode = "^1"
 
 [features]
-mt = []

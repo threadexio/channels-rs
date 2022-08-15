@@ -120,260 +120,41 @@
 //!	}
 //! ```
 
-use std::io::{self, Read, Write};
-use std::marker::PhantomData;
+mod prelude {
+	pub use bincode::Options;
 
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+	pub use serde::de::DeserializeOwned;
+	pub use serde::{Deserialize, Serialize};
 
-use bincode::Options;
+	pub use std::io;
+	pub use std::io::{Read, Write};
 
-#[cfg(not(feature = "mt"))]
-use std::{
-	cell::{RefCell, RefMut},
-	rc::Rc,
-};
+	pub use std::marker::PhantomData;
 
-#[cfg(feature = "mt")]
-use std::sync::{Arc, Mutex, MutexGuard};
+	pub use std::sync::{Arc, Mutex, MutexGuard};
 
-const MAX_MESSAGE_SIZE: usize = 2_usize.pow(16);
-
-macro_rules! bincode {
-	() => {
-		bincode::options()
-			.reject_trailing_bytes()
-			.with_big_endian()
-			.with_fixint_encoding()
-			.with_limit(MAX_MESSAGE_SIZE as u64)
-	};
+	pub use crate::common::*;
 }
 
-#[derive(Serialize, Deserialize)]
-struct MsgHeader {
-	pub len: u16,
-}
+mod common;
 
-const MSG_HDR_SIZE: usize = std::mem::size_of::<MsgHeader>();
+mod sender;
+pub use sender::Sender;
 
-/// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`](std::sync::mpsc::Sender),
-/// except for a [few key differences](self).
-///
-/// See [module-level documentation](self).
-pub struct Sender<T: Serialize, W: Write> {
-	_p: PhantomData<T>,
+mod receiver;
+pub use receiver::Receiver;
 
-	#[cfg(not(feature = "mt"))]
-	wtr: Rc<RefCell<W>>,
-
-	#[cfg(feature = "mt")]
-	wtr: Arc<Mutex<W>>,
-}
-
-impl<T: Serialize, W: Write> Sender<T, W> {
-	#[cfg(not(feature = "mt"))]
-	pub fn new(wtr: Rc<RefCell<W>>) -> Self {
-		Self {
-			_p: PhantomData,
-			wtr,
-		}
-	}
-
-	#[cfg(feature = "mt")]
-	pub fn new(wtr: Arc<Mutex<W>>) -> Self {
-		Self {
-			_p: PhantomData,
-			wtr,
-		}
-	}
-
-	#[cfg(not(feature = "mt"))]
-	/// Get a mutable reference to the underlying data stream.
-	pub unsafe fn inner(&mut self) -> RefMut<'_, W> {
-		self.wtr.borrow_mut()
-	}
-
-	#[cfg(feature = "mt")]
-	/// Get a mutable reference to the underlying data stream.
-	pub unsafe fn inner(&mut self) -> MutexGuard<'_, W> {
-		self.wtr.lock().unwrap()
-	}
-
-	/// Attempts to send an object through the data stream.
-	///
-	/// The method returns as follows:
-	///  - `Ok(())`:		The send operation was successful and the object was sent.
-	///	 - `Err(error)`:	This is a normal `send()` error and should be handled appropriately.
-	pub fn send(&mut self, data: T) -> io::Result<()> {
-		let serialized_data = bincode!()
-			.serialize(&data)
-			.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?;
-
-		let hdr = MsgHeader {
-			len: serialized_data.len() as u16,
-		};
-
-		let serialized_header = bincode!()
-			.serialize(&hdr)
-			.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?;
-
-		#[cfg(not(feature = "mt"))]
-		let mut writer = self.wtr.borrow_mut();
-
-		#[cfg(feature = "mt")]
-		let mut writer = self.wtr.lock().unwrap();
-
-		writer.write_all(&[serialized_header, serialized_data].concat())?;
-
-		Ok(())
-	}
-}
-
-#[cfg(feature = "mt")]
-unsafe impl<T: Serialize, W: Write> Send for Sender<T, W> {}
-
-/// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`](std::sync::mpsc::Receiver),
-/// except for a [few key differences](self).
-///
-/// See [module-level documentation](self).
-pub struct Receiver<T: DeserializeOwned, R: Read> {
-	_p: PhantomData<T>,
-
-	#[cfg(not(feature = "mt"))]
-	rdr: Rc<RefCell<R>>,
-
-	#[cfg(feature = "mt")]
-	rdr: Arc<Mutex<R>>,
-
-	recv_buf: Box<[u8]>,
-	recv_cursor: usize,
-	msg_hdr: Option<MsgHeader>,
-}
-
-impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
-	#[cfg(not(feature = "mt"))]
-	pub fn new(rdr: Rc<RefCell<R>>) -> Self {
-		Self {
-			_p: PhantomData,
-			recv_buf: vec![0u8; MAX_MESSAGE_SIZE].into_boxed_slice(),
-			recv_cursor: 0,
-			msg_hdr: None,
-			rdr,
-		}
-	}
-
-	#[cfg(feature = "mt")]
-	pub fn new(rdr: Arc<Mutex<R>>) -> Self {
-		Self {
-			_p: PhantomData,
-			recv_buf: vec![0u8; MAX_MESSAGE_SIZE].into_boxed_slice(),
-			recv_cursor: 0,
-			msg_hdr: None,
-			rdr,
-		}
-	}
-
-	#[cfg(not(feature = "mt"))]
-	/// Get a mutable reference to the underlying data stream.
-	pub unsafe fn inner(&mut self) -> RefMut<'_, R> {
-		self.rdr.borrow_mut()
-	}
-
-	#[cfg(feature = "mt")]
-	/// Get a mutable reference to the underlying data stream.
-	pub unsafe fn inner(&mut self) -> MutexGuard<'_, R> {
-		self.rdr.lock().unwrap()
-	}
-
-	/// Attempts to read an object from the sender end.
-	///
-	/// If the underlying data stream is a blocking socket then `recv()` will block until
-	/// an object is available.
-	///
-	/// If the underlying data stream is a non-blocking socket then `recv()` will return
-	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
-	/// available.
-	///
-	/// The method returns as follows:
-	///  - `Ok(object)`:	The receive operation was successful and an object was returned.
-	///  - `Err(error)`:	If `error.kind()` is `std::io::ErrorKind::WouldBlock` then no object
-	/// 					is currently available, but one might become available in the future
-	/// 					(This can only happen when the underlying stream is set to non-blocking mode).
-	///	 - `Err(error)`:	This is a normal `read()` error and should be handled appropriately.
-	pub fn recv(&mut self) -> io::Result<T> {
-		#[cfg(not(feature = "mt"))]
-		let mut reader = self.rdr.borrow_mut();
-
-		#[cfg(feature = "mt")]
-		let mut reader = self.rdr.lock().unwrap();
-
-		// check if we haven't read a message header yet
-		if self.msg_hdr.is_none() {
-			// continuously read to complete the header, if any error is encountered return immediately
-			// when working with non-blocking sockets this code returns WouldBlock if there is no data,
-			// this is the desired behavior
-			while self.recv_cursor != MSG_HDR_SIZE {
-				match reader.read(&mut self.recv_buf[self.recv_cursor..MSG_HDR_SIZE]) {
-					Ok(v) => self.recv_cursor += v,
-					Err(e) => match e.kind() {
-						io::ErrorKind::Interrupted => continue,
-						_ => return Err(e),
-					},
-				};
-			}
-
-			self.recv_cursor = 0;
-			self.msg_hdr = Some(
-				bincode!()
-					.deserialize(&self.recv_buf[..MSG_HDR_SIZE])
-					.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?,
-			);
-		}
-
-		if let Some(ref hdr) = self.msg_hdr {
-			while self.recv_cursor != hdr.len as usize {
-				match reader.read(&mut self.recv_buf[self.recv_cursor..hdr.len as usize]) {
-					Ok(v) => self.recv_cursor += v,
-					Err(e) => match e.kind() {
-						io::ErrorKind::Interrupted => continue,
-						_ => return Err(e),
-					},
-				};
-			}
-
-			let data = bincode!()
-				.deserialize(&self.recv_buf[..hdr.len as usize])
-				.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?;
-
-			self.recv_cursor = 0;
-			self.msg_hdr = None;
-
-			return Ok(data);
-		}
-
-		return Err(io::Error::new(
-			io::ErrorKind::WouldBlock,
-			"failed to fill buffer",
-		));
-	}
-}
-
-#[cfg(feature = "mt")]
-unsafe impl<T: DeserializeOwned, R: Read> Send for Receiver<T, R> {}
+use prelude::*;
 
 /// Creates a new channel, returning the sender/receiver. This is the same as [`std::sync::mpsc::channel()`](std::sync::mpsc::channel).
 pub fn channel<T: Serialize + DeserializeOwned, Rw: Read + Write>(
 	s: Rw,
 ) -> (Sender<T, Rw>, Receiver<T, Rw>) {
-	#[cfg(not(feature = "mt"))]
-	let shared_stream = Rc::new(RefCell::new(s));
-
-	#[cfg(feature = "mt")]
-	let shared_stream = Arc::new(Mutex::new(s));
+	let shared_stream = Arc::new(Inner::new(s));
 
 	(
 		Sender::<T, Rw>::new(shared_stream.clone()),
-		Receiver::<T, Rw>::new(shared_stream.clone()),
+		Receiver::<T, Rw>::new(shared_stream),
 	)
 }
 
