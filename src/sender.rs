@@ -35,6 +35,9 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 
 		let serialized_header = serialize(&Header {
 			payload_len: serialized_data.len() as Length,
+
+			#[cfg(feature = "crc")]
+			payload_checksum: crate::crc::checksum32(&serialized_data),
 		})?;
 
 		writer.write_all(&[serialized_header, serialized_data].concat())?;

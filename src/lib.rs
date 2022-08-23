@@ -137,6 +137,9 @@ mod prelude {
 	pub use crate::packet::*;
 }
 
+#[cfg(feature = "crc")]
+pub mod crc;
+
 mod common;
 mod error;
 mod packet;

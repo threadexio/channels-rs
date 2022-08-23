@@ -9,14 +9,17 @@ fn main() {
 		let (mut tx, mut rx) = channels::channel::<i32, _>(connection);
 
 		loop {
-			let received = rx.recv().unwrap();
+			let received = match rx.recv() {
+				Ok(v) => v,
+				Err(_) => break,
+			};
 
 			match received {
 				1337 => break,
 				n => println!("Received i32: {}", n),
 			};
 
-			tx.send(received).unwrap();
+			let _ = tx.send(received);
 		}
 	}
 }

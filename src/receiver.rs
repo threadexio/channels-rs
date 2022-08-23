@@ -17,7 +17,7 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 	pub(crate) fn new(reader: Arc<Inner<R>>) -> Self {
 		Self {
 			_p: PhantomData,
-			recv_buf: Buffer::with_size(MAX_MESSAGE_SIZE as usize),
+			recv_buf: Buffer::with_size(MAX_PAYLOAD_SIZE as usize),
 			msg_header: None,
 			reader,
 		}
@@ -57,7 +57,14 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 			self.recv_buf
 				.from_reader(&mut *reader, header.payload_len as usize)?;
 
-			let data = deserialize(&self.recv_buf.buffer()[..header.payload_len as usize])?;
+			let serialized_data = &self.recv_buf.buffer()[..header.payload_len as usize];
+
+			#[cfg(feature = "crc")]
+			if crate::crc::checksum32(&serialized_data) != header.payload_checksum {
+				return Err(error!(ChannelError::Corrupted));
+			}
+
+			let data = deserialize(serialized_data)?;
 
 			// reset state
 			self.recv_buf.set_pos(0)?;

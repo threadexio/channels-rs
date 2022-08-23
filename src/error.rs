@@ -7,8 +7,10 @@ pub type Error = io::Error;
 pub type ErrorKind = io::ErrorKind;
 pub type Result<T> = io::Result<T>;
 
+#[allow(dead_code)]
 pub enum ChannelError {
 	ObjectTooLarge,
+	Corrupted,
 }
 
 impl std::fmt::Display for ChannelError {
@@ -17,6 +19,7 @@ impl std::fmt::Display for ChannelError {
 
 		match self {
 			ObjectTooLarge => write!(f, "object too large"),
+			Corrupted => write!(f, "data corrupted"),
 		}
 	}
 }
