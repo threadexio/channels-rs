@@ -133,9 +133,13 @@ mod prelude {
 	pub use std::sync::{Arc, Mutex, MutexGuard};
 
 	pub use crate::common::*;
+	pub use crate::error::*;
+	pub use crate::packet::*;
 }
 
 mod common;
+mod error;
+mod packet;
 
 mod sender;
 pub use sender::Sender;
@@ -231,8 +235,10 @@ mod tests {
 
 		loop {
 			match rx.recv() {
-				Err(e) if e.kind() == io::ErrorKind::WouldBlock => {}
-				Err(e) => panic!("Error: {}", e),
+				Err(e) => match e.kind() {
+					io::ErrorKind::WouldBlock => {}
+					_ => panic!("{}", e),
+				},
 				Ok(packet) => match packet {
 					Packet::P1(n) => {
 						println!("Received: P1({})", n);

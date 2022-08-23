@@ -27,26 +27,19 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 	///
 	/// The method returns as follows:
 	///  - `Ok(())`:		The send operation was successful and the object was sent.
-	///	 - `Err(error)`:	This is a normal `send()` error and should be handled appropriately.
-	pub fn send(&mut self, data: T) -> io::Result<()> {
+	///	 - `Err(error)`:	This is a normal `write()` error and should be handled appropriately.
+	pub fn send(&mut self, data: T) -> Result<()> {
 		let mut writer = self.writer.wait_lock();
 
-		let data_size = bincode!()
-			.serialized_size(&data)
-			.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?;
+		let serialized_data = serialize(&data)?;
 
-		let message = Message {
-			header: Header {
-				payload_len: data_size.try_into().unwrap(),
-			},
-			payload: data,
-		};
+		let serialized_header = serialize(&Header {
+			payload_len: serialized_data.len() as Length,
+		})?;
 
-		writer.write_all(
-			&bincode!()
-				.serialize(&message)
-				.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?,
-		)
+		writer.write_all(&[serialized_header, serialized_data].concat())?;
+
+		Ok(())
 	}
 }
 

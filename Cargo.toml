@@ -15,4 +15,11 @@ categories = ["network-programming"]
 serde = { version = "^1.0", features = ["derive"] }
 bincode = "^1"
 
+crc = { version = "^3", optional = true }
+crypto = { version = "^0.4", optional = true }
+
 [features]
+crc8 = ["dep:crc"]
+crc16 = ["dep:crc"]
+crc32 = ["dep:crc"]
+crc64 = ["dep:crc"]

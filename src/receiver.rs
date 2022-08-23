@@ -9,7 +9,7 @@ pub struct Receiver<T: DeserializeOwned, R: Read> {
 
 	reader: Arc<Inner<R>>,
 
-	recv_buf: ReadBuffer,
+	recv_buf: Buffer,
 	msg_header: Option<Header>,
 }
 
@@ -17,7 +17,7 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 	pub(crate) fn new(reader: Arc<Inner<R>>) -> Self {
 		Self {
 			_p: PhantomData,
-			recv_buf: ReadBuffer::with_size(MAX_MESSAGE_SIZE as usize),
+			recv_buf: Buffer::with_size(MAX_MESSAGE_SIZE as usize),
 			msg_header: None,
 			reader,
 		}
@@ -43,29 +43,24 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 	/// 					is currently available, but one might become available in the future
 	/// 					(This can only happen when the underlying stream is set to non-blocking mode).
 	///	 - `Err(error)`:	This is a normal `read()` error and should be handled appropriately.
-	pub fn recv(&mut self) -> io::Result<T> {
+	pub fn recv(&mut self) -> Result<T> {
 		let mut reader = self.reader.wait_lock();
 
 		if self.msg_header.is_none() {
-			self.recv_buf.read_all(&mut *reader, MESSAGE_HEADER_SIZE)?;
+			self.recv_buf.from_reader(&mut *reader, HEADER_SIZE)?;
 
-			self.recv_buf.seek(0);
-			self.msg_header = Some(
-				bincode!()
-					.deserialize(&self.recv_buf.get()[..MESSAGE_HEADER_SIZE])
-					.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?,
-			);
+			self.msg_header = Some(deserialize(&self.recv_buf.buffer()[..HEADER_SIZE])?);
+			self.recv_buf.set_pos(0)?;
 		}
 
 		if let Some(header) = &self.msg_header {
 			self.recv_buf
-				.read_all(&mut *reader, header.payload_len as usize)?;
+				.from_reader(&mut *reader, header.payload_len as usize)?;
 
-			let data = bincode!()
-				.deserialize(&self.recv_buf.get()[..header.payload_len as usize])
-				.map_err(|x| io::Error::new(io::ErrorKind::Other, x))?;
+			let data = deserialize(&self.recv_buf.buffer()[..header.payload_len as usize])?;
 
-			self.recv_buf.seek(0);
+			// reset state
+			self.recv_buf.set_pos(0)?;
 			self.msg_header = None;
 
 			return Ok(data);

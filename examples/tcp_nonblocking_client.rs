@@ -14,8 +14,10 @@ fn main() {
 	loop {
 		use std::io::ErrorKind;
 		match rx.recv() {
-			Err(e) if e.kind() == ErrorKind::WouldBlock => {}
-			Err(e) => panic!("{}", e),
+			Err(e) => match e.kind() {
+				ErrorKind::WouldBlock => {}
+				_ => panic!("{}", e),
+			},
 			Ok(v) => println!("Received: {}", v),
 		}
 

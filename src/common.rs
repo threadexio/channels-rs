@@ -1,30 +1,5 @@
 use crate::prelude::*;
 
-pub const MAX_MESSAGE_SIZE: u16 = 0xffff;
-pub const MESSAGE_HEADER_SIZE: usize = std::mem::size_of::<Header>();
-
-macro_rules! bincode {
-	() => {
-		bincode::options()
-			.reject_trailing_bytes()
-			.with_big_endian()
-			.with_fixint_encoding()
-			.with_limit(crate::common::MAX_MESSAGE_SIZE as u64)
-	};
-}
-pub use bincode;
-
-#[derive(Serialize, Deserialize)]
-pub struct Message<T> {
-	pub header: Header,
-	pub payload: T,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Header {
-	pub payload_len: u16,
-}
-
 pub struct Inner<T> {
 	lock: Mutex<T>,
 }
@@ -41,53 +16,114 @@ impl<T> Inner<T> {
 	}
 }
 
-pub struct ReadBuffer {
-	inner: Box<[u8]>,
+pub struct Buffer {
+	inner: Vec<u8>,
 	cursor: usize,
 }
 
-impl ReadBuffer {
+#[allow(dead_code)]
+impl Buffer {
 	pub fn with_size(s: usize) -> Self {
 		Self {
-			inner: vec![0u8; s].into_boxed_slice(),
+			inner: vec![0u8; s],
 			cursor: 0,
 		}
 	}
 
-	pub fn seek(&mut self, i: usize) {
-		if i >= self.inner.len() {
-			self.cursor = self.inner.len() - 1;
-		}
-
-		self.cursor = i;
+	pub fn pos(&self) -> usize {
+		self.cursor
 	}
 
-	pub fn get(&self) -> &[u8] {
+	pub fn set_pos(&mut self, p: usize) -> Result<()> {
+		if p >= self.capacity() {
+			Err(error!(ChannelError::ObjectTooLarge))
+		} else {
+			self.cursor = p;
+			Ok(())
+		}
+	}
+
+	pub fn buffer(&self) -> &[u8] {
 		&self.inner
 	}
 
-	pub fn read_all<R: Read>(&mut self, r: &mut R, mut l: usize) -> io::Result<usize> {
-		let mut total_bytes_read: usize = 0;
+	pub fn capacity(&self) -> usize {
+		self.inner.len()
+	}
 
-		while l != 0 {
-			use io::ErrorKind;
-			match r.read(&mut self.inner[self.cursor..(self.cursor + l)]) {
-				Err(e) => match e.kind() {
-					ErrorKind::Interrupted => continue,
-					_ => return Err(e),
-				},
-				Ok(v) => {
-					if v == 0 {
-						return Err(io::Error::new(ErrorKind::UnexpectedEof, "Unexpected Eof"));
-					}
+	pub fn len(&self) -> usize {
+		self.cursor
+	}
 
-					total_bytes_read += v;
-					self.cursor += v;
-					l -= v;
-				}
-			}
+	/// Copy `s` starting at `pos()`
+	pub fn append_slice(&mut self, s: &[u8]) -> Result<()> {
+		if self.cursor + s.len() >= self.capacity() {
+			return Err(error!(ChannelError::ObjectTooLarge));
 		}
 
-		Ok(total_bytes_read)
+		for i in 0..s.len() {
+			self.inner[self.cursor + i] = s[i];
+		}
+
+		Ok(())
+	}
+
+	/// Consume `l` bytes from `pos()`
+	pub fn consume(&mut self, l: usize) -> Result<&[u8]> {
+		if self.cursor + l >= self.capacity() {
+			return Err(error!(ChannelError::ObjectTooLarge));
+		}
+
+		Ok(&self.inner[self.cursor..self.cursor + l])
+	}
+
+	/// Read `l` bytes from `rdr` starting at `pos()`
+	pub fn from_reader<R: Read>(&mut self, rdr: &mut R, l: usize) -> Result<usize> {
+		let start = self.cursor;
+		let end = self.cursor + l;
+
+		if end >= self.capacity() {
+			return Err(error!(ChannelError::ObjectTooLarge));
+		}
+
+		while end - self.cursor > 0 {
+			let i = rdr.read(&mut self.inner[self.cursor..end])?;
+
+			if i == 0 {
+				return Err(Error::new(
+					ErrorKind::UnexpectedEof,
+					ErrorKind::UnexpectedEof.to_string(),
+				));
+			}
+
+			self.cursor += i;
+		}
+
+		Ok(self.cursor - start)
+	}
+
+	/// Read `l` bytes to `wtr` starting at `pos()`
+	pub fn to_writer<W: Write>(&mut self, wtr: &mut W, l: usize) -> Result<usize> {
+		let start = self.cursor;
+		let end = self.cursor + l;
+
+		if end >= self.capacity() {
+			return Err(error!(ChannelError::ObjectTooLarge));
+		}
+
+		while end - self.cursor > 0 {
+			let i = wtr.write(&self.inner[self.cursor..end])?;
+
+			if i == 0 {
+				return Err(Error::new(
+					ErrorKind::UnexpectedEof,
+					ErrorKind::UnexpectedEof.to_string(),
+				));
+			}
+
+			self.cursor += i;
+		}
+
+		Ok(self.cursor - start)
 	}
 }
