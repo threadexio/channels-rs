@@ -14,7 +14,6 @@
 //! The differences are:
 //!   - Channels **will** block, unless the underlying stream is set as non-blocking.
 //!   - The amount of messages that can be queued up before reading is dependent on the underlying stream.
-//!   - By default, the [`Sender`](Sender) and [`Receiver`](Receiver) types cannot be sent across threads, unless the `mt` feature is enabled.
 //!
 //! # Examples
 //!
