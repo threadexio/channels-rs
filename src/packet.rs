@@ -1,18 +1,26 @@
 use crate::prelude::*;
 
-pub const MAX_PACKET_SIZE: u16 = u16::MAX;
-pub const MAX_PAYLOAD_SIZE: u16 = MAX_PACKET_SIZE - HEADER_SIZE as u16;
+macro_rules! define_struct {
+	($struct_vis:vis $name:ident {
+		$($vis:vis $field_name:ident: $field_type:ty = $default:expr,)*
+	}) => {
+		#[derive(Debug, Serialize, Deserialize)]
+		$struct_vis struct $name {
+			$($vis $field_name: $field_type,)*
+		}
 
-pub const PROTOCOL_VERSION: u16 = 0;
+		impl $name {
+			pub const SIZE: usize = 0 $( + std::mem::size_of::<$field_type>())*;
+		}
 
-pub const HEADER_SIZE: usize = 2 + 2 + 4;
-
-#[derive(Serialize, Deserialize)]
-pub struct Header {
-	pub protocol_version: u16,
-	pub payload_len: u16,
-
-	pub payload_checksum: u32,
+		impl Default for $name {
+			fn default() -> Self {
+				Self {
+					$($field_name: $default,)*
+				}
+			}
+		}
+	};
 }
 
 macro_rules! bincode {
@@ -23,6 +31,19 @@ macro_rules! bincode {
 			.with_fixint_encoding()
 			.with_no_limit()
 	};
+}
+
+pub const MAX_PACKET_SIZE: u16 = u16::MAX;
+pub const MAX_PAYLOAD_SIZE: u16 = MAX_PACKET_SIZE - Header::SIZE as u16;
+
+pub const PROTOCOL_VERSION: u16 = 0;
+
+define_struct! {
+	pub Header {
+		pub protocol_version: u16 = PROTOCOL_VERSION,
+		pub payload_len: u16 = 0,
+		pub payload_checksum: u16 = 0,
+	}
 }
 
 pub fn serialize<T: Serialize>(data: T) -> Result<Vec<u8>> {

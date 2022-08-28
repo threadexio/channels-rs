@@ -15,6 +15,9 @@
 //!   - Channels **will** block, unless the underlying stream is set as non-blocking.
 //!   - The amount of messages that can be queued up before reading is dependent on the underlying stream.
 //!
+//! # Features
+//!   - [`crc`](crate::crc): Adds data validation with CRC
+//!
 //! # Examples
 //!
 //! Simple echo server:

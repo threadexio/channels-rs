@@ -4,13 +4,16 @@ use crate::packet::{self, Header};
 use crate::shared::*;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`](std::sync::mpsc::Sender),
-/// except for a [few key differences](self).
+/// except for a [few key differences](crate).
 ///
-/// See [module-level documentation](self).
+/// See [crate-level documentation](crate).
 pub struct Sender<T: Serialize, W: Write> {
 	_p: PhantomData<T>,
 
 	writer: Shared<W>,
+
+	#[cfg(feature = "crc")]
+	pub crc: crate::crc::Crc,
 }
 
 impl<T: Serialize, W: Write> Sender<T, W> {
@@ -18,6 +21,9 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 		Self {
 			_p: PhantomData,
 			writer,
+
+			#[cfg(feature = "crc")]
+			crc: Default::default(),
 		}
 	}
 
@@ -36,16 +42,16 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 
 		let data = packet::serialize(&data)?;
 
-		let header = packet::serialize(&Header {
-			protocol_version: packet::PROTOCOL_VERSION,
-			payload_len: data_length as u16,
+		let mut header = Header::default();
 
-			#[cfg(not(feature = "crc"))]
-			payload_checksum: 0,
+		header.payload_len = data_length as u16;
 
-			#[cfg(feature = "crc")]
-			payload_checksum: crate::crc::checksum32(&data),
-		})?;
+		#[cfg(feature = "crc")]
+		{
+			header.payload_checksum = self.crc.checksum16(&data);
+		}
+
+		let header = packet::serialize(&header)?;
 
 		let writer = self.writer.get();
 

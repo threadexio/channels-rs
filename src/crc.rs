@@ -1,5 +1,36 @@
-pub const CRC32: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_CKSUM);
+//! Data validation with CRC.
+//!
+//! With the `crc` feature enabled, the `Sender` and `Receiver` types have a `Crc`
+//! structure that holds the algorithm that will be used. If you need to change the
+//! algorithm refer back to the [`crc`](https://crates.io/crates/crc) crate.
+//!
+//! # Example
+//! ```rust
+//! fn main() {
+//! 	let (mut tx, mut rx) = ...;
+//!
+//! 	tx.crc.crc16.algorithm = &crc::CRC_16_ARC; // or any other
+//! 	rx.crc.crc16.algorithm = &crc::CRC_16_ARC; // just make sure to change the other end too
+//!
+//! 	...
+//! }
+//! ```
 
-pub fn checksum32(data: &[u8]) -> u32 {
-	CRC32.checksum(data)
+/// Default CRC16 algorithm
+pub const CRC16: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_GSM);
+
+pub struct Crc {
+	pub crc16: crc::Crc<u16>,
+}
+
+impl Default for Crc {
+	fn default() -> Self {
+		Self { crc16: CRC16 }
+	}
+}
+
+impl Crc {
+	pub fn checksum16(&self, data: &[u8]) -> u16 {
+		self.crc16.checksum(data)
+	}
 }

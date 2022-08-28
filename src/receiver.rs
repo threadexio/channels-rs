@@ -6,9 +6,9 @@ use crate::shared::*;
 use crate::packet::{self, Header};
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`](std::sync::mpsc::Receiver),
-/// except for a [few key differences](self).
+/// except for a [few key differences](crate).
 ///
-/// See [module-level documentation](self).
+/// See [crate-level documentation](crate).
 pub struct Receiver<T: DeserializeOwned, R: Read> {
 	_p: PhantomData<T>,
 
@@ -16,6 +16,9 @@ pub struct Receiver<T: DeserializeOwned, R: Read> {
 
 	recv_buf: Buffer,
 	msg_header: Option<Header>,
+
+	#[cfg(feature = "crc")]
+	pub crc: crate::crc::Crc,
 }
 
 impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
@@ -25,6 +28,9 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 			recv_buf: Buffer::with_size(packet::MAX_PACKET_SIZE as usize),
 			msg_header: None,
 			reader,
+
+			#[cfg(feature = "crc")]
+			crc: Default::default(),
 		}
 	}
 
@@ -45,11 +51,9 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 		let reader = self.reader.get();
 
 		if self.msg_header.is_none() {
-			self.recv_buf
-				.from_reader(&mut *reader, packet::HEADER_SIZE)?;
+			self.recv_buf.from_reader(&mut *reader, Header::SIZE)?;
 
-			let header: Header =
-				packet::deserialize(&self.recv_buf.buffer()[..packet::HEADER_SIZE])?;
+			let header: Header = packet::deserialize(&self.recv_buf.buffer()[..Header::SIZE])?;
 
 			// This is here to reset the state in case we don't pass the checks bellow.
 			self.recv_buf
@@ -70,7 +74,7 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 			let serialized_data = &self.recv_buf.buffer()[..header.payload_len as usize];
 
 			#[cfg(feature = "crc")]
-			if crate::crc::checksum32(&serialized_data) != header.payload_checksum {
+			if self.crc.checksum16(&serialized_data) != header.payload_checksum {
 				return Err(Error::ChecksumError);
 			}
 
