@@ -4,7 +4,7 @@ use std::thread;
 use channels;
 
 fn main() {
-	let connection = TcpStream::connect("127.0.0.1:8081").unwrap();
+	let connection = TcpStream::connect("127.0.0.1:8082").unwrap();
 
 	let (mut tx, mut rx) = channels::channel::<i32, _>(connection);
 
@@ -43,6 +43,6 @@ fn main() {
 		tx.send(i).unwrap();
 
 		// some expensive computation
-		thread::sleep(std::time::Duration::from_secs_f32(1.5));
+		thread::sleep(std::time::Duration::from_secs_f32(0.5));
 	}
 }

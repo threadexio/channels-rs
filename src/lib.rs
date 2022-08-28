@@ -127,17 +127,14 @@ mod prelude {
 
 	pub use std::io;
 	pub use std::io::{Read, Write};
-
 	pub use std::marker::PhantomData;
 
-	pub use std::sync::{Arc, Mutex, MutexGuard};
-
-	pub use crate::common::*;
 	pub use crate::error::*;
-	pub use crate::packet::*;
 }
 
-mod common;
+mod io;
+mod shared;
+
 mod packet;
 
 mod error;
@@ -154,11 +151,13 @@ pub mod crc;
 
 use prelude::*;
 
+use shared::*;
+
 /// Creates a new channel, returning the sender/receiver. This is the same as [`std::sync::mpsc::channel()`](std::sync::mpsc::channel).
 pub fn channel<T: Serialize + DeserializeOwned, Rw: Read + Write>(
 	s: Rw,
 ) -> (Sender<T, Rw>, Receiver<T, Rw>) {
-	let shared_stream = Arc::new(Inner::new(s));
+	let shared_stream = Outer::new(Inner::new(s));
 
 	(
 		Sender::<T, Rw>::new(shared_stream.clone()),

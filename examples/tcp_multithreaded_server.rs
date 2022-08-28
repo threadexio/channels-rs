@@ -18,7 +18,7 @@ fn main() {
 
 		// sending thread
 		thread::spawn(move || loop {
-			thread::sleep(std::time::Duration::from_secs(1));
+			thread::sleep(std::time::Duration::from_secs_f32(0.5));
 			tx.send(1337).unwrap();
 		});
 	}

@@ -1,21 +1,5 @@
 use crate::prelude::*;
 
-pub struct Inner<T> {
-	lock: Mutex<T>,
-}
-
-impl<T> Inner<T> {
-	pub fn new(stream: T) -> Self {
-		Self {
-			lock: Mutex::new(stream),
-		}
-	}
-
-	pub fn wait_lock(&self) -> MutexGuard<'_, T> {
-		self.lock.lock().unwrap()
-	}
-}
-
 pub struct Buffer {
 	inner: Vec<u8>,
 	cursor: usize,
