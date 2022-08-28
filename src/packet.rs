@@ -1,11 +1,19 @@
 use crate::prelude::*;
 
-pub type Length = u16;
+pub const MAX_PACKET_SIZE: u16 = u16::MAX;
+pub const MAX_PAYLOAD_SIZE: u16 = MAX_PACKET_SIZE - HEADER_SIZE as u16;
 
-pub const HEADER_SIZE: usize = std::mem::size_of::<Header>();
+pub const PROTOCOL_VERSION: u16 = 0;
 
-pub const MAX_PACKET_SIZE: Length = 0xffff;
-pub const MAX_PAYLOAD_SIZE: Length = MAX_PACKET_SIZE - HEADER_SIZE as Length;
+pub const HEADER_SIZE: usize = 2 + 2 + 4;
+
+#[derive(Serialize, Deserialize)]
+pub struct Header {
+	pub protocol_version: u16,
+	pub payload_len: u16,
+
+	pub payload_checksum: u32,
+}
 
 macro_rules! bincode {
 	() => {
@@ -13,25 +21,18 @@ macro_rules! bincode {
 			.reject_trailing_bytes()
 			.with_big_endian()
 			.with_fixint_encoding()
-			.with_limit(crate::packet::MAX_PAYLOAD_SIZE as u64)
+			.with_no_limit()
 	};
 }
 
 pub fn serialize<T: Serialize>(data: T) -> Result<Vec<u8>> {
-	bincode!().serialize(&data).map_err(|x| other!("{}", x))
+	Ok(bincode!().serialize(&data)?)
+}
+
+pub fn serialized_size<T: Serialize>(data: &T) -> Result<u64> {
+	Ok(bincode!().serialized_size(data)?)
 }
 
 pub fn deserialize<T: DeserializeOwned>(ser_data: &[u8]) -> Result<T> {
-	bincode!()
-		.deserialize(ser_data)
-		.map_err(|x| other!("{}", x))
-}
-
-#[repr(C, packed)]
-#[derive(Serialize, Deserialize)]
-pub struct Header {
-	pub payload_len: Length,
-
-	#[cfg(feature = "crc")]
-	pub payload_checksum: u32,
+	Ok(bincode!().deserialize(ser_data)?)
 }

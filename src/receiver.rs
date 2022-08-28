@@ -49,8 +49,18 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 		if self.msg_header.is_none() {
 			self.recv_buf.from_reader(&mut *reader, HEADER_SIZE)?;
 
-			self.msg_header = Some(deserialize(&self.recv_buf.buffer()[..HEADER_SIZE])?);
-			self.recv_buf.set_pos(0)?;
+			let header: Header = deserialize(&self.recv_buf.buffer()[..HEADER_SIZE])?;
+
+			// This is here to reset the state in case we don't pass the checks bellow.
+			self.recv_buf
+				.set_pos(0)
+				.expect("set_pos(0) failed. it should not have failed");
+
+			if header.protocol_version != PROTOCOL_VERSION {
+				return Err(Error::VersionMismatch);
+			}
+
+			self.msg_header = Some(header);
 		}
 
 		if let Some(header) = &self.msg_header {
@@ -61,7 +71,7 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 
 			#[cfg(feature = "crc")]
 			if crate::crc::checksum32(&serialized_data) != header.payload_checksum {
-				return Err(error!(ChannelError::Corrupted));
+				return Err(Error::ChecksumError);
 			}
 
 			let data = deserialize(serialized_data)?;

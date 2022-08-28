@@ -1,39 +1,48 @@
-#![allow(unused_macros)]
-#![allow(unused_imports)]
-
 use std::io;
 
-pub type Error = io::Error;
-pub type ErrorKind = io::ErrorKind;
-pub type Result<T> = io::Result<T>;
+pub type Result<T> = std::result::Result<T, Error>;
 
-#[allow(dead_code)]
-pub enum ChannelError {
-	ObjectTooLarge,
-	Corrupted,
+#[derive(Debug)]
+pub enum Error {
+	VersionMismatch,
+	ChecksumError,
+
+	DataTooLarge, // data size
+
+	DataError(bincode::Error),
+
+	Io(io::Error),
 }
 
-impl std::fmt::Display for ChannelError {
+impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		use ChannelError::*;
+		use Error::*;
 
 		match self {
-			ObjectTooLarge => write!(f, "object too large"),
-			Corrupted => write!(f, "data corrupted"),
+			VersionMismatch => write!(f, "version mismatch"),
+			ChecksumError => write!(f, "checksum did not match"),
+			DataTooLarge => write!(f, "data bigger than max packet size"),
+			DataError(e) => write!(f, "data error: {}", e),
+			Io(e) => write!(f, "io error: {}", e),
 		}
 	}
 }
 
-macro_rules! other {
-	($($arg:tt)*) => {
-		std::io::Error::new(std::io::ErrorKind::Other, format!($($arg)*))
-	};
-}
-pub(crate) use other;
+impl std::error::Error for Error {}
 
-macro_rules! error {
-	($arg:expr) => {
-		std::io::Error::new(std::io::ErrorKind::Other, format!("{}", $arg))
-	};
+impl From<io::Error> for Error {
+	fn from(e: io::Error) -> Self {
+		Self::Io(e)
+	}
 }
-pub(crate) use error;
+
+impl From<bincode::Error> for Error {
+	fn from(e: bincode::Error) -> Self {
+		use bincode::ErrorKind;
+		match *e {
+			ErrorKind::Io(e) => Self::Io(e),
+			ErrorKind::SizeLimit => Self::DataTooLarge,
+			_ => Self::DataError(e),
+		}
+	}
+}

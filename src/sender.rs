@@ -29,18 +29,28 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 	///  - `Ok(())`:		The send operation was successful and the object was sent.
 	///	 - `Err(error)`:	This is a normal `write()` error and should be handled appropriately.
 	pub fn send(&mut self, data: T) -> Result<()> {
-		let mut writer = self.writer.wait_lock();
+		let data_length = serialized_size(&data)?;
 
-		let serialized_data = serialize(&data)?;
+		if data_length > MAX_PAYLOAD_SIZE.into() {
+			return Err(Error::DataTooLarge);
+		}
 
-		let serialized_header = serialize(&Header {
-			payload_len: serialized_data.len() as Length,
+		let data = serialize(&data)?;
+
+		let header = serialize(&Header {
+			protocol_version: PROTOCOL_VERSION,
+			payload_len: data_length as u16,
+
+			#[cfg(not(feature = "crc"))]
+			payload_checksum: 0,
 
 			#[cfg(feature = "crc")]
-			payload_checksum: crate::crc::checksum32(&serialized_data),
+			payload_checksum: crate::crc::checksum32(&data),
 		})?;
 
-		writer.write_all(&[serialized_header, serialized_data].concat())?;
+		let mut writer = self.writer.wait_lock();
+
+		writer.write_all(&[header, data].concat())?;
 
 		Ok(())
 	}

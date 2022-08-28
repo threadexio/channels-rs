@@ -137,18 +137,20 @@ mod prelude {
 	pub use crate::packet::*;
 }
 
-#[cfg(feature = "crc")]
-pub mod crc;
-
 mod common;
-mod error;
 mod packet;
+
+mod error;
+pub use error::{Error, Result};
 
 mod sender;
 pub use sender::Sender;
 
 mod receiver;
 pub use receiver::Receiver;
+
+#[cfg(feature = "crc")]
+pub mod crc;
 
 use prelude::*;
 
@@ -162,107 +164,4 @@ pub fn channel<T: Serialize + DeserializeOwned, Rw: Read + Write>(
 		Sender::<T, Rw>::new(shared_stream.clone()),
 		Receiver::<T, Rw>::new(shared_stream),
 	)
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	use std::thread;
-
-	#[test]
-	fn test_tcp() {
-		use std::net::{TcpListener, TcpStream};
-
-		let listener = TcpListener::bind("127.0.0.35:8000").unwrap();
-
-		let client_thread = thread::spawn(|| {
-			let stream = TcpStream::connect("127.0.0.35:8000").unwrap();
-
-			let (mut tx, mut rx) = channel::<i32, _>(stream);
-
-			tx.send(rx.recv().unwrap()).unwrap();
-		});
-
-		let (stream, _) = listener.accept().unwrap();
-		let (mut tx, mut rx) = channel::<i32, _>(stream);
-
-		tx.send(42).unwrap();
-
-		assert_eq!(rx.recv().unwrap(), 42);
-
-		client_thread.join().unwrap();
-	}
-
-	#[test]
-	fn test_tcp_server_packet() {
-		use std::net::{TcpListener, TcpStream};
-
-		#[derive(Debug, PartialEq, Serialize, Deserialize)]
-		enum Packet {
-			P1(i32),
-			P2(String),
-			P3,
-			Stop,
-		}
-
-		let listener = TcpListener::bind("127.0.0.35:8001").unwrap();
-
-		let client_thread = thread::spawn(|| {
-			let stream = TcpStream::connect("127.0.0.35:8001").unwrap();
-
-			let (mut tx, mut rx) = channel::<Packet, _>(stream);
-
-			tx.send(Packet::P1(32)).unwrap();
-			assert_eq!(rx.recv().unwrap(), Packet::P1(32));
-
-			println!("[Client] Computing...");
-			std::thread::sleep(std::time::Duration::from_secs(1));
-
-			tx.send(Packet::P2("TEST STRING".to_string())).unwrap();
-			assert_eq!(rx.recv().unwrap(), Packet::P2("TEST STRING".to_string()));
-
-			println!("[Client] Computing...");
-			std::thread::sleep(std::time::Duration::from_secs(2));
-
-			tx.send(Packet::P3).unwrap();
-			assert_eq!(rx.recv().unwrap(), Packet::P3);
-
-			tx.send(Packet::Stop).unwrap();
-		});
-
-		let (stream, _) = listener.accept().unwrap();
-		stream.set_nonblocking(true).unwrap();
-
-		let (mut tx, mut rx) = channel::<Packet, _>(stream);
-
-		loop {
-			match rx.recv() {
-				Err(e) => match e.kind() {
-					io::ErrorKind::WouldBlock => {}
-					_ => panic!("{}", e),
-				},
-				Ok(packet) => match packet {
-					Packet::P1(n) => {
-						println!("Received: P1({})", n);
-						tx.send(Packet::P1(n)).unwrap();
-					}
-					Packet::P2(s) => {
-						println!("Received: P2({})", s);
-						tx.send(Packet::P2(s)).unwrap();
-					}
-					Packet::P3 => {
-						println!("Received: P3");
-						tx.send(Packet::P3).unwrap();
-					}
-					Packet::Stop => break,
-				},
-			};
-
-			println!("[Server] Computing...");
-			std::thread::sleep(std::time::Duration::from_millis(500));
-		}
-
-		client_thread.join().unwrap();
-	}
 }

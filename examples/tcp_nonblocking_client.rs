@@ -14,9 +14,26 @@ fn main() {
 	loop {
 		use std::io::ErrorKind;
 		match rx.recv() {
-			Err(e) => match e.kind() {
-				ErrorKind::WouldBlock => {}
-				_ => panic!("{}", e),
+			Err(e) => match e {
+				channels::Error::VersionMismatch => {
+					eprintln!("client uses wrong version");
+					break;
+				}
+				channels::Error::ChecksumError => {
+					eprintln!("packet checksum does not match. discarding...");
+					continue;
+				}
+				channels::Error::Io(e) => match e.kind() {
+					ErrorKind::WouldBlock => continue,
+					_ => {
+						eprintln!("{}", e);
+						break;
+					}
+				},
+				e => {
+					eprintln!("{}", e);
+					continue;
+				}
 			},
 			Ok(v) => println!("Received: {}", v),
 		}
@@ -25,6 +42,7 @@ fn main() {
 
 		tx.send(i).unwrap();
 
-		thread::sleep(std::time::Duration::from_secs_f32(0.25));
+		// some expensive computation
+		thread::sleep(std::time::Duration::from_secs_f32(1.5));
 	}
 }

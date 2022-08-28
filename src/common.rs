@@ -36,7 +36,7 @@ impl Buffer {
 
 	pub fn set_pos(&mut self, p: usize) -> Result<()> {
 		if p >= self.capacity() {
-			Err(error!(ChannelError::ObjectTooLarge))
+			Err(Error::DataTooLarge)
 		} else {
 			self.cursor = p;
 			Ok(())
@@ -58,7 +58,7 @@ impl Buffer {
 	/// Copy `s` starting at `pos()`
 	pub fn append_slice(&mut self, s: &[u8]) -> Result<()> {
 		if self.cursor + s.len() >= self.capacity() {
-			return Err(error!(ChannelError::ObjectTooLarge));
+			return Err(Error::DataTooLarge);
 		}
 
 		for i in 0..s.len() {
@@ -71,7 +71,7 @@ impl Buffer {
 	/// Consume `l` bytes from `pos()`
 	pub fn consume(&mut self, l: usize) -> Result<&[u8]> {
 		if self.cursor + l >= self.capacity() {
-			return Err(error!(ChannelError::ObjectTooLarge));
+			return Err(Error::DataTooLarge);
 		}
 
 		Ok(&self.inner[self.cursor..self.cursor + l])
@@ -83,17 +83,14 @@ impl Buffer {
 		let end = self.cursor + l;
 
 		if end >= self.capacity() {
-			return Err(error!(ChannelError::ObjectTooLarge));
+			return Err(Error::DataTooLarge);
 		}
 
 		while end - self.cursor > 0 {
 			let i = rdr.read(&mut self.inner[self.cursor..end])?;
 
 			if i == 0 {
-				return Err(Error::new(
-					ErrorKind::UnexpectedEof,
-					ErrorKind::UnexpectedEof.to_string(),
-				));
+				return Err(Error::Io(io::Error::from(io::ErrorKind::UnexpectedEof)));
 			}
 
 			self.cursor += i;
@@ -108,17 +105,14 @@ impl Buffer {
 		let end = self.cursor + l;
 
 		if end >= self.capacity() {
-			return Err(error!(ChannelError::ObjectTooLarge));
+			return Err(Error::DataTooLarge);
 		}
 
 		while end - self.cursor > 0 {
 			let i = wtr.write(&self.inner[self.cursor..end])?;
 
 			if i == 0 {
-				return Err(Error::new(
-					ErrorKind::UnexpectedEof,
-					ErrorKind::UnexpectedEof.to_string(),
-				));
+				return Err(Error::Io(io::Error::from(io::ErrorKind::UnexpectedEof)));
 			}
 
 			self.cursor += i;
