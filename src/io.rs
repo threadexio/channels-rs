@@ -27,40 +27,6 @@ impl Buffer {
 		}
 	}
 
-	pub fn buffer(&self) -> &[u8] {
-		&self.inner
-	}
-
-	pub fn capacity(&self) -> usize {
-		self.inner.len()
-	}
-
-	pub fn len(&self) -> usize {
-		self.cursor
-	}
-
-	/// Copy `s` starting at `pos()`
-	pub fn append_slice(&mut self, s: &[u8]) -> Result<()> {
-		if self.cursor + s.len() >= self.capacity() {
-			return Err(Error::DataTooLarge);
-		}
-
-		for i in 0..s.len() {
-			self.inner[self.cursor + i] = s[i];
-		}
-
-		Ok(())
-	}
-
-	/// Consume `l` bytes from `pos()`
-	pub fn consume(&mut self, l: usize) -> Result<&[u8]> {
-		if self.cursor + l >= self.capacity() {
-			return Err(Error::DataTooLarge);
-		}
-
-		Ok(&self.inner[self.cursor..self.cursor + l])
-	}
-
 	/// Read `l` bytes from `rdr` starting at `pos()`
 	pub fn from_reader<R: Read>(&mut self, rdr: &mut R, l: usize) -> Result<usize> {
 		let start = self.cursor;
@@ -103,5 +69,19 @@ impl Buffer {
 		}
 
 		Ok(self.cursor - start)
+	}
+}
+
+impl std::ops::Deref for Buffer {
+	type Target = Vec<u8>;
+
+	fn deref(&self) -> &Self::Target {
+		&self.inner
+	}
+}
+
+impl std::ops::DerefMut for Buffer {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.inner
 	}
 }

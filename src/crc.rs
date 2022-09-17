@@ -1,6 +1,6 @@
 //! Data validation with CRC.
 //!
-//! With the `crc` feature enabled, the `Sender` and `Receiver` types have a `Crc`
+//! The `Sender` and `Receiver` types have a `Crc`
 //! structure that holds the algorithm that will be used. If you need to change the
 //! algorithm refer back to the [`crc`](https://crates.io/crates/crc) crate.
 //!
@@ -26,11 +26,5 @@ pub struct Crc {
 impl Default for Crc {
 	fn default() -> Self {
 		Self { crc16: CRC16 }
-	}
-}
-
-impl Crc {
-	pub fn checksum16(&self, data: &[u8]) -> u16 {
-		self.crc16.checksum(data)
 	}
 }

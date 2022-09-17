@@ -133,6 +133,7 @@ mod prelude {
 	pub use std::marker::PhantomData;
 
 	pub use crate::error::*;
+	pub use crate::io::Buffer;
 }
 
 mod io;
@@ -149,12 +150,36 @@ pub use sender::Sender;
 mod receiver;
 pub use receiver::Receiver;
 
-#[cfg(feature = "crc")]
-pub mod crc;
+mod crc;
 
 use prelude::*;
 
 use shared::*;
+
+/// A simple type that combines Read and Write.
+pub struct RwAdapter<R: Read, W: Write>(R, W);
+
+impl<R: Read, W: Write> RwAdapter<R, W> {
+	pub fn new(reader: R, writer: W) -> Self {
+		Self(reader, writer)
+	}
+}
+
+impl<R: Read, W: Write> Read for RwAdapter<R, W> {
+	fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+		self.0.read(buf)
+	}
+}
+
+impl<R: Read, W: Write> Write for RwAdapter<R, W> {
+	fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+		self.1.write(buf)
+	}
+
+	fn flush(&mut self) -> std::io::Result<()> {
+		self.1.flush()
+	}
+}
 
 /// Creates a new channel, returning the sender/receiver. This is the same as [`std::sync::mpsc::channel()`](std::sync::mpsc::channel).
 pub fn channel<T: Serialize + DeserializeOwned, Rw: Read + Write>(

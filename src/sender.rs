@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use crate::packet::{self, Header};
+use crate::packet::{self, Header, PROTOCOL_VERSION};
 use crate::shared::*;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`](std::sync::mpsc::Sender),
@@ -12,7 +12,8 @@ pub struct Sender<T: Serialize, W: Write> {
 
 	writer: Shared<W>,
 
-	#[cfg(feature = "crc")]
+	send_buf: Buffer,
+
 	pub crc: crate::crc::Crc,
 }
 
@@ -22,7 +23,8 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 			_p: PhantomData,
 			writer,
 
-			#[cfg(feature = "crc")]
+			send_buf: Buffer::with_size(Header::SIZE),
+
 			crc: Default::default(),
 		}
 	}
@@ -42,20 +44,30 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 
 		let data = packet::serialize(&data)?;
 
-		let mut header = Header::default();
+		let mut hdr = Header::new(&mut self.send_buf);
 
-		header.payload_len = data_length as u16;
+		hdr.set_protocol_version(PROTOCOL_VERSION);
+		hdr.set_payload_len(data.len() as u16);
 
-		#[cfg(feature = "crc")]
 		{
-			header.payload_checksum = self.crc.checksum16(&data);
-		}
+			let mut digest = self.crc.crc16.digest();
 
-		let header = packet::serialize(&header)?;
+			digest.update(hdr.set_protocol_version(PROTOCOL_VERSION));
+			digest.update(hdr.set_header_checksum(0));
+			digest.update(hdr.set_payload_len(data.len() as u16));
+
+			if cfg!(feature = "crc") {
+				digest.update(hdr.set_payload_checksum(self.crc.crc16.checksum(&data)));
+			} else {
+				digest.update(hdr.set_payload_checksum(0));
+			}
+
+			hdr.set_header_checksum(digest.finalize());
+		}
 
 		let writer = self.writer.get();
 
-		writer.write_all(&[header, data].concat())?;
+		writer.write_all(&[hdr.get(), &data].concat())?;
 
 		Ok(())
 	}

@@ -11,13 +11,10 @@ use crate::packet::{self, Header};
 /// See [crate-level documentation](crate).
 pub struct Receiver<T: DeserializeOwned, R: Read> {
 	_p: PhantomData<T>,
-
 	reader: Shared<R>,
-
 	recv_buf: Buffer,
-	msg_header: Option<Header>,
+	header_read: bool,
 
-	#[cfg(feature = "crc")]
 	pub crc: crate::crc::Crc,
 }
 
@@ -25,11 +22,10 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 	pub(crate) fn new(reader: Shared<R>) -> Self {
 		Self {
 			_p: PhantomData,
-			recv_buf: Buffer::with_size(packet::MAX_PACKET_SIZE as usize),
-			msg_header: None,
 			reader,
+			recv_buf: Buffer::with_size(packet::MAX_PACKET_SIZE as usize),
+			header_read: false,
 
-			#[cfg(feature = "crc")]
 			crc: Default::default(),
 		}
 	}
@@ -50,31 +46,49 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 	pub fn recv(&mut self) -> Result<T> {
 		let reader = self.reader.get();
 
-		if self.msg_header.is_none() {
+		if !self.header_read {
 			self.recv_buf.from_reader(&mut *reader, Header::SIZE)?;
+			self.recv_buf.set_pos(0)?;
 
-			let header: Header = packet::deserialize(&self.recv_buf.buffer()[..Header::SIZE])?;
+			#[allow(unused_mut)]
+			let mut hdr = Header::new(&mut self.recv_buf[..Header::SIZE]);
 
-			// This is here to reset the state in case we don't pass the checks bellow.
-			self.recv_buf
-				.set_pos(0)
-				.expect("set_pos(0) failed. it should not have failed");
-
-			if header.protocol_version != packet::PROTOCOL_VERSION {
+			// verify protocol
+			if hdr.protocol_version() != packet::PROTOCOL_VERSION {
 				return Err(Error::VersionMismatch);
 			}
 
-			self.msg_header = Some(header);
+			// verify header
+			{
+				let hdr_chksum = hdr.header_checksum();
+				hdr.set_header_checksum(0);
+
+				if hdr_chksum != self.crc.crc16.checksum(hdr.get()) {
+					return Err(Error::ChecksumError);
+				}
+			}
+
+			self.header_read = true;
+			self.recv_buf.set_pos(Header::SIZE)?;
 		}
 
-		if let Some(header) = &self.msg_header {
-			self.recv_buf
-				.from_reader(&mut *reader, header.payload_len as usize)?;
+		if self.header_read {
+			let mut hdr_buf = self.recv_buf[..Header::SIZE].to_vec();
+			let hdr = Header::new(&mut hdr_buf);
 
-			let serialized_data = &self.recv_buf.buffer()[..header.payload_len as usize];
+			if hdr.payload_len() > packet::MAX_PAYLOAD_SIZE {
+				return Err(Error::DataTooLarge);
+			}
+
+			let payload_start = self.recv_buf.pos();
+			self.recv_buf
+				.from_reader(&mut *reader, hdr.payload_len() as usize)?;
+
+			let serialized_data =
+				&self.recv_buf[payload_start..(payload_start + hdr.payload_len() as usize)];
 
 			#[cfg(feature = "crc")]
-			if self.crc.checksum16(&serialized_data) != header.payload_checksum {
+			if self.crc.crc16.checksum(&serialized_data) != hdr.payload_checksum() {
 				return Err(Error::ChecksumError);
 			}
 
@@ -82,7 +96,7 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 
 			// reset state
 			self.recv_buf.set_pos(0)?;
-			self.msg_header = None;
+			self.header_read = false;
 
 			return Ok(data);
 		}
