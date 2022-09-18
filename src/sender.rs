@@ -46,24 +46,19 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 
 		let mut hdr = Header::new(&mut self.send_buf);
 
-		hdr.set_protocol_version(PROTOCOL_VERSION);
-		hdr.set_payload_len(data.len() as u16);
+		let mut digest = self.crc.crc16.digest();
 
-		{
-			let mut digest = self.crc.crc16.digest();
+		digest.update(hdr.set_protocol_version(PROTOCOL_VERSION));
+		digest.update(hdr.set_header_checksum(0));
+		digest.update(hdr.set_payload_len(data.len() as u16));
 
-			digest.update(hdr.set_protocol_version(PROTOCOL_VERSION));
-			digest.update(hdr.set_header_checksum(0));
-			digest.update(hdr.set_payload_len(data.len() as u16));
-
-			if cfg!(feature = "crc") {
-				digest.update(hdr.set_payload_checksum(self.crc.crc16.checksum(&data)));
-			} else {
-				digest.update(hdr.set_payload_checksum(0));
-			}
-
-			hdr.set_header_checksum(digest.finalize());
+		if cfg!(feature = "crc") {
+			digest.update(hdr.set_payload_checksum(self.crc.crc16.checksum(&data)));
+		} else {
+			digest.update(hdr.set_payload_checksum(0));
 		}
+
+		hdr.set_header_checksum(digest.finalize());
 
 		let writer = self.writer.get();
 

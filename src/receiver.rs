@@ -72,8 +72,13 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 		}
 
 		if self.header_read {
-			let mut hdr_buf = self.recv_buf[..Header::SIZE].to_vec();
-			let hdr = Header::new(&mut hdr_buf);
+			let hdr = Header::new(unsafe {
+				let ptr_range = self.recv_buf[..Header::SIZE].as_mut_ptr_range();
+				std::slice::from_raw_parts_mut(
+					ptr_range.start,
+					ptr_range.end as usize - ptr_range.start as usize,
+				)
+			}); // this is safe because Header only ever touches the first Header::SIZE bytes
 
 			if hdr.get_payload_len() > packet::MAX_PAYLOAD_SIZE {
 				return Err(Error::DataTooLarge);
