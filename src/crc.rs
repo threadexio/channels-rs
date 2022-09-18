@@ -5,7 +5,7 @@
 //! algorithm refer back to the [`crc`](https://crates.io/crates/crc) crate.
 //!
 //! # Example
-//! ```rust
+//! ```no_test
 //! fn main() {
 //! 	let (mut tx, mut rx) = ...;
 //!

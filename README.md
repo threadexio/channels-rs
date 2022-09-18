@@ -4,7 +4,6 @@
 [version-badge]: https://img.shields.io/crates/v/channels?style=for-the-badge
 [downloads-badge]: https://img.shields.io/crates/d/channels?style=for-the-badge
 
-
 # **channels-rs**
 
 [![license-badge]][crates-io]
@@ -16,7 +15,9 @@
 Anything you might need can be found over at the documentation @ [docs.rs](https://docs.rs/channels)
 
 # Examples
+
 Simple echo server:
+
 ```rust
 use std::io;
 use std::net::TcpListener;
@@ -42,6 +43,7 @@ use channels;
 ```
 
 Simple echo client:
+
 ```rust
 use std::io;
 use std::net::TcpStream;
@@ -56,6 +58,6 @@ fn main() -> io::Result<()> {
 
 		assert_eq!(received_data, 1337_i32);
 
- 	Ok(())
+	Ok(())
 }
 ```

@@ -21,59 +21,53 @@
 //! # Examples
 //!
 //! Simple echo server:
-//! ```rust
+//! ```no_run
 //! use std::io;
 //! use std::net::TcpListener;
 //!
-//! use channels;
-//!
-//!	fn main() -> io::Result<()> {
-//!		let listener = TcpListener::bind("0.0.0.0:1337")?;
+//!	fn main() {
+//!		let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
 //!
 //!		loop {
-//!			let (stream, _) = listener.accept()?;
+//!			let (stream, _) = listener.accept().unwrap();
 //!			let (mut tx, mut rx) = channels::channel::<i32, _>(stream);
 //!
-//!			let client_data = rx.recv()?;
+//!			let client_data = rx.recv().unwrap();
 //!
 //!			println!("Client sent: {}", client_data);
 //!
-//!			tx.send(client_data)?;
+//!			tx.send(client_data).unwrap();
 //!		}
-//!
-//! 	Ok(())
 //! }
 //! ```
 //!
 //! Simple echo client:
-//! ```rust
+//! ```no_run
 //! use std::io;
 //! use std::net::TcpStream;
 //!
-//! fn main() -> io::Result<()> {
-//!		let stream = TcpStream::connect("127.0.0.1:1337")?;
+//! fn main() {
+//!		let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
 //!		let (mut tx, mut rx) = channels::channel::<i32, _>(stream);
 //!
-//!		tx.send(1337_i32)?;
+//!		tx.send(1337_i32).unwrap();
 //!
-//!		let received_data = rx.recv()?;
+//!		let received_data = rx.recv().unwrap();
 //!
 //!		assert_eq!(received_data, 1337_i32);
-//!
-//! 	Ok(())
 //! }
 //! ```
 //!
 //! Multi-threaded echo server:
-//! ```rust
+//! ```no_run
 //! use std::io;
 //! use std::net::TcpListener;
 //!
-//!	fn main() -> io::Result<()> {
-//!		let listener = TcpListener::bind("0.0.0.0:1337")?;
+//!	fn main() {
+//!		let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
 //!
 //!		loop {
-//!			let (stream, _) = listener.accept()?;
+//!			let (stream, _) = listener.accept().unwrap();
 //!
 //! 		std::thread::spawn(move || {
 //! 			let (mut tx, mut rx) = channels::channel::<i32, _>(stream);
@@ -87,18 +81,16 @@
 //! 			}
 //! 		});
 //!		}
-//!
-//! 	Ok(())
 //! }
 //! ```
 //!
 //! Send/Recv with 2 threads:
-//! ```rust
+//! ```no_run
 //! use std::io;
 //!	use std::net::TcpStream;
 //!
-//!	fn main() -> io::Result<()> {
-//!		let stream = TcpStream::connect("127.0.0.1:1337")?;
+//!	fn main() {
+//!		let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
 //!		let (mut tx, mut rx) = channels::channel::<i32, _>(stream);
 //!
 //!		// Receiving thread
@@ -117,8 +109,6 @@
 //!
 //!		recv_thread.join().unwrap();
 //!		send_thread.join().unwrap();
-//!
-//!		Ok(())
 //!	}
 //! ```
 
@@ -150,13 +140,24 @@ pub use sender::Sender;
 mod receiver;
 pub use receiver::Receiver;
 
-mod crc;
+pub mod crc;
 
 use prelude::*;
 
 use shared::*;
 
-/// A simple type that combines Read and Write.
+/// A simple type that combines 2 separate Read and Write endpoint into a single endpoint.
+///
+/// # Example
+/// ```no_run
+/// use std::io::{stdin, stdout};
+///
+/// fn main() {
+/// 	let adapter = channels::RwAdapter::new(stdin().lock(), stdout().lock());
+///
+/// 	let (mut tx, mut rx) = channels::channel::<i32, _>(adapter);
+/// }
+/// ```
 pub struct RwAdapter<R: Read, W: Write>(R, W);
 
 impl<R: Read, W: Write> RwAdapter<R, W> {
@@ -191,4 +192,23 @@ pub fn channel<T: Serialize + DeserializeOwned, Rw: Read + Write>(
 		Sender::<T, Rw>::new(shared_stream.clone()),
 		Receiver::<T, Rw>::new(shared_stream),
 	)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_header_marco() {
+		let mut buf = vec![0u8; packet::Header::SIZE + 42];
+		let buf_ptr = buf.as_ptr();
+
+		let mut header = packet::Header::new(&mut buf);
+
+		assert_eq!(header.get().as_ptr(), buf_ptr);
+
+		assert_eq!(header.set_payload_checksum(42), u16::to_be_bytes(42));
+
+		assert_eq!(header.get_payload_checksum(), 42);
+	}
 }

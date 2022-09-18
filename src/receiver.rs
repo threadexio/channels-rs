@@ -50,17 +50,16 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 			self.recv_buf.from_reader(&mut *reader, Header::SIZE)?;
 			self.recv_buf.set_pos(0)?;
 
-			#[allow(unused_mut)]
 			let mut hdr = Header::new(&mut self.recv_buf[..Header::SIZE]);
 
 			// verify protocol
-			if hdr.protocol_version() != packet::PROTOCOL_VERSION {
+			if hdr.get_protocol_version() != packet::PROTOCOL_VERSION {
 				return Err(Error::VersionMismatch);
 			}
 
 			// verify header
 			{
-				let hdr_chksum = hdr.header_checksum();
+				let hdr_chksum = hdr.get_header_checksum();
 				hdr.set_header_checksum(0);
 
 				if hdr_chksum != self.crc.crc16.checksum(hdr.get()) {
@@ -76,20 +75,21 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 			let mut hdr_buf = self.recv_buf[..Header::SIZE].to_vec();
 			let hdr = Header::new(&mut hdr_buf);
 
-			if hdr.payload_len() > packet::MAX_PAYLOAD_SIZE {
+			if hdr.get_payload_len() > packet::MAX_PAYLOAD_SIZE {
 				return Err(Error::DataTooLarge);
 			}
 
 			let payload_start = self.recv_buf.pos();
 			self.recv_buf
-				.from_reader(&mut *reader, hdr.payload_len() as usize)?;
+				.from_reader(&mut *reader, hdr.get_payload_len() as usize)?;
 
 			let serialized_data =
-				&self.recv_buf[payload_start..(payload_start + hdr.payload_len() as usize)];
+				&self.recv_buf[payload_start..(payload_start + hdr.get_payload_len() as usize)];
 
-			#[cfg(feature = "crc")]
-			if self.crc.crc16.checksum(&serialized_data) != hdr.payload_checksum() {
-				return Err(Error::ChecksumError);
+			if cfg!(feature = "crc") {
+				if self.crc.crc16.checksum(&serialized_data) != hdr.get_payload_checksum() {
+					return Err(Error::ChecksumError);
+				}
 			}
 
 			let data = packet::deserialize(serialized_data)?;
