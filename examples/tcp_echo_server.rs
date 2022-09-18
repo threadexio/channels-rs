@@ -6,7 +6,8 @@ fn main() {
 	let listener = TcpListener::bind("0.0.0.0:8080").unwrap();
 
 	for connection in listener.incoming().filter_map(|x| x.ok()) {
-		let (mut tx, mut rx) = channels::channel::<i32, _>(connection);
+		let (mut tx, mut rx) =
+			channels::channel::<i32, _>(connection);
 
 		loop {
 			let received = match rx.recv() {

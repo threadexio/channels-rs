@@ -18,7 +18,9 @@ pub fn serialized_size<T: Serialize>(data: &T) -> Result<u64> {
 	Ok(bincode!().serialized_size(data)?)
 }
 
-pub fn deserialize<T: DeserializeOwned>(ser_data: &[u8]) -> Result<T> {
+pub fn deserialize<T: DeserializeOwned>(
+	ser_data: &[u8],
+) -> Result<T> {
 	Ok(bincode!().deserialize(ser_data)?)
 }
 
@@ -94,7 +96,8 @@ macro_rules! header {
 }
 
 pub const MAX_PACKET_SIZE: u16 = u16::MAX;
-pub const MAX_PAYLOAD_SIZE: u16 = MAX_PACKET_SIZE - Header::SIZE as u16;
+pub const MAX_PAYLOAD_SIZE: u16 =
+	MAX_PACKET_SIZE - Header::SIZE as u16;
 
 pub const PROTOCOL_VERSION: u16 = 0;
 

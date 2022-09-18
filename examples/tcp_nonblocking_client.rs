@@ -18,22 +18,22 @@ fn main() {
 				channels::Error::VersionMismatch => {
 					eprintln!("client uses wrong version");
 					break;
-				}
+				},
 				channels::Error::ChecksumError => {
 					eprintln!("packet checksum does not match. discarding...");
 					continue;
-				}
+				},
 				channels::Error::Io(e) => match e.kind() {
 					ErrorKind::WouldBlock => continue,
 					_ => {
 						eprintln!("{}", e);
 						break;
-					}
+					},
 				},
 				e => {
 					eprintln!("{}", e);
 					continue;
-				}
+				},
 			},
 			Ok(v) => println!("Received: {}", v),
 		}

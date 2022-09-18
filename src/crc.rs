@@ -17,7 +17,8 @@
 //! ```
 
 /// Default CRC16 algorithm
-pub const CRC16: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_GSM);
+pub const CRC16: crc::Crc<u16> =
+	crc::Crc::<u16>::new(&crc::CRC_16_GSM);
 
 pub struct Crc {
 	pub crc16: crc::Crc<u16>,

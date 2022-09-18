@@ -23,7 +23,9 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 		Self {
 			_p: PhantomData,
 			reader,
-			recv_buf: Buffer::with_size(packet::MAX_PACKET_SIZE as usize),
+			recv_buf: Buffer::with_size(
+				packet::MAX_PACKET_SIZE as usize,
+			),
 			header_read: false,
 
 			crc: Default::default(),
@@ -50,10 +52,12 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 			self.recv_buf.from_reader(&mut *reader, Header::SIZE)?;
 			self.recv_buf.set_pos(0)?;
 
-			let mut hdr = Header::new(&mut self.recv_buf[..Header::SIZE]);
+			let mut hdr =
+				Header::new(&mut self.recv_buf[..Header::SIZE]);
 
 			// verify protocol
-			if hdr.get_protocol_version() != packet::PROTOCOL_VERSION {
+			if hdr.get_protocol_version() != packet::PROTOCOL_VERSION
+			{
 				return Err(Error::VersionMismatch);
 			}
 
@@ -73,7 +77,8 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 
 		if self.header_read {
 			let hdr = Header::new(unsafe {
-				let ptr_range = self.recv_buf[..Header::SIZE].as_mut_ptr_range();
+				let ptr_range =
+					self.recv_buf[..Header::SIZE].as_mut_ptr_range();
 				std::slice::from_raw_parts_mut(
 					ptr_range.start,
 					ptr_range.end as usize - ptr_range.start as usize,
@@ -85,14 +90,18 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 			}
 
 			let payload_start = self.recv_buf.pos();
-			self.recv_buf
-				.from_reader(&mut *reader, hdr.get_payload_len() as usize)?;
+			self.recv_buf.from_reader(
+				&mut *reader,
+				hdr.get_payload_len() as usize,
+			)?;
 
-			let serialized_data =
-				&self.recv_buf[payload_start..(payload_start + hdr.get_payload_len() as usize)];
+			let serialized_data = &self.recv_buf[payload_start
+				..(payload_start + hdr.get_payload_len() as usize)];
 
 			if cfg!(feature = "crc") {
-				if self.crc.crc16.checksum(&serialized_data) != hdr.get_payload_checksum() {
+				if self.crc.crc16.checksum(&serialized_data)
+					!= hdr.get_payload_checksum()
+				{
 					return Err(Error::ChecksumError);
 				}
 			}

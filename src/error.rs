@@ -15,13 +15,18 @@ pub enum Error {
 }
 
 impl std::fmt::Display for Error {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+	fn fmt(
+		&self,
+		f: &mut std::fmt::Formatter<'_>,
+	) -> std::fmt::Result {
 		use Error::*;
 
 		match self {
 			VersionMismatch => write!(f, "version mismatch"),
 			ChecksumError => write!(f, "checksum did not match"),
-			DataTooLarge => write!(f, "data bigger than max packet size"),
+			DataTooLarge => {
+				write!(f, "data bigger than max packet size")
+			},
 			DataError(e) => write!(f, "data error: {}", e),
 			Io(e) => write!(f, "io error: {}", e),
 		}

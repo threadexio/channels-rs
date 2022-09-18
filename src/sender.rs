@@ -53,7 +53,9 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 		digest.update(hdr.set_payload_len(data.len() as u16));
 
 		if cfg!(feature = "crc") {
-			digest.update(hdr.set_payload_checksum(self.crc.crc16.checksum(&data)));
+			digest.update(hdr.set_payload_checksum(
+				self.crc.crc16.checksum(&data),
+			));
 		} else {
 			digest.update(hdr.set_payload_checksum(0));
 		}

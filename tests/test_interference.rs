@@ -38,11 +38,7 @@ fn test_interference() {
 
 	let (mut tx, mut rx) = channels::channel::<Data, _>(s);
 
-	let d = Data {
-		a: 42,
-		b: 9999,
-		c: String::from("test str"),
-	};
+	let d = Data { a: 42, b: 9999, c: String::from("test str") };
 
 	tx.send(d.clone()).unwrap();
 

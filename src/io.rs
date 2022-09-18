@@ -8,10 +8,7 @@ pub struct Buffer {
 #[allow(dead_code)]
 impl Buffer {
 	pub fn with_size(s: usize) -> Self {
-		Self {
-			inner: vec![0u8; s],
-			cursor: 0,
-		}
+		Self { inner: vec![0u8; s], cursor: 0 }
 	}
 
 	pub fn pos(&self) -> usize {
@@ -28,7 +25,11 @@ impl Buffer {
 	}
 
 	/// Read `l` bytes from `rdr` starting at `pos()`
-	pub fn from_reader<R: Read>(&mut self, rdr: &mut R, l: usize) -> Result<usize> {
+	pub fn from_reader<R: Read>(
+		&mut self,
+		rdr: &mut R,
+		l: usize,
+	) -> Result<usize> {
 		let start = self.cursor;
 		let end = self.cursor + l;
 
@@ -40,7 +41,9 @@ impl Buffer {
 			let i = rdr.read(&mut self.inner[self.cursor..end])?;
 
 			if i == 0 {
-				return Err(Error::Io(io::Error::from(io::ErrorKind::UnexpectedEof)));
+				return Err(Error::Io(io::Error::from(
+					io::ErrorKind::UnexpectedEof,
+				)));
 			}
 
 			self.cursor += i;
@@ -50,7 +53,11 @@ impl Buffer {
 	}
 
 	/// Read `l` bytes to `wtr` starting at `pos()`
-	pub fn to_writer<W: Write>(&mut self, wtr: &mut W, l: usize) -> Result<usize> {
+	pub fn to_writer<W: Write>(
+		&mut self,
+		wtr: &mut W,
+		l: usize,
+	) -> Result<usize> {
 		let start = self.cursor;
 		let end = self.cursor + l;
 
@@ -62,7 +69,9 @@ impl Buffer {
 			let i = wtr.write(&self.inner[self.cursor..end])?;
 
 			if i == 0 {
-				return Err(Error::Io(io::Error::from(io::ErrorKind::UnexpectedEof)));
+				return Err(Error::Io(io::Error::from(
+					io::ErrorKind::UnexpectedEof,
+				)));
 			}
 
 			self.cursor += i;

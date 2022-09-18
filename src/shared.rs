@@ -11,9 +11,7 @@ pub struct Inner<T> {
 
 impl<T> Inner<T> {
 	pub fn new(stream: T) -> Self {
-		Self {
-			data: UnsafeCell::new(stream),
-		}
+		Self { data: UnsafeCell::new(stream) }
 	}
 
 	pub fn get(&self) -> &mut T {

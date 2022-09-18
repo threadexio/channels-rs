@@ -207,7 +207,10 @@ mod tests {
 
 		assert_eq!(header.get().as_ptr(), buf_ptr);
 
-		assert_eq!(header.set_payload_checksum(42), u16::to_be_bytes(42));
+		assert_eq!(
+			header.set_payload_checksum(42),
+			u16::to_be_bytes(42)
+		);
 
 		assert_eq!(header.get_payload_checksum(), 42);
 	}
