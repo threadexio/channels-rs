@@ -10,14 +10,17 @@ macro_rules! bincode {
 	};
 }
 
+#[inline]
 pub fn serialize<T: Serialize>(data: &T) -> Result<Vec<u8>> {
 	Ok(bincode!().serialize(&data)?)
 }
 
+#[inline]
 pub fn serialized_size<T: Serialize>(data: &T) -> Result<u64> {
 	Ok(bincode!().serialized_size(data)?)
 }
 
+#[inline]
 pub fn deserialize<T: DeserializeOwned>(
 	ser_data: &[u8],
 ) -> Result<T> {
@@ -54,7 +57,7 @@ macro_rules! header {
 	(
 		// field offset          field name         field type
 		//
-		$($field_offset:literal => $field_name:ident: $field_type:ty { s $(= $ser_fn:expr)?, d $(= $de_fn:expr)? },)*
+		$($field_offset:expr => $field_name:ident: $field_type:ty { s $(= $ser_fn:expr)?, d $(= $de_fn:expr)? },)*
 	) => {
 		pub struct Header<'a> {
 			pub buffer: &'a mut [u8],

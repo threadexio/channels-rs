@@ -28,20 +28,17 @@ fn test_transport() {
 		tx.send(d).unwrap();
 	});
 
-	let b = spawn(|| {
-		sleep(std::time::Duration::from_millis(500));
+	sleep(std::time::Duration::from_millis(500));
 
-		let s = TcpStream::connect("127.0.0.42:9999").unwrap();
+	let s = TcpStream::connect("127.0.0.42:9999").unwrap();
 
-		let (mut tx, mut rx) = channels::channel::<Data, _>(s);
+	let (mut tx, mut rx) = channels::channel::<Data, _>(s);
 
-		let d = Data { a: 42, b: 9999, c: String::from("test str") };
+	let d = Data { a: 42, b: 9999, c: String::from("test str") };
 
-		tx.send(d.clone()).unwrap();
+	tx.send(d.clone()).unwrap();
 
-		assert_eq!(rx.recv().unwrap(), d);
-	});
+	assert_eq!(rx.recv().unwrap(), d);
 
 	a.join().unwrap();
-	b.join().unwrap();
 }

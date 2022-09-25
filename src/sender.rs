@@ -12,7 +12,7 @@ pub struct Sender<T: Serialize, W: Write> {
 
 	writer: Shared<W>,
 
-	send_buf: Buffer,
+	header_buf: Buffer,
 
 	pub crc: crate::crc::Crc,
 }
@@ -23,7 +23,7 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 			_p: PhantomData,
 			writer,
 
-			send_buf: Buffer::with_size(Header::SIZE),
+			header_buf: Buffer::with_size(Header::SIZE),
 
 			crc: Default::default(),
 		}
@@ -39,12 +39,12 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 		let data_length = packet::serialized_size(&data)?;
 
 		if data_length > packet::MAX_PAYLOAD_SIZE.into() {
-			return Err(Error::DataTooLarge);
+			return Err(Error::SizeLimit);
 		}
 
 		let data = packet::serialize(&data)?;
 
-		let mut hdr = Header::new(&mut self.send_buf);
+		let mut hdr = Header::new(self.header_buf.inner_mut());
 
 		let mut digest = self.crc.crc16.digest();
 

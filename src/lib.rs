@@ -146,6 +146,18 @@ use prelude::*;
 
 use shared::*;
 
+/// Creates a new channel, returning the sender/receiver. This is the same as [`std::sync::mpsc::channel()`](std::sync::mpsc::channel).
+pub fn channel<T: Serialize + DeserializeOwned, Rw: Read + Write>(
+	s: Rw,
+) -> (Sender<T, Rw>, Receiver<T, Rw>) {
+	let shared_stream = Outer::new(Inner::new(s));
+
+	(
+		Sender::<T, Rw>::new(shared_stream.clone()),
+		Receiver::<T, Rw>::new(shared_stream),
+	)
+}
+
 /// A simple type that combines 2 separate Read and Write endpoint into a single endpoint.
 ///
 /// # Example
@@ -180,18 +192,6 @@ impl<R: Read, W: Write> Write for RwAdapter<R, W> {
 	fn flush(&mut self) -> std::io::Result<()> {
 		self.1.flush()
 	}
-}
-
-/// Creates a new channel, returning the sender/receiver. This is the same as [`std::sync::mpsc::channel()`](std::sync::mpsc::channel).
-pub fn channel<T: Serialize + DeserializeOwned, Rw: Read + Write>(
-	s: Rw,
-) -> (Sender<T, Rw>, Receiver<T, Rw>) {
-	let shared_stream = Outer::new(Inner::new(s));
-
-	(
-		Sender::<T, Rw>::new(shared_stream.clone()),
-		Receiver::<T, Rw>::new(shared_stream),
-	)
 }
 
 #[cfg(test)]

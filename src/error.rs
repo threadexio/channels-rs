@@ -7,9 +7,9 @@ pub enum Error {
 	VersionMismatch,
 	ChecksumError,
 
-	DataTooLarge, // data size
+	SizeLimit,
 
-	DataError(bincode::Error),
+	Serde(bincode::Error),
 
 	Io(io::Error),
 }
@@ -24,10 +24,14 @@ impl std::fmt::Display for Error {
 		match self {
 			VersionMismatch => write!(f, "version mismatch"),
 			ChecksumError => write!(f, "checksum did not match"),
-			DataTooLarge => {
-				write!(f, "data bigger than max packet size")
+			SizeLimit => {
+				write!(
+					f,
+					"data exceeded max size ({})",
+					crate::packet::MAX_PAYLOAD_SIZE
+				)
 			},
-			DataError(e) => write!(f, "data error: {}", e),
+			Serde(e) => write!(f, "data error: {}", e),
 			Io(e) => write!(f, "io error: {}", e),
 		}
 	}
@@ -46,8 +50,8 @@ impl From<bincode::Error> for Error {
 		use bincode::ErrorKind;
 		match *e {
 			ErrorKind::Io(e) => Self::Io(e),
-			ErrorKind::SizeLimit => Self::DataTooLarge,
-			_ => Self::DataError(e),
+			ErrorKind::SizeLimit => Self::SizeLimit,
+			_ => Self::Serde(e),
 		}
 	}
 }

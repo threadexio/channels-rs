@@ -15,12 +15,27 @@ impl Buffer {
 		self.cursor
 	}
 
-	pub fn set_pos(&mut self, p: usize) -> Result<()> {
-		if p >= self.capacity() {
-			Err(Error::DataTooLarge)
-		} else {
+	pub fn len(&self) -> usize {
+		self.inner.len()
+	}
+
+	pub fn into_inner(self) -> Vec<u8> {
+		self.inner
+	}
+
+	pub fn inner(&self) -> &[u8] {
+		&self.inner
+	}
+
+	pub fn inner_mut(&mut self) -> &mut [u8] {
+		&mut self.inner
+	}
+
+	pub fn set_pos(&mut self, p: usize) {
+		if p < self.len() {
 			self.cursor = p;
-			Ok(())
+		} else {
+			panic!()
 		}
 	}
 
@@ -33,12 +48,19 @@ impl Buffer {
 		let start = self.cursor;
 		let end = self.cursor + l;
 
-		if end >= self.capacity() {
-			return Err(Error::DataTooLarge);
+		if end > self.len() {
+			return Err(Error::SizeLimit);
 		}
 
 		while end - self.cursor > 0 {
-			let i = rdr.read(&mut self.inner[self.cursor..end])?;
+			let i = match rdr.read(&mut self.inner[self.cursor..end])
+			{
+				Ok(v) => v,
+				Err(e) => match e.kind() {
+					io::ErrorKind::Interrupted => continue,
+					_ => return Err(e.into()),
+				},
+			};
 
 			if i == 0 {
 				return Err(Error::Io(io::Error::from(
@@ -61,12 +83,18 @@ impl Buffer {
 		let start = self.cursor;
 		let end = self.cursor + l;
 
-		if end >= self.capacity() {
-			return Err(Error::DataTooLarge);
+		if end > self.len() {
+			return Err(Error::SizeLimit);
 		}
 
 		while end - self.cursor > 0 {
-			let i = wtr.write(&self.inner[self.cursor..end])?;
+			let i = match wtr.write(&self.inner[self.cursor..end]) {
+				Ok(v) => v,
+				Err(e) => match e.kind() {
+					io::ErrorKind::Interrupted => continue,
+					_ => return Err(e.into()),
+				},
+			};
 
 			if i == 0 {
 				return Err(Error::Io(io::Error::from(
@@ -78,19 +106,5 @@ impl Buffer {
 		}
 
 		Ok(self.cursor - start)
-	}
-}
-
-impl std::ops::Deref for Buffer {
-	type Target = Vec<u8>;
-
-	fn deref(&self) -> &Self::Target {
-		&self.inner
-	}
-}
-
-impl std::ops::DerefMut for Buffer {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.inner
 	}
 }
