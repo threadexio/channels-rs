@@ -1,5 +1,114 @@
-use crate::prelude::*;
+#[inline]
+fn read_offset<T>(buf: &[u8], offset: usize) -> T {
+	unsafe { buf.as_ptr().add(offset).cast::<T>().read() }
+}
 
+#[inline]
+fn write_offset<T>(buf: &mut [u8], offset: usize, value: T) {
+	unsafe {
+		buf.as_mut_ptr().add(offset).cast::<T>().write(value);
+	}
+}
+
+macro_rules! packet {
+	(
+		$(#[$pkt_attr:meta])*
+		$pkt_name:ident {$(
+		$offset:literal @ $name:ident : $typ:ty {
+			ser = ($ser_fn:expr);
+			de = ($de_fn:expr);
+			$(get = ($getter_vis:vis);)?
+			$(set = ($setter_vis:vis);)?
+		},
+	)*}) => {
+		#[derive(Debug)]
+		$(#[$pkt_attr])*
+		pub struct $pkt_name {
+			inner: Box<[u8]>
+		}
+
+		#[allow(dead_code)]
+		impl $pkt_name {
+			pub const SIZE: usize = 0 $(+ ::std::mem::size_of::<$typ>())*;
+
+			pub fn new() -> Self {
+				Self {
+					inner: vec![0u8; Self::SIZE].into_boxed_slice()
+				}
+			}
+
+			#[inline]
+			pub fn raw(&self) -> &[u8] {
+				&self.inner
+			}
+
+			#[inline]
+			pub fn raw_mut(&mut self) -> &mut [u8] {
+				&mut self.inner
+			}
+
+			$(
+				concat_idents::concat_idents!(getter = get_, $name {
+					$($getter_vis)? fn getter(&self) -> $typ {
+						read_offset::<$typ>(&self.inner[..], $offset)
+					}
+				});
+
+				concat_idents::concat_idents!(setter = set_, $name {
+					$($setter_vis)? fn setter(&mut self, $name: $typ) -> &mut Self {
+						write_offset::<$typ>(&mut self.inner[..], $offset, $name);
+						self
+					}
+				});
+			)*
+		}
+	};
+}
+
+packet! {
+	Header {
+		0 @ version:  u16 { ser = (u16::to_be); de = (u16::from_be);                           }, // protocol version
+		2 @ id:       u16 { ser = (u16::to_be); de = (u16::from_be); get = (pub); set = (pub); }, // packet id
+		4 @ length:   u16 { ser = (u16::to_be); de = (u16::from_be); get = (pub); set = (pub); }, // data length
+		6 @ checksum: u16 { ser = (u16::to_be); de = (u16::from_be);                           }, // header checksum
+	}
+}
+
+pub const MAX_PACKET_SIZE: usize = u16::MAX as usize;
+pub const PROTOCOL_VERSION: u16 = 1;
+
+impl Header {
+	pub fn finalize(&mut self) -> &[u8] {
+		self.set_version(PROTOCOL_VERSION);
+		self.set_checksum(0);
+
+		let checksum = crate::crc::checksum(self.raw());
+		self.set_checksum(checksum);
+
+		self.raw()
+	}
+
+	pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+		let mut header =
+			Self { inner: Vec::from(bytes).into_boxed_slice() };
+
+		let unverified = header.get_checksum();
+		header.set_checksum(0);
+		let calculated = crate::crc::checksum(header.raw());
+
+		if unverified != calculated {
+			return Err(Error::ChecksumError);
+		}
+
+		if header.get_version() != PROTOCOL_VERSION {
+			return Err(Error::VersionMismatch);
+		}
+
+		Ok(header)
+	}
+}
+
+use bincode::Options;
 macro_rules! bincode {
 	() => {
 		bincode::options()
@@ -10,103 +119,55 @@ macro_rules! bincode {
 	};
 }
 
+use crate::error::*;
+
 #[inline]
-pub fn serialize<T: Serialize>(data: &T) -> Result<Vec<u8>> {
-	Ok(bincode!().serialize(&data)?)
+pub fn serialize<T: serde::Serialize>(data: &T) -> Result<Vec<u8>> {
+	Ok(bincode!().serialize(data)?)
 }
 
 #[inline]
-pub fn serialized_size<T: Serialize>(data: &T) -> Result<u64> {
-	Ok(bincode!().serialized_size(data)?)
-}
-
-#[inline]
-pub fn deserialize<T: DeserializeOwned>(
-	ser_data: &[u8],
+pub fn deserialize<T: serde::de::DeserializeOwned>(
+	data: &[u8],
 ) -> Result<T> {
-	Ok(bincode!().deserialize(ser_data)?)
+	Ok(bincode!().deserialize::<T>(data)?)
 }
 
-macro_rules! sizeof {
-	($t:ty) => {
-		(std::mem::size_of::<$t>())
-	};
-}
+#[cfg(test)]
+mod tests {
+	use super::*;
 
-macro_rules! read_offset {
-	($b:expr, $offset:expr, $type:ty) => {
-		unsafe { *($b.as_ptr().add($offset).cast::<$type>()) }
-	};
-	($b:expr, $offset:expr, $type:ty, $fn:expr) => {
-		$fn(read_offset!($b, $offset, $type))
-	};
-}
+	#[test]
+	fn test_read_offset() {
+		let buffer: &[u8] = &[0, 0, 0, 1];
 
-macro_rules! write_offset {
-	($b:expr, $offset:expr, $value:expr, $type:ty) => {
-		unsafe {
-			*($b.as_mut_ptr().add($offset).cast::<$type>()) = $value;
-		}
-	};
-	($b:expr, $offset:expr, $value:expr, $type:ty, $fn:expr) => {
-		write_offset!($b, $offset, $fn($value), $type)
-	};
-}
+		assert_eq!(read_offset::<u32>(buffer, 0), u32::to_be(1));
 
-macro_rules! header {
-	(
-		// field offset          field name         field type
-		//
-		$($field_offset:expr => $field_name:ident: $field_type:ty { s $(= $ser_fn:expr)?, d $(= $de_fn:expr)? },)*
-	) => {
-		pub struct Header<'a> {
-			pub buffer: &'a mut [u8],
-		}
+		let buffer: &[u8] = &[42, 23, 0, 0, 0, 1, 42, 42];
 
-		#[allow(dead_code)]
-		impl<'a> Header<'a> {
-			pub const SIZE: usize = 0 $( + sizeof!($field_type))*;
+		assert_eq!(read_offset::<u32>(buffer, 2), u32::to_be(1));
+	}
 
-			pub fn new(buffer: &'a mut [u8]) -> Self {
-				debug_assert!(buffer.len() >= Self::SIZE);
+	#[test]
+	fn test_write_offset() {
+		let buffer: &mut [u8] = &mut [0, 0, 0, 0];
 
-				Self {
-					buffer,
-				}
-			}
+		write_offset::<u32>(buffer, 0, u32::to_be(1));
+		assert_eq!(buffer, &[0, 0, 0, 1]);
 
-			pub fn get(&self) -> &[u8] {
-				&self.buffer
-			}
+		let buffer: &mut [u8] =
+			&mut [42, 23, 23, 212, 233, 35, 42, 42];
 
-			$(
-				concat_idents::concat_idents!(getter_name = get_, $field_name {
-					pub fn getter_name(&self) -> $field_type {
-						read_offset!(self.buffer, $field_offset, $field_type $(, $de_fn)?)
-					}
-				});
+		write_offset::<u32>(buffer, 2, u32::to_be(1));
+		assert_eq!(buffer, &[42, 23, 0, 0, 0, 1, 42, 42]);
+	}
 
-				concat_idents::concat_idents!(setter_name = set_, $field_name {
-					pub fn setter_name(&mut self, x: $field_type) -> &[u8] {
-						write_offset!(self.buffer, $field_offset, x, $field_type $(, $ser_fn)?);
-						&self.buffer[$field_offset..($field_offset + sizeof!($field_type))]
-					}
-				});
+	#[test]
+	fn test_header() {
+		let mut header = Header::new();
 
-			)*
-		}
-	};
-}
-
-pub const MAX_PACKET_SIZE: u16 = u16::MAX;
-pub const MAX_PAYLOAD_SIZE: u16 =
-	MAX_PACKET_SIZE - Header::SIZE as u16;
-
-pub const PROTOCOL_VERSION: u16 = 0;
-
-header! {
-	0 => protocol_version:	u16 {s = u16::to_be, d = u16::from_be},
-	2 => header_checksum:	u16 {s = u16::to_be, d = u16::from_be},
-	4 => payload_len:		u16 {s = u16::to_be, d = u16::from_be},
-	6 => payload_checksum:	u16 {s = u16::to_be, d = u16::from_be},
+		assert_eq!(header.get_checksum(), 0);
+		header.set_checksum(42);
+		assert_eq!(header.get_checksum(), 42);
+	}
 }

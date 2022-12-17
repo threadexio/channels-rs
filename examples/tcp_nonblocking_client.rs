@@ -1,14 +1,15 @@
 use std::net::TcpStream;
 use std::thread;
 
-use channels;
-
 fn main() {
 	let connection = TcpStream::connect("127.0.0.1:8081").unwrap();
 
-	let (mut tx, mut rx) = channels::channel::<i32, _>(connection);
+	let (mut tx, mut rx) = channels::channel::<i32, _, _>(
+		connection.try_clone().unwrap(),
+		connection,
+	);
 
-	tx.inner().set_nonblocking(true).unwrap();
+	tx.get_mut().set_nonblocking(true).unwrap();
 
 	let mut i = 0;
 	loop {

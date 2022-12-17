@@ -1,46 +1,37 @@
 use crate::prelude::*;
 
-use crate::io::Buffer;
-use crate::shared::*;
-
-use crate::packet::{self, Header};
-
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`](std::sync::mpsc::Receiver),
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
 pub struct Receiver<T: DeserializeOwned, R: Read> {
-	reader: Shared<R>,
 	_p: PhantomData<T>,
-
-	payload_buf: Buffer,
-
-	header_buf: Buffer,
-	header_read: bool,
-
-	pub crc: crate::crc::Crc,
+	reader: BufReader<R>,
+	header: Option<packet::Header>,
+	seq: u16,
 }
 
 impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
-	pub(crate) fn new(reader: Shared<R>) -> Self {
+	pub(crate) fn new(reader: R) -> Self {
 		Self {
 			_p: PhantomData,
-			reader,
-
-			payload_buf: Buffer::with_size(
-				packet::MAX_PAYLOAD_SIZE as usize,
+			reader: BufReader::with_capacity(
+				packet::MAX_PACKET_SIZE,
+				reader,
 			),
-
-			header_buf: Buffer::with_size(Header::SIZE),
-			header_read: false,
-
-			crc: Default::default(),
+			header: None,
+			seq: 1,
 		}
 	}
 
-	/// Get a handle to the underlying stream. Directly reading from the stream is not advised.
-	pub fn inner(&self) -> &mut R {
-		self.reader.get()
+	/// Get a handle to the underlying reader.
+	pub fn get(&self) -> &R {
+		self.reader.get_ref()
+	}
+
+	/// Get a handle to the underlying reader. Directly reading from the stream is not advised.
+	pub fn get_mut(&mut self) -> &mut R {
+		self.reader.get_mut()
 	}
 
 	/// Attempts to read an object from the sender end.
@@ -52,61 +43,58 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	pub fn recv(&mut self) -> Result<T> {
-		let reader = self.reader.get();
+		if self.header.is_none() {
+			let s = self.reader.fill_buf()?;
 
-		if !self.header_read {
-			self.header_buf
-				.from_reader(&mut *reader, Header::SIZE)?;
-			self.header_buf.set_pos(0);
-
-			let mut hdr = Header::new(self.header_buf.inner_mut());
-
-			// verify protocol
-			if hdr.get_protocol_version() != packet::PROTOCOL_VERSION
-			{
-				return Err(Error::VersionMismatch);
+			if s.is_empty() {
+				return Err(Error::Io(
+					io::ErrorKind::UnexpectedEof.into(),
+				));
 			}
 
-			let hdr_checksum = hdr.get_header_checksum();
-			hdr.set_header_checksum(0);
-
-			if hdr_checksum != self.crc.crc16.checksum(hdr.get()) {
-				return Err(Error::ChecksumError);
+			if s.len() < packet::Header::SIZE {
+				return Err(Error::Io(
+					io::ErrorKind::WouldBlock.into(),
+				));
 			}
 
-			self.header_read = true;
+			let header = packet::Header::from_bytes(
+				&s[0..packet::Header::SIZE],
+			)?;
+
+			if header.get_id() != self.seq {
+				return Err(Error::OutOfOrder);
+			}
+			self.seq = self.seq.wrapping_add(1);
+
+			self.header = Some(header);
+			self.reader.consume(packet::Header::SIZE);
 		}
 
-		if self.header_read {
-			let hdr = Header::new(self.header_buf.inner_mut());
+		if let Some(ref mut header) = self.header {
+			let s = self.reader.fill_buf()?;
 
-			let payload_len = hdr.get_payload_len();
-
-			if payload_len > packet::MAX_PAYLOAD_SIZE {
-				return Err(Error::SizeLimit);
+			if s.is_empty() {
+				return Err(Error::Io(
+					io::ErrorKind::UnexpectedEof.into(),
+				));
 			}
 
-			self.payload_buf
-				.from_reader(&mut *reader, payload_len as usize)?;
+			let data_len: usize = header.get_length().into();
 
-			let serialized_data =
-				&self.payload_buf.inner()[0..payload_len as usize];
-
-			if cfg!(feature = "crc") {
-				if self.crc.crc16.checksum(&serialized_data)
-					!= hdr.get_payload_checksum()
-				{
-					return Err(Error::ChecksumError);
-				}
+			if s.len() < data_len {
+				return Err(Error::Io(
+					io::ErrorKind::WouldBlock.into(),
+				));
 			}
 
-			let data = packet::deserialize(serialized_data)?;
+			let data_result =
+				packet::deserialize::<T>(&s[..data_len]);
 
-			// reset state
-			self.payload_buf.set_pos(0);
-			self.header_read = false;
+			self.header = None;
+			self.reader.consume(data_len);
 
-			return Ok(data);
+			return data_result;
 		}
 
 		unreachable!()

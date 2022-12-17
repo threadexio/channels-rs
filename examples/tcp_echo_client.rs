@@ -1,11 +1,12 @@
 use std::net::TcpStream;
 
-use channels;
-
 fn main() {
 	let connection = TcpStream::connect("127.0.0.1:8080").unwrap();
 
-	let (mut tx, mut rx) = channels::channel::<i32, _>(connection);
+	let (mut tx, mut rx) = channels::channel::<i32, _, _>(
+		connection.try_clone().unwrap(),
+		connection,
+	);
 
 	tx.send(69420).unwrap();
 

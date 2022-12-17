@@ -1,20 +1,19 @@
 use std::net::TcpListener;
 use std::thread;
 
-use channels;
-
 fn main() {
 	let listener = TcpListener::bind("0.0.0.0:8081").unwrap();
 
 	for connection in listener.incoming().filter_map(|x| x.ok()) {
-		let (mut tx, mut rx) =
-			channels::channel::<i32, _>(connection);
+		let (mut tx, mut rx) = channels::channel::<i32, _, _>(
+			connection.try_clone().unwrap(),
+			connection,
+		);
 
 		// receiving thread
 		thread::spawn(move || loop {
-			match rx.recv().unwrap() {
-				v => println!("Received: {}", v),
-			}
+			let v = rx.recv().unwrap();
+			println!("Received: {}", v);
 		});
 
 		// sending thread

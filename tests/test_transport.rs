@@ -17,9 +17,10 @@ fn test_transport() {
 
 		let (s, _) = listener.accept().unwrap();
 
-		let (mut tx, mut rx) = channels::channel::<Data, _>(s);
+		let (mut tx, mut rx) =
+			channels::channel(s.try_clone().unwrap(), s);
 
-		let d = rx.recv().unwrap();
+		let d: Data = rx.recv().unwrap();
 
 		assert_eq!(d.a, 42);
 		assert_eq!(d.b, 9999);
@@ -32,7 +33,8 @@ fn test_transport() {
 
 	let s = TcpStream::connect("127.0.0.42:9999").unwrap();
 
-	let (mut tx, mut rx) = channels::channel::<Data, _>(s);
+	let (mut tx, mut rx) =
+		channels::channel(s.try_clone().unwrap(), s);
 
 	let d = Data { a: 42, b: 9999, c: String::from("test str") };
 

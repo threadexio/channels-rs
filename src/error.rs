@@ -2,56 +2,17 @@ use std::io;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+	#[error("peer does not have the correct crate version")]
 	VersionMismatch,
+	#[error("corrupted data")]
 	ChecksumError,
+	#[error("data was received out of order")]
+	OutOfOrder,
 
-	SizeLimit,
-
-	Serde(bincode::Error),
-
-	Io(io::Error),
-}
-
-impl std::fmt::Display for Error {
-	fn fmt(
-		&self,
-		f: &mut std::fmt::Formatter<'_>,
-	) -> std::fmt::Result {
-		use Error::*;
-
-		match self {
-			VersionMismatch => write!(f, "version mismatch"),
-			ChecksumError => write!(f, "checksum did not match"),
-			SizeLimit => {
-				write!(
-					f,
-					"data exceeded max size ({})",
-					crate::packet::MAX_PAYLOAD_SIZE
-				)
-			},
-			Serde(e) => write!(f, "data error: {}", e),
-			Io(e) => write!(f, "io error: {}", e),
-		}
-	}
-}
-
-impl std::error::Error for Error {}
-
-impl From<io::Error> for Error {
-	fn from(e: io::Error) -> Self {
-		Self::Io(e)
-	}
-}
-
-impl From<bincode::Error> for Error {
-	fn from(e: bincode::Error) -> Self {
-		use bincode::ErrorKind;
-		match *e {
-			ErrorKind::Io(e) => Self::Io(e),
-			ErrorKind::SizeLimit => Self::SizeLimit,
-			_ => Self::Serde(e),
-		}
-	}
+	#[error(transparent)]
+	Serde(#[from] bincode::Error),
+	#[error(transparent)]
+	Io(#[from] io::Error),
 }

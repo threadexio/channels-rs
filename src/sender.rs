@@ -1,70 +1,49 @@
 use crate::prelude::*;
 
-use crate::packet::{self, Header, PROTOCOL_VERSION};
-use crate::shared::*;
-
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`](std::sync::mpsc::Sender),
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
 pub struct Sender<T: Serialize, W: Write> {
 	_p: PhantomData<T>,
-
-	writer: Shared<W>,
-
-	header_buf: Buffer,
-
-	pub crc: crate::crc::Crc,
+	writer: BufWriter<W>,
+	header: packet::Header,
 }
 
 impl<T: Serialize, W: Write> Sender<T, W> {
-	pub(crate) fn new(writer: Shared<W>) -> Self {
+	pub(crate) fn new(writer: W) -> Self {
 		Self {
 			_p: PhantomData,
-			writer,
-
-			header_buf: Buffer::with_size(Header::SIZE),
-
-			crc: Default::default(),
+			writer: BufWriter::with_capacity(
+				packet::MAX_PACKET_SIZE,
+				writer,
+			),
+			header: packet::Header::new(),
 		}
 	}
 
-	/// Get a handle to the underlying stream. Directly writing to the stream is not advised.
-	pub fn inner(&self) -> &mut W {
-		self.writer.get()
+	/// Get a handle to the underlying writer.
+	pub fn get(&self) -> &W {
+		self.writer.get_ref()
+	}
+
+	/// Get a handle to the underlying writer. Directly writing to the stream is not advised.
+	pub fn get_mut(&mut self) -> &mut W {
+		self.writer.get_mut()
 	}
 
 	/// Attempts to send an object through the data stream.
 	pub fn send(&mut self, data: T) -> Result<()> {
-		let data_length = packet::serialized_size(&data)?;
+		let raw_data = packet::serialize(&data)?;
 
-		if data_length > packet::MAX_PAYLOAD_SIZE.into() {
-			return Err(Error::SizeLimit);
-		}
+		self.header.set_length(raw_data.len().try_into().unwrap());
 
-		let data = packet::serialize(&data)?;
+		self.header.set_id(self.header.get_id().wrapping_add(1));
 
-		let mut hdr = Header::new(self.header_buf.inner_mut());
-
-		let mut digest = self.crc.crc16.digest();
-
-		digest.update(hdr.set_protocol_version(PROTOCOL_VERSION));
-		digest.update(hdr.set_header_checksum(0));
-		digest.update(hdr.set_payload_len(data.len() as u16));
-
-		if cfg!(feature = "crc") {
-			digest.update(hdr.set_payload_checksum(
-				self.crc.crc16.checksum(&data),
-			));
-		} else {
-			digest.update(hdr.set_payload_checksum(0));
-		}
-
-		hdr.set_header_checksum(digest.finalize());
-
-		let writer = self.writer.get();
-
-		writer.write_all(&[hdr.get(), &data].concat())?;
+		// these 2 `write()` calls fill up the entire buffer and we need to flush it
+		self.writer.write_all(self.header.finalize())?;
+		self.writer.write_all(&raw_data)?;
+		self.writer.flush()?;
 
 		Ok(())
 	}

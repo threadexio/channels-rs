@@ -19,15 +19,16 @@ fn test_interference() {
 
 		let (s, _) = listener.accept().unwrap();
 
-		let (mut tx, mut rx) = channels::channel::<Data, _>(s);
+		let (mut tx, mut rx) =
+			channels::channel(s.try_clone().unwrap(), s);
 
-		let d = rx.recv().unwrap();
+		let d: Data = rx.recv().unwrap();
 
 		assert_eq!(d.a, 42);
 		assert_eq!(d.b, 9999);
 		assert_eq!(d.c, String::from("test str"));
 
-		tx.inner().write(&[0, 0, 0, 0]).unwrap();
+		let _ = tx.get_mut().write(&[0, 0, 0, 0]).unwrap();
 
 		tx.send(d).unwrap();
 	});
@@ -36,11 +37,12 @@ fn test_interference() {
 
 	let s = TcpStream::connect("127.0.0.42:10000").unwrap();
 
-	let (mut tx, mut rx) = channels::channel::<Data, _>(s);
+	let (mut tx, mut rx) =
+		channels::channel(s.try_clone().unwrap(), s);
 
 	let d = Data { a: 42, b: 9999, c: String::from("test str") };
 
-	tx.send(d.clone()).unwrap();
+	tx.send(d).unwrap();
 
 	assert!(rx.recv().is_err());
 

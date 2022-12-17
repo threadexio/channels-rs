@@ -15,8 +15,9 @@
 //!   - Channels **will** block, unless the underlying stream is set as non-blocking.
 //!   - The amount of messages that can be queued up before reading is dependent on the underlying stream.
 //!
-//! # Features
-//!   - [`crc`](crate::crc): Adds data validation with CRC
+//! # Limitations
+//!   - At this time only objects with a memory footprint smaller than 65KiB or `u16::MAX` bytes can be sent through the channel. This should be enough for anything you might need to send over.
+//!     If you need more then you should seriously rethink if you really need all that data sent over. If yes, then this crate will be of little use to you.
 //!
 //! # Examples
 //!
@@ -25,19 +26,17 @@
 //! use std::io;
 //! use std::net::TcpListener;
 //!
-//!	fn main() {
-//!		let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
+//! let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
 //!
-//!		loop {
-//!			let (stream, _) = listener.accept().unwrap();
-//!			let (mut tx, mut rx) = channels::channel::<i32, _>(stream);
+//! loop {
+//!     let (stream, _) = listener.accept().unwrap();
+//!     let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
 //!
-//!			let client_data = rx.recv().unwrap();
+//!     let client_data = rx.recv().unwrap();
 //!
-//!			println!("Client sent: {}", client_data);
+//!     println!("Client sent: {}", client_data);
 //!
-//!			tx.send(client_data).unwrap();
-//!		}
+//!     tx.send(client_data).unwrap();
 //! }
 //! ```
 //!
@@ -46,16 +45,14 @@
 //! use std::io;
 //! use std::net::TcpStream;
 //!
-//! fn main() {
-//!		let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
-//!		let (mut tx, mut rx) = channels::channel::<i32, _>(stream);
+//! let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
+//! let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
 //!
-//!		tx.send(1337_i32).unwrap();
+//! tx.send(1337_i32).unwrap();
 //!
-//!		let received_data = rx.recv().unwrap();
+//! let received_data = rx.recv().unwrap();
 //!
-//!		assert_eq!(received_data, 1337_i32);
-//! }
+//! assert_eq!(received_data, 1337_i32);
 //! ```
 //!
 //! Multi-threaded echo server:
@@ -63,72 +60,52 @@
 //! use std::io;
 //! use std::net::TcpListener;
 //!
-//!	fn main() {
-//!		let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
+//! let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
 //!
-//!		loop {
-//!			let (stream, _) = listener.accept().unwrap();
+//! loop {
+//!     let (stream, _) = listener.accept().unwrap();
 //!
-//! 		std::thread::spawn(move || {
-//! 			let (mut tx, mut rx) = channels::channel::<i32, _>(stream);
+//!     std::thread::spawn(move || {
+//!         let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
 //!
-//! 			loop {
-//! 				let client_data = rx.recv().unwrap();
+//!         loop {
+//!             let client_data = rx.recv().unwrap();
 //!
-//! 				println!("Client sent: {}", client_data);
+//!             println!("Client sent: {}", client_data);
 //!
-//!					tx.send(client_data).unwrap();
-//! 			}
-//! 		});
-//!		}
+//!             tx.send(client_data).unwrap();
+//!         }
+//!     });
 //! }
 //! ```
 //!
 //! Send/Recv with 2 threads:
 //! ```no_run
 //! use std::io;
-//!	use std::net::TcpStream;
+//! use std::net::TcpStream;
 //!
-//!	fn main() {
-//!		let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
-//!		let (mut tx, mut rx) = channels::channel::<i32, _>(stream);
+//! let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
+//! let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
 //!
-//!		// Receiving thread
-//!		let recv_thread = std::thread::spawn(move || loop {
-//!			println!("Received: {}", rx.recv().unwrap());
-//!		});
+//! // Receiving thread
+//! let recv_thread = std::thread::spawn(move || loop {
+//!     println!("Received: {}", rx.recv().unwrap());
+//! });
 //!
-//!		// Sending thread
-//!		let send_thread = std::thread::spawn(move || {
-//!			let mut counter: i32 = 0;
-//!			loop {
-//!				tx.send(counter).unwrap();
-//!				counter += 1;
-//!			}
-//!		});
+//! // Sending thread
+//! let send_thread = std::thread::spawn(move || {
+//!     let mut counter: i32 = 0;
+//!     loop {
+//!         tx.send(counter).unwrap();
+//!         counter += 1;
+//!     }
+//! });
 //!
-//!		recv_thread.join().unwrap();
-//!		send_thread.join().unwrap();
-//!	}
+//! recv_thread.join().unwrap();
+//! send_thread.join().unwrap();
 //! ```
 
-mod prelude {
-	pub use bincode::Options;
-
-	pub use serde::de::DeserializeOwned;
-	pub use serde::{Deserialize, Serialize};
-
-	pub use std::io;
-	pub use std::io::{Read, Write};
-	pub use std::marker::PhantomData;
-
-	pub use crate::error::*;
-	pub use crate::io::Buffer;
-}
-
-mod io;
-mod shared;
-
+mod crc;
 mod packet;
 
 mod error;
@@ -140,78 +117,32 @@ pub use sender::Sender;
 mod receiver;
 pub use receiver::Receiver;
 
-pub mod crc;
+mod prelude {
+	pub use ::std::{
+		io::{self, prelude::*, BufReader, BufWriter},
+		marker::PhantomData,
+	};
+
+	pub(crate) use crate::{error::*, packet};
+
+	pub use ::serde::{de::DeserializeOwned, Deserialize, Serialize};
+}
 
 use prelude::*;
 
-use shared::*;
-
-/// Creates a new channel, returning the sender/receiver. This is the same as [`std::sync::mpsc::channel()`](std::sync::mpsc::channel).
-pub fn channel<T: Serialize + DeserializeOwned, Rw: Read + Write>(
-	s: Rw,
-) -> (Sender<T, Rw>, Receiver<T, Rw>) {
-	let shared_stream = Outer::new(Inner::new(s));
-
-	(
-		Sender::<T, Rw>::new(shared_stream.clone()),
-		Receiver::<T, Rw>::new(shared_stream),
-	)
-}
-
-/// A simple type that combines 2 separate Read and Write endpoint into a single endpoint.
+/// Creates a new channel, returning the sender/receiver.
 ///
-/// # Example
+/// # Usage
 /// ```no_run
-/// use std::io::{stdin, stdout};
+/// use std::net::TcpStream;
 ///
-/// fn main() {
-/// 	let adapter = channels::RwAdapter::new(stdin().lock(), stdout().lock());
+/// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
 ///
-/// 	let (mut tx, mut rx) = channels::channel::<i32, _>(adapter);
-/// }
+/// let (mut tx, mut rx) = channels::channel::<i32, _, _>(conn.try_clone().unwrap(), conn);
 /// ```
-pub struct RwAdapter<R: Read, W: Write>(R, W);
-
-impl<R: Read, W: Write> RwAdapter<R, W> {
-	pub fn new(reader: R, writer: W) -> Self {
-		Self(reader, writer)
-	}
-}
-
-impl<R: Read, W: Write> Read for RwAdapter<R, W> {
-	fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-		self.0.read(buf)
-	}
-}
-
-impl<R: Read, W: Write> Write for RwAdapter<R, W> {
-	fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-		self.1.write(buf)
-	}
-
-	fn flush(&mut self) -> std::io::Result<()> {
-		self.1.flush()
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn test_header_marco() {
-		let mut buf = vec![0u8; packet::Header::SIZE + 42];
-		let buf_ptr = buf.as_ptr();
-
-		let mut header = packet::Header::new(&mut buf);
-
-		assert_eq!(header.get().as_ptr(), buf_ptr);
-
-		assert_eq!(
-			header.set_payload_checksum(42),
-			u16::to_be_bytes(42)
-		);
-
-		assert_eq!(header.get_payload_checksum(), 42);
-	}
+pub fn channel<T: Serialize + DeserializeOwned, R: Read, W: Write>(
+	r: R,
+	w: W,
+) -> (Sender<T, W>, Receiver<T, R>) {
+	(Sender::new(w), Receiver::new(r))
 }
