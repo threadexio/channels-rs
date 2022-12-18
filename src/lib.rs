@@ -3,9 +3,6 @@
 //! This crate is similar to [`std::sync::mpsc`](std::sync::mpsc) in terms of the API, and most of the documentation
 //! for that module carries over to this crate.
 //!
-//! An important note, when an object is sent through a [`Sender`](Sender), which was passed into [`channel()`](channel),
-//! for other code of the same or another process to use it.
-//!
 //! Don't think of these channels as a replacement for [`std::sync::mpsc`](std::sync::mpsc), but as another implementation that works over many different transports.
 //!
 //! These channels are meant to be used in combination with network sockets, local sockets, pipes, etc. And can be chained with other adapter types to create complex
@@ -30,7 +27,7 @@
 //!
 //! loop {
 //!     let (stream, _) = listener.accept().unwrap();
-//!     let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
+//!     let (mut tx, mut rx) = channels::channel::<i32>(stream.try_clone().unwrap(), stream);
 //!
 //!     let client_data = rx.recv().unwrap();
 //!
@@ -46,7 +43,7 @@
 //! use std::net::TcpStream;
 //!
 //! let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
-//! let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
+//! let (mut tx, mut rx) = channels::channel::<i32>(stream.try_clone().unwrap(), stream);
 //!
 //! tx.send(1337_i32).unwrap();
 //!
@@ -66,7 +63,7 @@
 //!     let (stream, _) = listener.accept().unwrap();
 //!
 //!     std::thread::spawn(move || {
-//!         let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
+//!         let (mut tx, mut rx) = channels::channel::<i32>(stream.try_clone().unwrap(), stream);
 //!
 //!         loop {
 //!             let client_data = rx.recv().unwrap();
@@ -85,7 +82,7 @@
 //! use std::net::TcpStream;
 //!
 //! let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
-//! let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
+//! let (mut tx, mut rx) = channels::channel::<i32>(stream.try_clone().unwrap(), stream);
 //!
 //! // Receiving thread
 //! let recv_thread = std::thread::spawn(move || loop {
@@ -130,7 +127,7 @@ mod prelude {
 
 use prelude::*;
 
-/// Creates a new channel, returning the sender/receiver.
+/// Creates a new channel, returning the [`Sender`](Sender)/[`Receiver`](Receiver).
 ///
 /// # Usage
 /// ```no_run
@@ -138,11 +135,11 @@ use prelude::*;
 ///
 /// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
 ///
-/// let (mut tx, mut rx) = channels::channel::<i32, _, _>(conn.try_clone().unwrap(), conn);
+/// let (mut tx, mut rx) = channels::channel::<i32>(conn.try_clone().unwrap(), conn);
 /// ```
-pub fn channel<T: Serialize + DeserializeOwned, R: Read, W: Write>(
-	r: R,
-	w: W,
-) -> (Sender<T, W>, Receiver<T, R>) {
+pub fn channel<'r, 'w, T: Serialize + DeserializeOwned>(
+	r: impl Read + 'r,
+	w: impl Write + 'w,
+) -> (Sender<'w, T>, Receiver<'r, T>) {
 	(Sender::new(w), Receiver::new(r))
 }

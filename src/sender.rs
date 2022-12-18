@@ -4,31 +4,34 @@ use crate::prelude::*;
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Sender<T: Serialize, W: Write> {
+pub struct Sender<'a, T: Serialize> {
 	_p: PhantomData<T>,
-	writer: BufWriter<W>,
+	writer: BufWriter<Box<dyn Write + 'a>>,
 	header: packet::Header,
 }
 
-impl<T: Serialize, W: Write> Sender<T, W> {
-	pub(crate) fn new(writer: W) -> Self {
+impl<'a, T: Serialize> Sender<'a, T> {
+	/// Creates a new [`Sender`](Sender) from `reader`.
+	///
+	/// It is generally recommended to use [`channels::channel`](crate::channel) instead.
+	pub fn new(writer: impl Write + 'a) -> Self {
 		Self {
 			_p: PhantomData,
 			writer: BufWriter::with_capacity(
 				packet::MAX_PACKET_SIZE,
-				writer,
+				Box::new(writer),
 			),
 			header: packet::Header::new(),
 		}
 	}
 
-	/// Get a handle to the underlying writer.
-	pub fn get(&self) -> &W {
+	/// Get a reference to the underlying writer.
+	pub fn get(&self) -> &dyn Write {
 		self.writer.get_ref()
 	}
 
-	/// Get a handle to the underlying writer. Directly writing to the stream is not advised.
-	pub fn get_mut(&mut self) -> &mut W {
+	/// Get a mutable reference to the underlying writer. Directly writing to the stream is not advised.
+	pub fn get_mut(&mut self) -> &mut dyn Write {
 		self.writer.get_mut()
 	}
 
@@ -36,7 +39,12 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 	pub fn send(&mut self, data: T) -> Result<()> {
 		let raw_data = packet::serialize(&data)?;
 
-		self.header.set_length(raw_data.len().try_into().unwrap());
+		self.header.set_length(
+			raw_data
+				.len()
+				.try_into()
+				.map_err(|_| Error::SizeLimit)?,
+		);
 
 		self.header.set_id(self.header.get_id().wrapping_add(1));
 
@@ -49,4 +57,5 @@ impl<T: Serialize, W: Write> Sender<T, W> {
 	}
 }
 
-unsafe impl<T: Serialize, W: Write> Send for Sender<T, W> {}
+unsafe impl<T: Serialize> Send for Sender<'_, T> {}
+unsafe impl<T: Serialize> Sync for Sender<'_, T> {}

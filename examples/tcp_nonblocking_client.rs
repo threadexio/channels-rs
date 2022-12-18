@@ -4,12 +4,12 @@ use std::thread;
 fn main() {
 	let connection = TcpStream::connect("127.0.0.1:8081").unwrap();
 
-	let (mut tx, mut rx) = channels::channel::<i32, _, _>(
+	connection.set_nonblocking(true).unwrap();
+
+	let (mut tx, mut rx) = channels::channel::<i32>(
 		connection.try_clone().unwrap(),
 		connection,
 	);
-
-	tx.get_mut().set_nonblocking(true).unwrap();
 
 	let mut i = 0;
 	loop {

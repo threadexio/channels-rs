@@ -3,7 +3,7 @@ use std::net::TcpStream;
 fn main() {
 	let connection = TcpStream::connect("127.0.0.1:8080").unwrap();
 
-	let (mut tx, mut rx) = channels::channel::<i32, _, _>(
+	let (mut tx, mut rx) = channels::channel::<i32>(
 		connection.try_clone().unwrap(),
 		connection,
 	);

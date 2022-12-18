@@ -5,7 +5,7 @@ fn main() {
 	let listener = TcpListener::bind("0.0.0.0:8081").unwrap();
 
 	for connection in listener.incoming().filter_map(|x| x.ok()) {
-		let (mut tx, mut rx) = channels::channel::<i32, _, _>(
+		let (mut tx, mut rx) = channels::channel::<i32>(
 			connection.try_clone().unwrap(),
 			connection,
 		);

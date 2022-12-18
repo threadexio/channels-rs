@@ -1,8 +1,6 @@
 use std::net::{TcpListener, TcpStream};
 use std::thread::{sleep, spawn};
 
-use std::io::Write;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

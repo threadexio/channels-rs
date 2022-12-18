@@ -4,33 +4,36 @@ use crate::prelude::*;
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Receiver<T: DeserializeOwned, R: Read> {
+pub struct Receiver<'a, T: DeserializeOwned> {
 	_p: PhantomData<T>,
-	reader: BufReader<R>,
+	reader: BufReader<Box<dyn Read + 'a>>,
 	header: Option<packet::Header>,
 	seq: u16,
 }
 
-impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
-	pub(crate) fn new(reader: R) -> Self {
+impl<'a, T: DeserializeOwned> Receiver<'a, T> {
+	/// Creates a new [`Receiver`](Receiver) from `reader`.
+	///
+	/// It is generally recommended to use [`channels::channel`](crate::channel) instead.
+	pub fn new(reader: impl Read + 'a) -> Self {
 		Self {
 			_p: PhantomData,
 			reader: BufReader::with_capacity(
 				packet::MAX_PACKET_SIZE,
-				reader,
+				Box::new(reader),
 			),
 			header: None,
 			seq: 1,
 		}
 	}
 
-	/// Get a handle to the underlying reader.
-	pub fn get(&self) -> &R {
+	/// Get a reference to the underlying reader.
+	pub fn get(&self) -> &dyn Read {
 		self.reader.get_ref()
 	}
 
-	/// Get a handle to the underlying reader. Directly reading from the stream is not advised.
-	pub fn get_mut(&mut self) -> &mut R {
+	/// Get a mutable reference to the underlying reader. Directly reading from the stream is not advised.
+	pub fn get_mut(&mut self) -> &mut dyn Read {
 		self.reader.get_mut()
 	}
 
@@ -101,4 +104,5 @@ impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
 	}
 }
 
-unsafe impl<T: DeserializeOwned, R: Read> Send for Receiver<T, R> {}
+unsafe impl<T: DeserializeOwned> Send for Receiver<'_, T> {}
+unsafe impl<T: DeserializeOwned> Sync for Receiver<'_, T> {}

@@ -8,6 +8,8 @@ pub enum Error {
 	VersionMismatch,
 	#[error("corrupted data")]
 	ChecksumError,
+	#[error("data too large")]
+	SizeLimit,
 	#[error("data was received out of order")]
 	OutOfOrder,
 
