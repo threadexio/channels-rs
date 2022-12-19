@@ -102,6 +102,7 @@
 //! send_thread.join().unwrap();
 //! ```
 
+mod buf;
 mod crc;
 mod packet;
 
@@ -120,12 +121,15 @@ mod prelude {
 		marker::PhantomData,
 	};
 
-	pub(crate) use crate::{error::*, packet};
+	pub(crate) use crate::{buf::Buffer, error::*, packet};
 
 	pub use ::serde::{de::DeserializeOwned, Deserialize, Serialize};
 }
 
 use prelude::*;
+
+/// A tuple containing a [`Sender`](Sender) and a [`Receiver`](Receiver)
+pub type Pair<'r, 'w, T> = (Sender<'w, T>, Receiver<'r, T>);
 
 /// Creates a new channel, returning the [`Sender`](Sender)/[`Receiver`](Receiver).
 ///
@@ -140,6 +144,6 @@ use prelude::*;
 pub fn channel<'r, 'w, T: Serialize + DeserializeOwned>(
 	r: impl Read + 'r,
 	w: impl Write + 'w,
-) -> (Sender<'w, T>, Receiver<'r, T>) {
+) -> Pair<'r, 'w, T> {
 	(Sender::new(w), Receiver::new(r))
 }

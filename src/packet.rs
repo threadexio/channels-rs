@@ -50,13 +50,13 @@ macro_rules! packet {
 			$(
 				concat_idents::concat_idents!(getter = get_, $name {
 					$($getter_vis)? fn getter(&self) -> $typ {
-						read_offset::<$typ>(&self.inner[..], $offset)
+						$de_fn(read_offset::<$typ>(&self.inner[..], $offset))
 					}
 				});
 
 				concat_idents::concat_idents!(setter = set_, $name {
 					$($setter_vis)? fn setter(&mut self, $name: $typ) -> &mut Self {
-						write_offset::<$typ>(&mut self.inner[..], $offset, $name);
+						write_offset::<$typ>(&mut self.inner[..], $offset, $ser_fn($name));
 						self
 					}
 				});
@@ -92,16 +92,16 @@ impl Header {
 		let mut header =
 			Self { inner: Vec::from(bytes).into_boxed_slice() };
 
+		if header.get_version() != PROTOCOL_VERSION {
+			return Err(Error::VersionMismatch);
+		}
+
 		let unverified = header.get_checksum();
 		header.set_checksum(0);
 		let calculated = crate::crc::checksum(header.raw());
 
 		if unverified != calculated {
 			return Err(Error::ChecksumError);
-		}
-
-		if header.get_version() != PROTOCOL_VERSION {
-			return Err(Error::VersionMismatch);
 		}
 
 		Ok(header)
