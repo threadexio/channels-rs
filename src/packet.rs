@@ -166,8 +166,9 @@ mod tests {
 	fn test_header() {
 		let mut header = Header::new();
 
-		assert_eq!(header.get_checksum(), 0);
-		header.set_checksum(42);
-		assert_eq!(header.get_checksum(), 42);
+		assert_eq!(header.get_version(), 0);
+		header.set_version(42);
+		assert_eq!(header.raw()[..2], u16::to_be_bytes(42));
+		assert_eq!(header.get_version(), 42);
 	}
 }

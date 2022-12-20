@@ -102,7 +102,6 @@
 //! send_thread.join().unwrap();
 //! ```
 
-mod buf;
 mod crc;
 mod packet;
 
@@ -121,7 +120,7 @@ mod prelude {
 		marker::PhantomData,
 	};
 
-	pub(crate) use crate::{buf::Buffer, error::*, packet};
+	pub(crate) use crate::{error::*, packet};
 
 	pub use ::serde::{de::DeserializeOwned, Deserialize, Serialize};
 }
