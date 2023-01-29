@@ -11,7 +11,7 @@ struct Data {
 	c: String,
 }
 
-const ADDR: &str = "127.0.0.42:10000";
+const ADDR: &str = "127.0.0.1:10000";
 const ITER: usize = 1024;
 
 fn server() {

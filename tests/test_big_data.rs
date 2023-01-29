@@ -9,7 +9,7 @@ struct Data {
 	buffer: Vec<u8>,
 }
 
-const ADDR: &str = "127.0.0.42:10001";
+const ADDR: &str = "127.0.0.1:10001";
 const ITER: usize = 64;
 
 fn server() {
