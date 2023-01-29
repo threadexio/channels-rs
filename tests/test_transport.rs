@@ -13,34 +13,34 @@ struct Data {
 #[test]
 fn test_transport() {
 	let a = spawn(|| {
-		let listener = TcpListener::bind("127.0.0.42:9999").unwrap();
+		sleep(std::time::Duration::from_millis(500));
 
-		let (s, _) = listener.accept().unwrap();
+		let s = TcpStream::connect("127.0.0.42:9999").unwrap();
 
 		let (mut tx, mut rx) =
 			channels::channel(s.try_clone().unwrap(), s);
 
-		let d: Data = rx.recv().unwrap();
+		let d = Data { a: 42, b: 9999, c: String::from("test str") };
 
-		assert_eq!(d.a, 42);
-		assert_eq!(d.b, 9999);
-		assert_eq!(d.c, String::from("test str"));
+		tx.send(d.clone()).unwrap();
 
-		tx.send(d).unwrap();
+		assert_eq!(rx.recv().unwrap(), d);
 	});
 
-	sleep(std::time::Duration::from_millis(500));
+	let listener = TcpListener::bind("127.0.0.42:9999").unwrap();
 
-	let s = TcpStream::connect("127.0.0.42:9999").unwrap();
+	let (s, _) = listener.accept().unwrap();
 
 	let (mut tx, mut rx) =
 		channels::channel(s.try_clone().unwrap(), s);
 
-	let d = Data { a: 42, b: 9999, c: String::from("test str") };
+	let d: Data = rx.recv().unwrap();
 
-	tx.send(d.clone()).unwrap();
+	assert_eq!(d.a, 42);
+	assert_eq!(d.b, 9999);
+	assert_eq!(d.c, String::from("test str"));
 
-	assert_eq!(rx.recv().unwrap(), d);
+	tx.send(d).unwrap();
 
 	a.join().unwrap();
 }

@@ -104,6 +104,7 @@
 
 mod crc;
 mod packet;
+mod storage;
 
 mod error;
 pub use error::{Error, Result};
@@ -114,18 +115,8 @@ pub use sender::Sender;
 mod receiver;
 pub use receiver::Receiver;
 
-mod prelude {
-	pub use ::std::{
-		io::{self, prelude::*, BufReader, BufWriter},
-		marker::PhantomData,
-	};
-
-	pub(crate) use crate::{error::*, packet};
-
-	pub use ::serde::{de::DeserializeOwned, Deserialize, Serialize};
-}
-
-use prelude::*;
+use serde::{de::DeserializeOwned, ser::Serialize};
+use std::io::{Read, Write};
 
 /// A tuple containing a [`Sender`](Sender) and a [`Receiver`](Receiver)
 pub type Pair<'r, 'w, T> = (Sender<'w, T>, Receiver<'r, T>);

@@ -1,40 +1,63 @@
-use crate::prelude::*;
+use core::marker::PhantomData;
+use std::io::Read;
+
+use crate::error::{Error, Result};
+use crate::packet::{self, Header, Packet};
+use crate::storage::Buffer;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`](std::sync::mpsc::Receiver),
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Receiver<'a, T: DeserializeOwned> {
+pub struct Receiver<'a, T> {
 	_p: PhantomData<T>,
-	reader: BufReader<Box<dyn Read + 'a>>,
-	header: Option<packet::Header>,
-	seq: u16,
+	rx: Box<dyn Read + 'a>,
+	rx_buffer: Buffer,
+	seq_no: u16,
 }
 
-impl<'a, T: DeserializeOwned> Receiver<'a, T> {
-	/// Creates a new [`Receiver`](Receiver) from `reader`.
+impl<'a, T> Receiver<'a, T> {
+	/// Creates a new [`Receiver`](Receiver) from `rx`.
 	///
 	/// It is generally recommended to use [`channels::channel`](crate::channel) instead.
-	pub fn new(reader: impl Read + 'a) -> Self {
+	pub fn new(rx: impl Read + 'a) -> Self {
 		Self {
 			_p: PhantomData,
-			reader: BufReader::with_capacity(
-				packet::MAX_PACKET_SIZE,
-				Box::new(reader),
-			),
-			header: None,
-			seq: 1,
+			rx: Box::new(rx),
+			rx_buffer: Buffer::new(Packet::MAX_SIZE),
+			seq_no: 0,
 		}
 	}
 
 	/// Get a reference to the underlying reader.
 	pub fn get(&self) -> &dyn Read {
-		self.reader.get_ref()
+		self.rx.as_ref()
 	}
 
 	/// Get a mutable reference to the underlying reader. Directly reading from the stream is not advised.
 	pub fn get_mut(&mut self) -> &mut dyn Read {
-		self.reader.get_mut()
+		self.rx.as_mut()
+	}
+}
+
+impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
+	fn read(&mut self, amt: usize) -> Result<usize> {
+		loop {
+			match self.rx.read(&mut self.rx_buffer.after_mut()[..amt])
+			{
+				Ok(v) => {
+					self.rx_buffer.seek_forward(v);
+					return Ok(v);
+				},
+				Err(e) => {
+					use std::io::ErrorKind;
+					match e.kind() {
+						ErrorKind::Interrupted => continue,
+						_ => return Err(Error::Io(e)),
+					}
+				},
+			};
+		}
 	}
 
 	/// Attempts to read an object from the sender end.
@@ -46,63 +69,54 @@ impl<'a, T: DeserializeOwned> Receiver<'a, T> {
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	pub fn recv(&mut self) -> Result<T> {
-		if self.header.is_none() {
-			let s = self.reader.fill_buf()?;
-
-			if s.is_empty() {
-				return Err(Error::Io(
-					io::ErrorKind::UnexpectedEof.into(),
-				));
-			}
-
-			if s.len() < packet::Header::SIZE {
-				return Err(Error::Io(
-					io::ErrorKind::WouldBlock.into(),
-				));
-			}
-
-			let header = packet::Header::from_bytes(
-				&s[0..packet::Header::SIZE],
-			)?;
-
-			if header.get_id() != self.seq {
-				return Err(Error::OutOfOrder);
-			}
-			self.seq = self.seq.wrapping_add(1);
-
-			self.header = Some(header);
-			self.reader.consume(packet::Header::SIZE);
+		while self.rx_buffer.len() < Header::MAX_SIZE {
+			self.read(Header::MAX_SIZE - self.rx_buffer.len())?;
 		}
 
-		if let Some(ref mut header) = self.header {
-			let s = self.reader.fill_buf()?;
+		let mut packet =
+			Packet::new_unchecked(self.rx_buffer.buffer_mut());
+		let mut header = packet.header();
 
-			if s.is_empty() {
-				return Err(Error::Io(
-					io::ErrorKind::UnexpectedEof.into(),
-				));
-			}
-
-			let data_len: usize = header.get_length().into();
-
-			if s.len() < data_len {
-				return Err(Error::Io(
-					io::ErrorKind::WouldBlock.into(),
-				));
-			}
-
-			let data_result =
-				packet::deserialize::<T>(&s[..data_len]);
-
-			self.header = None;
-			self.reader.consume(data_len);
-
-			return data_result;
+		if header.get_version() != packet::PROTOCOL_VERSION {
+			return Err(Error::VersionMismatch);
 		}
 
-		unreachable!()
+		{
+			let unverified = header.get_header_checksum();
+			header.set_header_checksum(0);
+			let calculated = header.calculate_header_checksum();
+
+			if unverified != calculated {
+				return Err(Error::ChecksumError);
+			}
+		}
+
+		if header.get_id() != self.seq_no {
+			return Err(Error::OutOfOrder);
+		}
+
+		let packet_len = header.get_length() as usize;
+		if packet_len < Header::MAX_SIZE {
+			return Err(Error::SizeLimit);
+		}
+
+		while self.rx_buffer.len() < packet_len {
+			self.read(packet_len - self.rx_buffer.len())?;
+		}
+
+		let packet =
+			Packet::new_unchecked(self.rx_buffer.buffer_mut());
+
+		let data: Result<T> = packet::deserialize(
+			&packet.payload()[..packet_len - Header::MAX_SIZE],
+		);
+
+		self.seq_no = self.seq_no.wrapping_add(1);
+		self.rx_buffer.clear();
+
+		data
 	}
 }
 
-unsafe impl<T: DeserializeOwned> Send for Receiver<'_, T> {}
-unsafe impl<T: DeserializeOwned> Sync for Receiver<'_, T> {}
+unsafe impl<T> Send for Receiver<'_, T> {}
+unsafe impl<T> Sync for Receiver<'_, T> {}
