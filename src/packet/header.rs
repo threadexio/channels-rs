@@ -75,3 +75,48 @@ impl<'a> Header<'a> {
 		crate::crc::checksum(self.0)
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use rand::RngCore;
+
+	use super::*;
+
+	#[test]
+	fn correct_endianness() {
+		let mut buf = vec![0u8; Header::MAX_SIZE];
+
+		let mut header = Header::new(&mut buf).unwrap();
+
+		header.set_version(1);
+		assert_eq!(header.get_version(), 1);
+
+		header.set_id(2);
+		assert_eq!(header.get_id(), 2);
+
+		header.set_length(3);
+		assert_eq!(header.get_length(), 3);
+
+		header.set_header_checksum(4);
+		assert_eq!(header.get_header_checksum(), 4);
+
+		assert_eq!(header.header(), &[0, 1, 0, 2, 0, 3, 0, 4]);
+	}
+
+	#[test]
+	fn checksum_algorithm() {
+		let mut rng = rand::thread_rng();
+		let mut buf = vec![0u8; Header::MAX_SIZE];
+
+		let mut header = Header::new(&mut buf).unwrap();
+
+		rng.fill_bytes(header.header_mut());
+		let c1 = header.calculate_header_checksum();
+		let c2 = header.calculate_header_checksum();
+		assert_eq!(c1, c2);
+
+		rng.fill_bytes(header.header_mut());
+		let c3 = header.calculate_header_checksum();
+		assert_ne!(c1, c3);
+	}
+}

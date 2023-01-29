@@ -1,3 +1,4 @@
+use core::borrow::Borrow;
 use core::marker::PhantomData;
 use std::io::Write;
 
@@ -23,7 +24,10 @@ impl<'a, T> Sender<'a, T> {
 	/// Creates a new [`Sender`](Sender) from `reader`.
 	///
 	/// It is generally recommended to use [`channels::channel`](crate::channel) instead.
-	pub fn new(tx: impl Write + 'a) -> Self {
+	pub fn new<W>(tx: W) -> Self
+	where
+		W: Write + 'a,
+	{
 		Self {
 			_p: PhantomData,
 			tx: Box::new(tx),
@@ -54,8 +58,11 @@ impl<'a, T> Sender<'a, T> {
 
 impl<'a, T: serde::Serialize> Sender<'a, T> {
 	/// Attempts to send an object through the data stream.
-	pub fn send(&mut self, data: T) -> Result<()> {
-		let payload = packet::serialize(&data)?;
+	pub fn send<D>(&mut self, data: D) -> Result<()>
+	where
+		D: Borrow<T>,
+	{
+		let payload = packet::serialize(data.borrow())?;
 		let payload_len = payload.len();
 
 		if payload_len > Packet::MAX_SIZE - Header::MAX_SIZE {

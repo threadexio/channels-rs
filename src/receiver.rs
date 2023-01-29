@@ -23,7 +23,10 @@ impl<'a, T> Receiver<'a, T> {
 	/// Creates a new [`Receiver`](Receiver) from `rx`.
 	///
 	/// It is generally recommended to use [`channels::channel`](crate::channel) instead.
-	pub fn new(rx: impl Read + 'a) -> Self {
+	pub fn new<R>(rx: R) -> Self
+	where
+		R: Read + 'a,
+	{
 		Self {
 			_p: PhantomData,
 			rx: Box::new(rx),
