@@ -3,8 +3,11 @@ use core::marker::PhantomData;
 use std::io::Write;
 
 use crate::error::{Error, Result};
-use crate::packet::{self, Header, Packet};
-use crate::storage::Buffer;
+use crate::packet::Packet;
+use crate::util;
+
+#[cfg(feature = "statistics")]
+use crate::stats;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`](std::sync::mpsc::Sender),
 /// except for a [few key differences](crate).
@@ -13,11 +16,11 @@ use crate::storage::Buffer;
 pub struct Sender<'a, T> {
 	_p: PhantomData<T>,
 	tx: Box<dyn Write + 'a>,
-	tx_buffer: Buffer,
+	tx_buffer: Packet,
 	seq_no: u16,
 
 	#[cfg(feature = "statistics")]
-	stats: crate::statistics::SendStats,
+	stats: stats::SendStats,
 }
 
 impl<'a, T> Sender<'a, T> {
@@ -31,11 +34,11 @@ impl<'a, T> Sender<'a, T> {
 		Self {
 			_p: PhantomData,
 			tx: Box::new(tx),
-			tx_buffer: Buffer::new(Packet::MAX_SIZE),
+			tx_buffer: Packet::new(),
 			seq_no: 0,
 
 			#[cfg(feature = "statistics")]
-			stats: crate::statistics::SendStats::new(),
+			stats: stats::SendStats::new(),
 		}
 	}
 
@@ -51,7 +54,7 @@ impl<'a, T> Sender<'a, T> {
 
 	#[cfg(feature = "statistics")]
 	/// Get statistics on this [`Sender`](Self).
-	pub fn stats(&self) -> &crate::statistics::SendStats {
+	pub fn stats(&self) -> &stats::SendStats {
 		&self.stats
 	}
 }
@@ -62,45 +65,28 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 	where
 		D: Borrow<T>,
 	{
-		let payload = packet::serialize(data.borrow())?;
-		let payload_len = payload.len();
+		let payload = util::serialize(data.borrow())?;
+		let payload_len: u16 =
+			payload.len().try_into().map_err(|_| Error::SizeLimit)?;
 
-		if payload_len > Packet::MAX_SIZE - Header::MAX_SIZE {
-			return Err(Error::SizeLimit);
-		}
+		let packet = &mut self.tx_buffer;
 
-		let mut packet =
-			Packet::new_unchecked(self.tx_buffer.buffer_mut());
-
-		packet.payload_mut()[..payload_len].copy_from_slice(&payload);
+		packet.set_payload_length(payload_len)?;
+		packet.payload_mut()[..payload_len as usize]
+			.copy_from_slice(&payload);
 		drop(payload);
 
-		let mut header = packet.header();
-
-		header.set_version(packet::PROTOCOL_VERSION);
-		header.set_id(self.seq_no);
-
-		// the cast to u16 is safe because we validated it above
-		// when checking for Error::SizeLimit
-		let packet_len = Header::MAX_SIZE + payload_len;
-		header.set_length(packet_len as u16);
-		header.set_header_checksum(0);
-
-		{
-			let checksum = header.calculate_header_checksum();
-			header.set_header_checksum(checksum);
-		}
-
-		self.tx.write_all(&packet.packet()[..packet_len])?;
+		self.tx.write_all(packet.finalize_with(|packet| {
+			packet.set_id(self.seq_no);
+		}))?;
 
 		#[cfg(feature = "statistics")]
 		{
 			self.stats.update_sent_time();
-			self.stats.add_sent(packet_len);
+			self.stats.add_sent(packet.get_length() as usize);
 		}
 
 		self.seq_no = self.seq_no.wrapping_add(1);
-
 		Ok(())
 	}
 }

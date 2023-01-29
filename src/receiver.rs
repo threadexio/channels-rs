@@ -2,8 +2,12 @@ use core::marker::PhantomData;
 use std::io::Read;
 
 use crate::error::{Error, Result};
-use crate::packet::{self, Header, Packet};
-use crate::storage::Buffer;
+use crate::packet::Packet;
+use crate::storage::ReadExt;
+use crate::util;
+
+#[cfg(feature = "statistics")]
+use crate::stats;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`](std::sync::mpsc::Receiver),
 /// except for a [few key differences](crate).
@@ -12,11 +16,11 @@ use crate::storage::Buffer;
 pub struct Receiver<'a, T> {
 	_p: PhantomData<T>,
 	rx: Box<dyn Read + 'a>,
-	rx_buffer: Buffer,
+	rx_buffer: Packet,
 	seq_no: u16,
 
 	#[cfg(feature = "statistics")]
-	stats: crate::statistics::RecvStats,
+	stats: stats::RecvStats,
 }
 
 impl<'a, T> Receiver<'a, T> {
@@ -30,11 +34,11 @@ impl<'a, T> Receiver<'a, T> {
 		Self {
 			_p: PhantomData,
 			rx: Box::new(rx),
-			rx_buffer: Buffer::new(Packet::MAX_SIZE),
+			rx_buffer: Packet::new(),
 			seq_no: 0,
 
 			#[cfg(feature = "statistics")]
-			stats: crate::statistics::RecvStats::new(),
+			stats: stats::RecvStats::new(),
 		}
 	}
 
@@ -50,35 +54,12 @@ impl<'a, T> Receiver<'a, T> {
 
 	#[cfg(feature = "statistics")]
 	/// Get statistics on this [`Receiver`](Self).
-	pub fn stats(&self) -> &crate::statistics::RecvStats {
+	pub fn stats(&self) -> &stats::RecvStats {
 		&self.stats
 	}
 }
 
 impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
-	fn read(&mut self, amt: usize) -> Result<usize> {
-		loop {
-			match self.rx.read(&mut self.rx_buffer.after_mut()[..amt])
-			{
-				Ok(v) => {
-					self.rx_buffer.seek_forward(v);
-
-					#[cfg(feature = "statistics")]
-					self.stats.add_received(v);
-
-					return Ok(v);
-				},
-				Err(e) => {
-					use std::io::ErrorKind;
-					match e.kind() {
-						ErrorKind::Interrupted => continue,
-						_ => return Err(Error::Io(e)),
-					}
-				},
-			};
-		}
-	}
-
 	/// Attempts to read an object from the sender end.
 	///
 	/// If the underlying data stream is a blocking socket then `recv()` will block until
@@ -88,53 +69,44 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	pub fn recv(&mut self) -> Result<T> {
-		while self.rx_buffer.len() < Header::MAX_SIZE {
-			self.read(Header::MAX_SIZE - self.rx_buffer.len())?;
-		}
+		let i = self.rx.fill_buf_to(
+			self.rx_buffer.buffer(),
+			Packet::MAX_HEADER_SIZE.into(),
+		)?;
 
-		let mut packet =
-			Packet::new_unchecked(self.rx_buffer.buffer_mut());
-		let mut header = packet.header();
+		#[cfg(feature = "statistics")]
+		self.stats.add_received(i);
 
-		if header.get_version() != packet::PROTOCOL_VERSION {
-			return Err(Error::VersionMismatch);
-		}
-
-		{
-			let unverified = header.get_header_checksum();
-			header.set_header_checksum(0);
-			let calculated = header.calculate_header_checksum();
-
-			if unverified != calculated {
-				return Err(Error::ChecksumError);
+		if let Err(e) = self.rx_buffer.verify_with(|packet| {
+			if packet.get_id() != self.seq_no {
+				return Err(Error::OutOfOrder);
 			}
+
+			Ok(())
+		}) {
+			self.rx_buffer.buffer().clear();
+			return Err(e);
 		}
 
-		if header.get_id() != self.seq_no {
-			return Err(Error::OutOfOrder);
-		}
+		let packet_len = self.rx_buffer.get_length().into();
 
-		let packet_len = header.get_length() as usize;
-		if packet_len < Header::MAX_SIZE {
-			return Err(Error::SizeLimit);
-		}
+		let i = self
+			.rx
+			.fill_buf_to(self.rx_buffer.buffer(), packet_len)?;
 
-		while self.rx_buffer.len() < packet_len {
-			self.read(packet_len - self.rx_buffer.len())?;
-		}
+		#[cfg(feature = "statistics")]
+		self.stats.add_received(i);
 
-		let packet =
-			Packet::new_unchecked(self.rx_buffer.buffer_mut());
-
-		let data: Result<T> = packet::deserialize(
-			&packet.payload()[..packet_len - Header::MAX_SIZE],
+		let data: Result<T> = util::deserialize(
+			&self.rx_buffer.payload()[..packet_len
+				.saturating_sub(Packet::MAX_HEADER_SIZE.into())],
 		);
 
 		#[cfg(feature = "statistics")]
 		self.stats.update_received_time();
 
 		self.seq_no = self.seq_no.wrapping_add(1);
-		self.rx_buffer.clear();
+		self.rx_buffer.buffer().clear();
 
 		data
 	}

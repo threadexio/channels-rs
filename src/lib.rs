@@ -110,9 +110,10 @@
 mod crc;
 mod packet;
 mod storage;
+mod util;
 
 #[cfg(feature = "statistics")]
-pub mod statistics;
+pub mod stats;
 
 mod error;
 pub use error::{Error, Result};

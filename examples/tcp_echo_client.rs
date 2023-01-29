@@ -12,12 +12,14 @@ fn main() {
 		connection,
 	);
 
-	let mut rng = rand::thread_rng();
+	loop {
+		let mut rng = rand::thread_rng();
 
-	tx.send(rng.gen::<i32>()).unwrap();
-	let received = rx.recv().unwrap();
+		tx.send(rng.gen::<i32>()).unwrap();
+		let received = rx.recv().unwrap();
 
-	println!("Received: {received}");
+		println!("Received: {received}");
 
-	thread::sleep(Duration::from_secs(rng.gen_range(1..3)));
+		thread::sleep(Duration::from_secs(rng.gen_range(1..3)));
+	}
 }
