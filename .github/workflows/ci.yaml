@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - { os: ubuntu-latest,  toolchain: stable  }
+          - { os: windows-latest, toolchain: stable  }
+          - { os: macos-latest,   toolchain: stable  }
+
+          - { os: ubuntu-latest,  toolchain: nightly }
+          - { os: windows-latest, toolchain: nightly }
+          - { os: macos-latest,   toolchain: nightly }
+
+    runs-on: ${{ matrix.job.os }}
+    if: "${{ !startsWith(github.event.head_commit.message, '[no-ci]') }}"
+
+    name: Test on ${{ matrix.job.os }} with ${{ matrix.job.toolchain }}
+
+    steps:
+      - name: Setup toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.job.toolchain }}
+          default: true
+          override: true
+          profile: minimal
+          components: rustfmt, clippy
+
+      - name: Build info
+        run: |
+          rustc --version
+          cargo --version
+          rustup --version
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Check
+        run: |
+          cargo fmt --check --all
+          cargo check --workspace --all-features
+          cargo clippy --all --all-features
+
+      - name: Test
+        run: |
+          cargo test --all-features -- --test-threads=$(nproc)
