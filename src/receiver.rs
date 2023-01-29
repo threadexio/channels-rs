@@ -14,6 +14,9 @@ pub struct Receiver<'a, T> {
 	rx: Box<dyn Read + 'a>,
 	rx_buffer: Buffer,
 	seq_no: u16,
+
+	#[cfg(feature = "statistics")]
+	stats: crate::statistics::RecvStats,
 }
 
 impl<'a, T> Receiver<'a, T> {
@@ -26,6 +29,9 @@ impl<'a, T> Receiver<'a, T> {
 			rx: Box::new(rx),
 			rx_buffer: Buffer::new(Packet::MAX_SIZE),
 			seq_no: 0,
+
+			#[cfg(feature = "statistics")]
+			stats: crate::statistics::RecvStats::new(),
 		}
 	}
 
@@ -38,6 +44,12 @@ impl<'a, T> Receiver<'a, T> {
 	pub fn get_mut(&mut self) -> &mut dyn Read {
 		self.rx.as_mut()
 	}
+
+	#[cfg(feature = "statistics")]
+	/// Get statistics on this [`Receiver`](Self).
+	pub fn stats(&self) -> &crate::statistics::RecvStats {
+		&self.stats
+	}
 }
 
 impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
@@ -47,6 +59,10 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 			{
 				Ok(v) => {
 					self.rx_buffer.seek_forward(v);
+
+					#[cfg(feature = "statistics")]
+					self.stats.add_received(v);
+
 					return Ok(v);
 				},
 				Err(e) => {
@@ -110,6 +126,9 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 		let data: Result<T> = packet::deserialize(
 			&packet.payload()[..packet_len - Header::MAX_SIZE],
 		);
+
+		#[cfg(feature = "statistics")]
+		self.stats.update_received_time();
 
 		self.seq_no = self.seq_no.wrapping_add(1);
 		self.rx_buffer.clear();

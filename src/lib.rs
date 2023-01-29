@@ -12,6 +12,9 @@
 //!   - Channels **will** block, unless the underlying stream is set as non-blocking.
 //!   - The amount of messages that can be queued up before reading is dependent on the underlying stream.
 //!
+//! # Features
+//!   - `statistics`: Capture statistic data like: total bytes sent/received, timestamp of last packet, etc
+//!
 //! # Limitations
 //!   - At this time only objects with a memory footprint smaller than 65KiB or `u16::MAX` bytes can be sent through the channel. This should be enough for anything you might need to send over.
 //!     If you need more then you should seriously rethink if you really need all that data sent over. If yes, then this crate will be of little use to you.
@@ -105,6 +108,9 @@
 mod crc;
 mod packet;
 mod storage;
+
+#[cfg(feature = "statistics")]
+pub mod statistics;
 
 mod error;
 pub use error::{Error, Result};

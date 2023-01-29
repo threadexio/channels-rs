@@ -14,6 +14,9 @@ pub struct Sender<'a, T> {
 	tx: Box<dyn Write + 'a>,
 	tx_buffer: Buffer,
 	seq_no: u16,
+
+	#[cfg(feature = "statistics")]
+	stats: crate::statistics::SendStats,
 }
 
 impl<'a, T> Sender<'a, T> {
@@ -26,6 +29,9 @@ impl<'a, T> Sender<'a, T> {
 			tx: Box::new(tx),
 			tx_buffer: Buffer::new(Packet::MAX_SIZE),
 			seq_no: 0,
+
+			#[cfg(feature = "statistics")]
+			stats: crate::statistics::SendStats::new(),
 		}
 	}
 
@@ -37,6 +43,12 @@ impl<'a, T> Sender<'a, T> {
 	/// Get a mutable reference to the underlying reader. Directly reading from the stream is not advised.
 	pub fn get_mut(&mut self) -> &mut dyn Write {
 		self.tx.as_mut()
+	}
+
+	#[cfg(feature = "statistics")]
+	/// Get statistics on this [`Sender`](Self).
+	pub fn stats(&self) -> &crate::statistics::SendStats {
+		&self.stats
 	}
 }
 
@@ -73,6 +85,12 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 		}
 
 		self.tx.write_all(&packet.packet()[..packet_len])?;
+
+		#[cfg(feature = "statistics")]
+		{
+			self.stats.update_sent_time();
+			self.stats.add_sent(packet_len);
+		}
 
 		self.seq_no = self.seq_no.wrapping_add(1);
 
