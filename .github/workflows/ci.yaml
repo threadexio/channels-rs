@@ -50,4 +50,4 @@ jobs:
 
       - name: Test
         run: |
-          cargo test --all-features -- --test-threads=$(nproc)
+          cargo test --all-features
