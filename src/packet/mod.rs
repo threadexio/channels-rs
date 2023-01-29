@@ -6,6 +6,7 @@ pub use header::Header;
 
 pub struct Packet<'a>(&'a mut [u8]);
 
+#[allow(dead_code)]
 impl<'a> Packet<'a> {
 	pub const MAX_SIZE: usize = 0xffff; // u16::MAX
 

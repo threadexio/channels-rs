@@ -5,6 +5,7 @@ pub struct Buffer {
 	cursor: usize,
 }
 
+#[allow(dead_code)]
 impl Buffer {
 	pub fn new(capacity: usize) -> Self {
 		Self { cursor: 0, slice: vec![0u8; capacity] }

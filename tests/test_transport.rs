@@ -1,46 +1,65 @@
 use std::net::{TcpListener, TcpStream};
-use std::thread::{sleep, spawn};
+use std::thread;
+use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(
+	Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize,
+)]
 struct Data {
 	a: i32,
 	b: usize,
 	c: String,
 }
 
-#[test]
-fn test_transport() {
-	let a = spawn(|| {
-		sleep(std::time::Duration::from_millis(500));
+const ADDR: &str = "127.0.0.42:10000";
+const ITER: usize = 1024;
 
-		let s = TcpStream::connect("127.0.0.42:9999").unwrap();
-
-		let (mut tx, mut rx) =
-			channels::channel(s.try_clone().unwrap(), s);
-
-		let d = Data { a: 42, b: 9999, c: String::from("test str") };
-
-		tx.send(d.clone()).unwrap();
-
-		assert_eq!(rx.recv().unwrap(), d);
-	});
-
-	let listener = TcpListener::bind("127.0.0.42:9999").unwrap();
-
+fn server() {
+	let listener = TcpListener::bind(ADDR).unwrap();
 	let (s, _) = listener.accept().unwrap();
-
 	let (mut tx, mut rx) =
 		channels::channel(s.try_clone().unwrap(), s);
 
-	let d: Data = rx.recv().unwrap();
+	for i in 0..ITER {
+		let data: Data = rx.recv().unwrap();
 
-	assert_eq!(d.a, 42);
-	assert_eq!(d.b, 9999);
-	assert_eq!(d.c, String::from("test str"));
+		assert_eq!(
+			data,
+			Data { a: 42, b: i, c: format!("test str #{i}") }
+		);
 
-	tx.send(d).unwrap();
+		tx.send(data).unwrap();
+	}
+}
 
-	a.join().unwrap();
+fn client() {
+	let s = TcpStream::connect(ADDR).unwrap();
+	let (mut tx, mut rx) =
+		channels::channel(s.try_clone().unwrap(), s);
+
+	for i in 0..ITER {
+		let data = Data { a: 42, b: i, c: format!("test str #{i}") };
+
+		tx.send(data.clone()).unwrap();
+
+		assert_eq!(rx.recv().unwrap(), data);
+	}
+}
+
+#[test]
+fn test_transport() {
+	let s = thread::Builder::new()
+		.name("server".into())
+		.spawn(server)
+		.unwrap();
+
+	thread::sleep(Duration::from_secs(1));
+
+	let c = thread::Builder::new()
+		.name("client".into())
+		.spawn(client)
+		.unwrap();
+
+	s.join().unwrap();
+	c.join().unwrap();
 }

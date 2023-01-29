@@ -2,6 +2,7 @@ use super::util::*;
 
 pub struct Header<'a>(&'a mut [u8]);
 
+#[allow(dead_code)]
 impl<'a> Header<'a> {
 	pub const MAX_SIZE: usize = 8;
 

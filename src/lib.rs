@@ -21,6 +21,8 @@
 //!
 //! # Examples
 //!
+//! For more complete and complex examples see: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
+//!
 //! Simple echo server:
 //! ```no_run
 //! use std::io;

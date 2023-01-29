@@ -1,20 +1,24 @@
 use std::net::TcpStream;
 use std::thread;
+use std::time::Duration;
+
+use rand::Rng;
 
 fn main() {
-	let connection = TcpStream::connect("127.0.0.1:8081").unwrap();
-
+	let connection = TcpStream::connect("127.0.0.1:9999").unwrap();
 	connection.set_nonblocking(true).unwrap();
-
 	let (mut tx, mut rx) = channels::channel::<i32>(
 		connection.try_clone().unwrap(),
 		connection,
 	);
 
+	let mut rng = rand::thread_rng();
+
 	let mut i = 0;
 	loop {
 		use std::io::ErrorKind;
 		match rx.recv() {
+			Ok(v) => println!("Received: {v}"),
 			Err(e) => match e {
 				channels::Error::VersionMismatch => {
 					eprintln!("client uses wrong version");
@@ -27,16 +31,15 @@ fn main() {
 				channels::Error::Io(e) => match e.kind() {
 					ErrorKind::WouldBlock => continue,
 					_ => {
-						eprintln!("{}", e);
+						eprintln!("io error: {e}");
 						break;
 					},
 				},
 				e => {
-					eprintln!("{}", e);
+					eprintln!("{e}");
 					continue;
 				},
 			},
-			Ok(v) => println!("Received: {}", v),
 		}
 
 		i += 1;
@@ -44,6 +47,6 @@ fn main() {
 		tx.send(i).unwrap();
 
 		// some expensive computation
-		thread::sleep(std::time::Duration::from_secs_f32(0.5));
+		thread::sleep(Duration::from_secs(rng.gen_range(1..5)));
 	}
 }

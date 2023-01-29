@@ -1,56 +1,79 @@
 use std::net::{TcpListener, TcpStream};
-use std::thread::{sleep, spawn};
+use std::thread;
+use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(
+	Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize,
+)]
 struct Data {
 	buffer: Vec<u8>,
 }
 
-#[test]
-fn test_big_data() {
-	let a = spawn(|| {
-		let listener = TcpListener::bind("127.0.0.42:9999").unwrap();
+const ADDR: &str = "127.0.0.42:10001";
+const ITER: usize = 64;
 
-		let (s, _) = listener.accept().unwrap();
-
-		let (mut tx, mut rx) =
-			channels::channel(s.try_clone().unwrap(), s);
-
-		let d: Data = rx.recv().unwrap();
-
-		assert!(d.buffer.len() < u16::MAX as usize);
-
-		tx.send(d).unwrap();
-	});
-
-	sleep(std::time::Duration::from_millis(500));
-
-	let s = TcpStream::connect("127.0.0.42:9999").unwrap();
-
+fn server() {
+	let listener = TcpListener::bind(ADDR).unwrap();
+	let (s, _) = listener.accept().unwrap();
 	let (mut tx, mut rx) =
 		channels::channel(s.try_clone().unwrap(), s);
 
-	let mut d = Data { buffer: vec![0u8; u16::MAX as usize + 1024] };
+	for _ in 0..ITER {
+		let data: Data = rx.recv().unwrap();
 
-	assert!(matches!(
-		tx.send(d.clone()),
-		Err(channels::Error::SizeLimit)
-	));
+		assert!(
+			data.buffer
+				.iter()
+				.enumerate()
+				.all(|(i, x)| *x == i as u8),
+			"the buffer has corrupted data"
+		);
 
-	d.buffer = vec![0u8; u16::MAX as usize];
+		tx.send(data).unwrap();
+	}
+}
 
-	assert!(matches!(
-		tx.send(d.clone()),
-		Err(channels::Error::SizeLimit)
-	));
+fn client() {
+	let s = TcpStream::connect(ADDR).unwrap();
+	let (mut tx, mut rx) =
+		channels::channel(s.try_clone().unwrap(), s);
 
-	d.buffer = vec![0u8; u16::MAX as usize - 1024];
+	for i in 0..ITER {
+		let mut data = Data {
+			buffer: (0..usize::from(u16::MAX) + i)
+				.into_iter()
+				.map(|x| x as u8)
+				.collect(),
+		};
+		assert!(matches!(
+			tx.send(data.clone()),
+			Err(channels::Error::SizeLimit)
+		));
 
-	assert!(tx.send(d.clone()).is_ok());
+		data.buffer.resize(
+			u16::MAX as usize - i - 128, /* ensure we allow enough space for the header */
+			0x0,
+		);
+		assert!(tx.send(data.clone()).is_ok());
 
-	assert_eq!(rx.recv().unwrap(), d);
+		assert_eq!(rx.recv().unwrap(), data);
+	}
+}
 
-	a.join().unwrap();
+#[test]
+fn test_big_data() {
+	let s = thread::Builder::new()
+		.name("server".into())
+		.spawn(server)
+		.unwrap();
+
+	thread::sleep(Duration::from_secs(1));
+
+	let c = thread::Builder::new()
+		.name("client".into())
+		.spawn(client)
+		.unwrap();
+
+	s.join().unwrap();
+	c.join().unwrap();
 }
