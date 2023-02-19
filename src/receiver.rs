@@ -69,13 +69,13 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	pub fn recv(&mut self) -> Result<T> {
-		let i = self.rx.fill_buf_to(
+		let _i = self.rx.fill_buf_to(
 			self.rx_buffer.buffer(),
 			Packet::MAX_HEADER_SIZE.into(),
 		)?;
 
 		#[cfg(feature = "statistics")]
-		self.stats.add_received(i);
+		self.stats.add_received(_i);
 
 		if let Err(e) = self.rx_buffer.verify_with(|packet| {
 			if packet.get_id() != self.seq_no {
@@ -90,12 +90,12 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 
 		let packet_len = self.rx_buffer.get_length().into();
 
-		let i = self
+		let _i = self
 			.rx
 			.fill_buf_to(self.rx_buffer.buffer(), packet_len)?;
 
 		#[cfg(feature = "statistics")]
-		self.stats.add_received(i);
+		self.stats.add_received(_i);
 
 		let data: Result<T> = util::deserialize(
 			&self.rx_buffer.payload()[..packet_len
