@@ -169,7 +169,7 @@ pub fn channel<'r, 'w, T: Serialize + DeserializeOwned>(
 ///
 /// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
 ///
-/// let (mut tx, mut rx) = channels::channel::<i32, i64>(conn.try_clone().unwrap(), conn);
+/// let (mut tx, mut rx) = channels::channel2::<i32, i64>(conn.try_clone().unwrap(), conn);
 /// ```
 pub fn channel2<'r, 'w, S: Serialize, R: DeserializeOwned>(
 	r: impl Read + 'r,
