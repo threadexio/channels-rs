@@ -9,7 +9,7 @@ use crate::util;
 #[cfg(feature = "statistics")]
 use crate::stats;
 
-/// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`](std::sync::mpsc::Receiver),
+/// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
@@ -25,9 +25,7 @@ pub struct Receiver<'a, T> {
 }
 
 impl<'a, T> Receiver<'a, T> {
-	/// Creates a new [`Receiver`](Receiver) from `rx`.
-	///
-	/// It is generally recommended to use [`channels::channel`](crate::channel) instead.
+	/// Creates a new [`Receiver`] from `rx`.
 	pub fn new<R>(rx: R) -> Self
 	where
 		R: Read + 'a,
@@ -35,7 +33,6 @@ impl<'a, T> Receiver<'a, T> {
 		Self {
 			_p: PhantomData,
 			rx: Box::new(rx),
-			//rx_buffer: Packet::new(),
 			buffer: PacketBuffer::new(),
 			seq_no: 0,
 

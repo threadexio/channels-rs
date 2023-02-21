@@ -10,7 +10,7 @@ use crate::util;
 #[cfg(feature = "statistics")]
 use crate::stats;
 
-/// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`](std::sync::mpsc::Sender),
+/// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
@@ -25,9 +25,7 @@ pub struct Sender<'a, T> {
 }
 
 impl<'a, T> Sender<'a, T> {
-	/// Creates a new [`Sender`](Sender) from `reader`.
-	///
-	/// It is generally recommended to use [`channels::channel`](crate::channel) instead.
+	/// Creates a new [`Sender`] from `tx`.
 	pub fn new<W>(tx: W) -> Self
 	where
 		W: Write + 'a,

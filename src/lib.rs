@@ -1,9 +1,9 @@
-//! Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`](`std::io::Read`) and [`std::io::Write`](`std::io::Write`).
+//! Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`] and [`std::io::Write`].
 //!
-//! This crate is similar to [`std::sync::mpsc`](std::sync::mpsc) in terms of the API, and most of the documentation
+//! This crate is similar to [`std::sync::mpsc`] in terms of the API, and most of the documentation
 //! for that module carries over to this crate.
 //!
-//! Don't think of these channels as a replacement for [`std::sync::mpsc`](std::sync::mpsc), but as another implementation that works over many different transports.
+//! Don't think of these channels as a replacement for [`std::sync::mpsc`], but as another implementation that works over many different transports.
 //!
 //! These channels are meant to be used in combination with network sockets, local sockets, pipes, etc. And can be chained with other adapter types to create complex
 //! and structured packets.
@@ -106,7 +106,16 @@
 //! recv_thread.join().unwrap();
 //! send_thread.join().unwrap();
 //! ```
-
+#[allow(unknown_lints)]
+#[warn(
+	clippy::all,
+	clippy::unwrap_used,
+	clippy::expect_used,
+	clippy::panic,
+	clippy::style,
+	clippy::cargo
+)]
+#[warn(rustdoc::all)]
 mod crc;
 mod packet;
 mod storage;
@@ -127,10 +136,15 @@ pub use receiver::Receiver;
 use serde::{de::DeserializeOwned, ser::Serialize};
 use std::io::{Read, Write};
 
-/// A tuple containing a [`Sender`](Sender) and a [`Receiver`](Receiver)
+/// A tuple containing a [`Sender`] and a [`Receiver`].
 pub type Pair<'r, 'w, T> = (Sender<'w, T>, Receiver<'r, T>);
 
-/// Creates a new channel, returning the [`Sender`](Sender)/[`Receiver`](Receiver).
+/// A tuple containing a [`Sender`] and a [`Receiver`] that use different types.
+pub type Pair2<'r, 'w, S, R> = (Sender<'w, S>, Receiver<'r, R>);
+
+/// Creates a new channel.
+///
+/// > **NOTE:** If you need a [`Sender`] and a [`Receiver`] that use different types use [`channel2`].
 ///
 /// # Usage
 /// ```no_run
@@ -144,5 +158,22 @@ pub fn channel<'r, 'w, T: Serialize + DeserializeOwned>(
 	r: impl Read + 'r,
 	w: impl Write + 'w,
 ) -> Pair<'r, 'w, T> {
+	channel2::<T, T>(r, w)
+}
+
+/// Creates a new channel that sends and receives different types.
+///
+/// # Usage
+/// ```no_run
+/// use std::net::TcpStream;
+///
+/// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
+///
+/// let (mut tx, mut rx) = channels::channel::<i32, i64>(conn.try_clone().unwrap(), conn);
+/// ```
+pub fn channel2<'r, 'w, S: Serialize, R: DeserializeOwned>(
+	r: impl Read + 'r,
+	w: impl Write + 'w,
+) -> Pair2<'r, 'w, S, R> {
 	(Sender::new(w), Receiver::new(r))
 }
