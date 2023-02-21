@@ -1,167 +1,115 @@
-use crate::util::{read_offset, write_offset};
-
 use crate::error::*;
 use crate::storage::Buffer;
+use crate::util::{read_offset, write_offset};
 
-pub struct Packet {
-	inner: Buffer,
+pub struct PacketBuffer {
+	buffer: Buffer,
 }
 
-impl Packet {
-	pub const PROTOCOL_VERSION: u16 = 0x1;
-
-	pub const MAX_SIZE: u16 = 0xffff; // u16::MAX
-	pub const MAX_HEADER_SIZE: u16 = 8;
-
-	pub const MAX_PAYLOAD_SIZE: u16 =
-		Self::MAX_SIZE - Self::MAX_HEADER_SIZE;
-
+#[allow(dead_code)]
+impl PacketBuffer {
 	pub fn new() -> Self {
-		Self { inner: Buffer::new(Self::MAX_SIZE.into()) }
+		Self { buffer: Buffer::new(0xffff) }
 	}
 
-	/// Get a mutable reference to the underlying buffer.
-	pub fn buffer(&mut self) -> &mut Buffer {
-		&mut self.inner
+	pub fn reset(&mut self) {
+		self.buffer.clear();
 	}
 
-	/// Get a slice to the entire underlying buffer.
-	pub fn packet(&self) -> &[u8] {
-		self.inner.buffer()
+	pub fn buffer(&self) -> &Buffer {
+		&self.buffer
 	}
 
-	/// Get a slice to the entire header.
+	pub fn buffer_mut(&mut self) -> &mut Buffer {
+		&mut self.buffer
+	}
+
 	pub fn header(&self) -> &[u8] {
-		&self.inner.buffer()[..Self::MAX_HEADER_SIZE.into()]
+		&self.buffer[..Self::HEADER_SIZE]
 	}
 
-	#[allow(dead_code)]
-	/// Get a mutable slice to the entire header.
-	fn header_mut(&mut self) -> &mut [u8] {
-		&mut self.inner.buffer_mut()[..Self::MAX_HEADER_SIZE.into()]
+	pub fn header_mut(&mut self) -> &mut [u8] {
+		&mut self.buffer[..Self::HEADER_SIZE]
 	}
 
-	/// Get a slice to the entire payload.
 	pub fn payload(&self) -> &[u8] {
-		&self.inner.buffer()[Self::MAX_HEADER_SIZE.into()..]
+		&self.buffer[Self::HEADER_SIZE..]
 	}
 
-	/// Get a mutable slice to the entire payload.
 	pub fn payload_mut(&mut self) -> &mut [u8] {
-		&mut self.inner.buffer_mut()[Self::MAX_HEADER_SIZE.into()..]
+		&mut self.buffer[Self::HEADER_SIZE..]
 	}
 }
 
-impl Packet {
-	/// Get the protocol version.
-	fn get_version(&self) -> u16 {
-		u16::from_be(read_offset(&self.inner, 0))
+#[allow(dead_code)]
+impl PacketBuffer {
+	pub const VERSION: u16 = 0x1;
+	pub const HEADER_SIZE: usize = 8;
+
+	pub fn get_version(&self) -> u16 {
+		u16::from_be(read_offset::<u16>(&self.buffer, 0))
 	}
 
-	/// Set the protocol version.
-	fn set_version(&mut self, version: u16) {
-		write_offset(&mut self.inner, 0, u16::to_be(version));
+	pub fn set_version(&mut self, version: u16) {
+		write_offset(&mut self.buffer, 0, u16::to_be(version))
 	}
 
-	/// Get the packet id.
 	pub fn get_id(&self) -> u16 {
-		u16::from_be(read_offset(&self.inner, 2))
+		u16::from_be(read_offset(&self.buffer, 2))
 	}
 
-	/// Set the packet id.
 	pub fn set_id(&mut self, id: u16) {
-		write_offset(&mut self.inner, 2, u16::to_be(id))
+		write_offset(&mut self.buffer, 2, u16::to_be(id))
 	}
 
-	/// Get the length of the whole packet.
 	pub fn get_length(&self) -> u16 {
-		u16::from_be(read_offset(&self.inner, 4))
+		u16::from_be(read_offset(&self.buffer, 4))
 	}
 
-	fn set_length(&mut self, length: u16) {
-		write_offset(&mut self.inner, 4, u16::to_be(length));
+	pub fn set_length(&mut self, length: u16) {
+		write_offset(&mut self.buffer, 4, u16::to_be(length));
 	}
 
-	/// Get the current checksum as is from the header.
-	fn get_header_checksum(&self) -> u16 {
-		u16::from_be(read_offset(&self.inner, 6))
+	pub fn get_header_checksum(&self) -> u16 {
+		u16::from_be(read_offset(&self.buffer, 6))
 	}
 
-	/// Set the current checksum.
 	fn set_header_checksum(&mut self, checksum: u16) {
-		write_offset(&mut self.inner, 6, u16::to_be(checksum));
+		write_offset(&mut self.buffer, 6, u16::to_be(checksum));
 	}
 
-	/// Calculate a new checksum.
-	fn calculate_header_checksum(&self) -> u16 {
+	pub(self) fn calculate_header_checksum(&self) -> u16 {
 		crate::crc::checksum(self.header())
 	}
+
+	pub fn recalculate_header_checksum(&mut self) {
+		self.set_header_checksum(0);
+		let c = crate::crc::checksum(self.header());
+		self.set_header_checksum(c);
+	}
 }
 
-impl Packet {
-	/// Get the length of the payload.
-	pub fn get_payload_length(&self) -> Result<u16> {
-		let packet_len = self.get_length();
-
-		if packet_len < Self::MAX_HEADER_SIZE {
-			Err(Error::SizeLimit)
-		} else {
-			Ok(packet_len - Self::MAX_HEADER_SIZE)
-		}
-	}
-
-	/// Set the length of the payload.
-	pub fn set_payload_length(&mut self, length: u16) -> Result<()> {
-		if length > Self::MAX_PAYLOAD_SIZE {
-			return Err(Error::SizeLimit);
-		} else {
-			self.set_length(Self::MAX_HEADER_SIZE + length);
-		}
-
-		Ok(())
-	}
-
-	pub fn finalize_with<F>(&mut self, f: F) -> &[u8]
-	where
-		F: FnOnce(&mut Self),
-	{
-		f(self);
-
-		self.set_version(Self::PROTOCOL_VERSION);
-
-		{
-			self.set_header_checksum(0);
-			let c = self.calculate_header_checksum();
-			self.set_header_checksum(c);
-		}
-
-		let packet_len = self.get_length().into();
-		&self.packet()[..packet_len]
-	}
-
-	pub fn verify_with<F>(&mut self, f: F) -> Result<()>
-	where
-		F: FnOnce(&mut Self) -> Result<()>,
-	{
-		if self.get_version() != Self::PROTOCOL_VERSION {
+impl PacketBuffer {
+	pub fn verify(&mut self, seq_no: u16) -> Result<()> {
+		if self.get_version() != PacketBuffer::VERSION {
 			return Err(Error::VersionMismatch);
 		}
 
-		{
-			let unverified = self.get_header_checksum();
-			self.set_header_checksum(0);
-			let calculated = self.calculate_header_checksum();
+		let unverified = self.get_header_checksum();
+		self.set_header_checksum(0);
+		let calculated = crate::crc::checksum(self.header());
 
-			if unverified != calculated {
-				return Err(Error::ChecksumError);
-			}
+		if unverified != calculated {
+			return Err(Error::ChecksumError);
 		}
 
-		// check that the packet length is valid
-		// packet_len >= Header Size
-		self.get_payload_length()?;
+		if (self.get_length() as usize) < PacketBuffer::HEADER_SIZE {
+			return Err(Error::SizeLimit);
+		}
 
-		f(self)?;
+		if self.get_id() != seq_no {
+			return Err(Error::OutOfOrder);
+		}
 
 		Ok(())
 	}
@@ -175,7 +123,7 @@ mod tests {
 
 	#[test]
 	fn correct_endianness() {
-		let mut packet = Packet::new();
+		let mut packet = PacketBuffer::new();
 
 		packet.set_version(1);
 		assert_eq!(packet.get_version(), 1);
@@ -195,7 +143,7 @@ mod tests {
 	#[test]
 	fn checksum_algorithm() {
 		let mut rng = rand::thread_rng();
-		let mut packet = Packet::new();
+		let mut packet = PacketBuffer::new();
 
 		rng.fill_bytes(packet.header_mut());
 		let c1 = packet.calculate_header_checksum();

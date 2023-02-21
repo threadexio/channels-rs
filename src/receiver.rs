@@ -1,9 +1,9 @@
 use core::marker::PhantomData;
-use std::io::Read;
+use std::io::{self, Read};
 
 use crate::error::{Error, Result};
-use crate::packet::Packet;
-use crate::storage::ReadExt;
+use crate::packet::PacketBuffer;
+use crate::storage::Buffer;
 use crate::util;
 
 #[cfg(feature = "statistics")]
@@ -16,7 +16,8 @@ use crate::stats;
 pub struct Receiver<'a, T> {
 	_p: PhantomData<T>,
 	rx: Box<dyn Read + 'a>,
-	rx_buffer: Packet,
+	//rx_buffer: Packet,
+	buffer: PacketBuffer,
 	seq_no: u16,
 
 	#[cfg(feature = "statistics")]
@@ -34,7 +35,8 @@ impl<'a, T> Receiver<'a, T> {
 		Self {
 			_p: PhantomData,
 			rx: Box::new(rx),
-			rx_buffer: Packet::new(),
+			//rx_buffer: Packet::new(),
+			buffer: PacketBuffer::new(),
 			seq_no: 0,
 
 			#[cfg(feature = "statistics")]
@@ -69,46 +71,98 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	pub fn recv(&mut self) -> Result<T> {
-		let _i = self.rx.fill_buf_to(
-			self.rx_buffer.buffer(),
-			Packet::MAX_HEADER_SIZE.into(),
-		)?;
+		#[inline(never)]
+		#[track_caller]
+		fn fill_buf<R, F>(
+			buffer: &mut Buffer,
+			reader: &mut R,
+			limit: usize,
+			mut read_cb: F,
+		) -> Result<()>
+		where
+			R: Read,
+			F: FnMut(usize),
+		{
+			let mut bytes_read: usize = 0;
+			while limit > bytes_read {
+				let remaining = limit - bytes_read;
 
-		#[cfg(feature = "statistics")]
-		self.stats.add_received(_i);
+				let i = match reader
+					.read(&mut buffer.after_mut()[..remaining])
+				{
+					Ok(v) if v == 0 => {
+						return Err(Error::Io(
+							io::ErrorKind::UnexpectedEof.into(),
+						))
+					},
+					Ok(v) => v,
+					Err(e)
+						if e.kind() == io::ErrorKind::Interrupted =>
+					{
+						continue
+					},
+					Err(e) => return Err(Error::Io(e)),
+				};
 
-		if let Err(e) = self.rx_buffer.verify_with(|packet| {
-			if packet.get_id() != self.seq_no {
-				return Err(Error::OutOfOrder);
+				buffer.seek_forward(i);
+				bytes_read += i;
+
+				read_cb(i);
 			}
 
 			Ok(())
-		}) {
-			self.rx_buffer.buffer().clear();
-			return Err(e);
 		}
 
-		let packet_len = self.rx_buffer.get_length().into();
+		let mut read_cb = |_x: usize| {
+			#[cfg(feature = "statistics")]
+			self.stats.add_received(_x);
+		};
 
-		let _i = self
-			.rx
-			.fill_buf_to(self.rx_buffer.buffer(), packet_len)?;
+		let buf_len = self.buffer.buffer().len();
+		if buf_len < PacketBuffer::HEADER_SIZE {
+			fill_buf(
+				self.buffer.buffer_mut(),
+				&mut self.rx,
+				PacketBuffer::HEADER_SIZE - buf_len,
+				&mut read_cb,
+			)?;
 
-		#[cfg(feature = "statistics")]
-		self.stats.add_received(_i);
+			debug_assert_eq!(
+				self.buffer.buffer().len(),
+				PacketBuffer::HEADER_SIZE
+			);
 
-		let data: Result<T> = util::deserialize(
-			&self.rx_buffer.payload()[..packet_len
-				.saturating_sub(Packet::MAX_HEADER_SIZE.into())],
-		);
+			if let Err(e) = self.buffer.verify(self.seq_no) {
+				self.buffer.reset();
+				return Err(e);
+			}
+		}
+
+		let packet_len = self.buffer.get_length() as usize;
+		let buf_len = self.buffer.buffer().len();
+		if buf_len < packet_len {
+			fill_buf(
+				self.buffer.buffer_mut(),
+				&mut self.rx,
+				packet_len - buf_len,
+				&mut read_cb,
+			)?;
+
+			debug_assert_eq!(self.buffer.buffer().len(), packet_len);
+		}
+
+		self.buffer.reset();
+		let payload_len = packet_len - PacketBuffer::HEADER_SIZE;
+		let data = util::deserialize::<T>(
+			&self.buffer.payload()[..payload_len],
+		)?;
+
+		self.seq_no = self.seq_no.wrapping_add(1);
 
 		#[cfg(feature = "statistics")]
 		self.stats.update_received_time();
 
-		self.seq_no = self.seq_no.wrapping_add(1);
-		self.rx_buffer.buffer().clear();
-
-		data
+		Ok(data)
 	}
 }
 

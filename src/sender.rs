@@ -1,9 +1,10 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
-use std::io::Write;
+use std::io::{self, Write};
 
 use crate::error::{Error, Result};
-use crate::packet::Packet;
+use crate::packet::PacketBuffer;
+use crate::storage::Buffer;
 use crate::util;
 
 #[cfg(feature = "statistics")]
@@ -16,7 +17,7 @@ use crate::stats;
 pub struct Sender<'a, T> {
 	_p: PhantomData<T>,
 	tx: Box<dyn Write + 'a>,
-	tx_buffer: Packet,
+	buffer: PacketBuffer,
 	seq_no: u16,
 
 	#[cfg(feature = "statistics")]
@@ -34,7 +35,8 @@ impl<'a, T> Sender<'a, T> {
 		Self {
 			_p: PhantomData,
 			tx: Box::new(tx),
-			tx_buffer: Packet::new(),
+			//tx_buffer: Packet::new(),
+			buffer: PacketBuffer::new(),
 			seq_no: 0,
 
 			#[cfg(feature = "statistics")]
@@ -65,28 +67,80 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 	where
 		D: Borrow<T>,
 	{
+		#[inline(never)]
+		#[track_caller]
+		fn write_all<W, F>(
+			buffer: &mut Buffer,
+			writer: &mut W,
+			limit: usize,
+			mut write_cb: F,
+		) -> Result<()>
+		where
+			W: Write,
+			F: FnMut(usize),
+		{
+			let mut bytes_sent: usize = 0;
+			while bytes_sent < limit {
+				let remaining = limit - bytes_sent;
+
+				let i = match writer
+					.write(&buffer.after()[..remaining])
+				{
+					Ok(v) if v == 0 => {
+						return Err(Error::Io(
+							io::ErrorKind::UnexpectedEof.into(),
+						))
+					},
+					Ok(v) => v,
+					Err(e)
+						if e.kind() == io::ErrorKind::Interrupted =>
+					{
+						continue
+					},
+					Err(e) => return Err(Error::Io(e)),
+				};
+
+				bytes_sent += i;
+				buffer.seek_forward(i);
+
+				write_cb(i);
+			}
+
+			Ok(())
+		}
+
 		let payload = util::serialize(data.borrow())?;
 		let payload_len: u16 =
 			payload.len().try_into().map_err(|_| Error::SizeLimit)?;
 
-		let packet = &mut self.tx_buffer;
-
-		packet.set_payload_length(payload_len)?;
-		packet.payload_mut()[..payload_len as usize]
+		self.buffer.payload_mut()[..payload_len as usize]
 			.copy_from_slice(&payload);
 		drop(payload);
 
-		self.tx.write_all(packet.finalize_with(|packet| {
-			packet.set_id(self.seq_no);
-		}))?;
+		self.buffer.set_version(PacketBuffer::VERSION);
 
-		#[cfg(feature = "statistics")]
-		{
-			self.stats.update_sent_time();
-			self.stats.add_sent(packet.get_length() as usize);
-		}
+		let packet_len =
+			PacketBuffer::HEADER_SIZE + payload_len as usize;
+		self.buffer.set_length(packet_len as u16);
+		self.buffer.set_id(self.seq_no);
+		self.buffer.recalculate_header_checksum();
+
+		self.buffer.reset();
+		write_all(
+			self.buffer.buffer_mut(),
+			&mut self.tx,
+			packet_len,
+			|_x: usize| {
+				#[cfg(feature = "statistics")]
+				self.stats.add_sent(_x);
+			},
+		)?;
 
 		self.seq_no = self.seq_no.wrapping_add(1);
+
+		#[cfg(feature = "statistics")]
+		self.stats.update_sent_time();
+
 		Ok(())
 	}
 }
