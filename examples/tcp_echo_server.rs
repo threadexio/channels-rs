@@ -7,17 +7,19 @@ fn connection_handler(connection: TcpStream) {
 		connection,
 	);
 
-	let received = rx.recv().unwrap();
-	println!(
-		"{}: Received: {received}",
-		thread::current().name().unwrap()
-	);
+	loop {
+		let received = rx.recv().unwrap();
+		println!(
+			"{}: Received: {received}",
+			thread::current().name().unwrap()
+		);
 
-	tx.send(received).unwrap();
+		tx.send(received).unwrap();
+	}
 }
 
 fn main() {
-	let listener = TcpListener::bind("127.0.0.1:9999").unwrap();
+	let listener = TcpListener::bind("127.0.0.1:10000").unwrap();
 
 	for (i, connection) in listener.incoming().enumerate() {
 		match connection {

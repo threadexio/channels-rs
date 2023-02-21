@@ -2,7 +2,7 @@ use std::io;
 use std::net::TcpListener;
 
 fn main() {
-	let listener = TcpListener::bind("127.0.0.1:9999").unwrap();
+	let listener = TcpListener::bind("127.0.0.1:10000").unwrap();
 
 	let mut clients = Vec::with_capacity(3);
 
