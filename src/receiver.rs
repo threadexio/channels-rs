@@ -2,12 +2,10 @@ use core::marker::PhantomData;
 use std::io::{self, Read};
 
 use crate::error::{Error, Result};
+use crate::io::Reader;
 use crate::packet::PacketBuffer;
 use crate::storage::Buffer;
 use crate::util;
-
-#[cfg(feature = "statistics")]
-use crate::stats;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
@@ -15,13 +13,9 @@ use crate::stats;
 /// See [crate-level documentation](crate).
 pub struct Receiver<'a, T> {
 	_p: PhantomData<T>,
-	rx: Box<dyn Read + 'a>,
-	//rx_buffer: Packet,
+	rx: Reader<Box<dyn Read + 'a>>,
 	buffer: PacketBuffer,
 	seq_no: u16,
-
-	#[cfg(feature = "statistics")]
-	stats: stats::RecvStats,
 }
 
 impl<'a, T> Receiver<'a, T> {
@@ -32,12 +26,9 @@ impl<'a, T> Receiver<'a, T> {
 	{
 		Self {
 			_p: PhantomData,
-			rx: Box::new(rx),
+			rx: Reader::new(Box::new(rx)),
 			buffer: PacketBuffer::new(),
 			seq_no: 0,
-
-			#[cfg(feature = "statistics")]
-			stats: stats::RecvStats::new(),
 		}
 	}
 
@@ -53,8 +44,8 @@ impl<'a, T> Receiver<'a, T> {
 
 	#[cfg(feature = "statistics")]
 	/// Get statistics on this [`Receiver`](Self).
-	pub fn stats(&self) -> &stats::RecvStats {
-		&self.stats
+	pub fn stats(&self) -> &crate::stats::RecvStats {
+		self.rx.stats()
 	}
 }
 
@@ -70,15 +61,13 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 	pub fn recv(&mut self) -> Result<T> {
 		#[inline(never)]
 		#[track_caller]
-		fn fill_buf<R, F>(
+		fn fill_buf<R>(
 			buffer: &mut Buffer,
 			reader: &mut R,
 			limit: usize,
-			mut read_cb: F,
 		) -> Result<()>
 		where
 			R: Read,
-			F: FnMut(usize),
 		{
 			let mut bytes_read: usize = 0;
 			while limit > bytes_read {
@@ -103,17 +92,10 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 
 				buffer.seek_forward(i);
 				bytes_read += i;
-
-				read_cb(i);
 			}
 
 			Ok(())
 		}
-
-		let mut read_cb = |_x: usize| {
-			#[cfg(feature = "statistics")]
-			self.stats.add_received(_x);
-		};
 
 		let buf_len = self.buffer.buffer().len();
 		if buf_len < PacketBuffer::HEADER_SIZE {
@@ -121,7 +103,6 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 				self.buffer.buffer_mut(),
 				&mut self.rx,
 				PacketBuffer::HEADER_SIZE - buf_len,
-				&mut read_cb,
 			)?;
 
 			debug_assert_eq!(
@@ -142,7 +123,6 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 				self.buffer.buffer_mut(),
 				&mut self.rx,
 				packet_len - buf_len,
-				&mut read_cb,
 			)?;
 
 			debug_assert_eq!(self.buffer.buffer().len(), packet_len);
@@ -157,7 +137,7 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 		self.seq_no = self.seq_no.wrapping_add(1);
 
 		#[cfg(feature = "statistics")]
-		self.stats.update_received_time();
+		self.rx.stats_mut().update_received_time();
 
 		Ok(data)
 	}

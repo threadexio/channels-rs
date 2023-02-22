@@ -3,12 +3,10 @@ use core::marker::PhantomData;
 use std::io::{self, Write};
 
 use crate::error::{Error, Result};
+use crate::io::Writer;
 use crate::packet::PacketBuffer;
 use crate::storage::Buffer;
 use crate::util;
-
-#[cfg(feature = "statistics")]
-use crate::stats;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -16,12 +14,9 @@ use crate::stats;
 /// See [crate-level documentation](crate).
 pub struct Sender<'a, T> {
 	_p: PhantomData<T>,
-	tx: Box<dyn Write + 'a>,
+	tx: Writer<Box<dyn Write + 'a>>,
 	buffer: PacketBuffer,
 	seq_no: u16,
-
-	#[cfg(feature = "statistics")]
-	stats: stats::SendStats,
 }
 
 impl<'a, T> Sender<'a, T> {
@@ -32,13 +27,9 @@ impl<'a, T> Sender<'a, T> {
 	{
 		Self {
 			_p: PhantomData,
-			tx: Box::new(tx),
-			//tx_buffer: Packet::new(),
+			tx: Writer::new(Box::new(tx)),
 			buffer: PacketBuffer::new(),
 			seq_no: 0,
-
-			#[cfg(feature = "statistics")]
-			stats: stats::SendStats::new(),
 		}
 	}
 
@@ -53,9 +44,9 @@ impl<'a, T> Sender<'a, T> {
 	}
 
 	#[cfg(feature = "statistics")]
-	/// Get statistics on this [`Sender`](Self).
-	pub fn stats(&self) -> &stats::SendStats {
-		&self.stats
+	/// Get statistics on this [`Sender`].
+	pub fn stats(&self) -> &crate::stats::SendStats {
+		self.tx.stats()
 	}
 }
 
@@ -67,15 +58,13 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 	{
 		#[inline(never)]
 		#[track_caller]
-		fn write_all<W, F>(
+		fn write_all<W>(
 			buffer: &mut Buffer,
 			writer: &mut W,
 			limit: usize,
-			mut write_cb: F,
 		) -> Result<()>
 		where
 			W: Write,
-			F: FnMut(usize),
 		{
 			let mut bytes_sent: usize = 0;
 			while bytes_sent < limit {
@@ -100,8 +89,6 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 
 				bytes_sent += i;
 				buffer.seek_forward(i);
-
-				write_cb(i);
 			}
 
 			Ok(())
@@ -128,16 +115,12 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 			self.buffer.buffer_mut(),
 			&mut self.tx,
 			packet_len,
-			|_x: usize| {
-				#[cfg(feature = "statistics")]
-				self.stats.add_sent(_x);
-			},
 		)?;
 
 		self.seq_no = self.seq_no.wrapping_add(1);
 
 		#[cfg(feature = "statistics")]
-		self.stats.update_sent_time();
+		self.tx.stats_mut().update_sent_time();
 
 		Ok(())
 	}

@@ -117,6 +117,7 @@
 )]
 #[warn(rustdoc::all)]
 mod crc;
+mod io;
 mod packet;
 mod storage;
 mod util;
