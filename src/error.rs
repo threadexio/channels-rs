@@ -52,3 +52,6 @@ impl From<bincode::Error> for Error {
 		Self::Serde(value)
 	}
 }
+
+unsafe impl Send for Error {}
+unsafe impl Sync for Error {}
