@@ -32,6 +32,8 @@ impl fmt::Display for Error {
 	}
 }
 
+impl StdError for Error {}
+
 impl From<Box<dyn StdError>> for Error {
 	fn from(value: Box<dyn StdError>) -> Self {
 		Self::Serde(value)
