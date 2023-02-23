@@ -6,7 +6,6 @@ use crate::error::{Error, Result};
 use crate::io::Writer;
 use crate::packet::PacketBuffer;
 use crate::storage::Buffer;
-use crate::util;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -50,11 +49,42 @@ impl<'a, T> Sender<'a, T> {
 	}
 }
 
-impl<'a, T: serde::Serialize> Sender<'a, T> {
-	/// Attempts to send an object through the data stream.
-	pub fn send<D>(&mut self, data: D) -> Result<()>
+impl<'a, T> Sender<'a, T> {
+	/// Attempts to send an object through the data stream
+	/// using a custom serialization function.
+	///
+	/// The first parameter passed to `ser_fn` is the buffer
+	/// where serialized data should be put.
+	///
+	/// The second parameter passed to `sef_fn` is `data`.
+	///
+	/// `ser_fn` must return the number of bytes the serialized
+	///  data consists of.
+	///
+	/// **NOTE:** The serialized payload must fit within the provided buffer.
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Sender;
+	///
+	/// let mut tx = Sender::<i32>::new(std::io::sink());
+	///
+	/// tx.send_with(42, |buf, data| {
+	///     let payload = data.to_be_bytes();
+	///
+	///     // i32 is 2 bytes in size
+	///     buf[..2].copy_from_slice(&payload);
+	///     Ok(2)
+	/// }).unwrap();
+	/// ```
+	pub fn send_with<D, F>(
+		&mut self,
+		data: D,
+		ser_fn: F,
+	) -> Result<()>
 	where
 		D: Borrow<T>,
+		F: FnOnce(&mut [u8], D) -> Result<usize>,
 	{
 		#[inline(never)]
 		#[track_caller]
@@ -94,18 +124,16 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 			Ok(())
 		}
 
-		let payload = util::serialize(data.borrow())?;
-		let payload_len: u16 =
-			payload.len().try_into().map_err(|_| Error::SizeLimit)?;
+		let payload_buffer = self.buffer.payload_mut();
+		let payload_len = ser_fn(payload_buffer, data)?;
 
-		self.buffer.payload_mut()[..payload_len as usize]
-			.copy_from_slice(&payload);
-		drop(payload);
+		if payload_len > payload_buffer.len() {
+			return Err(Error::SizeLimit);
+		}
 
 		self.buffer.set_version(PacketBuffer::VERSION);
 
-		let packet_len =
-			PacketBuffer::HEADER_SIZE + payload_len as usize;
+		let packet_len = PacketBuffer::HEADER_SIZE + payload_len;
 		self.buffer.set_length(packet_len as u16);
 		self.buffer.set_id(self.seq_no);
 		self.buffer.recalculate_header_checksum();
@@ -123,6 +151,41 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 		self.tx.stats_mut().update_sent_time();
 
 		Ok(())
+	}
+}
+
+#[cfg(feature = "serde")]
+impl<'a, T: serde::Serialize> Sender<'a, T> {
+	/// Attempts to send an object through the data stream using `serde`.
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Sender;
+	///
+	/// #[derive(serde::Serialize)]
+	/// struct Data {
+	///     a: i32
+	/// }
+	///
+	/// let mut tx = Sender::<Data>::new(std::io::sink());
+	///
+	/// tx.send(Data { a: 42 }).unwrap();
+	/// ```
+	pub fn send<D>(&mut self, data: D) -> Result<()>
+	where
+		D: Borrow<T>,
+	{
+		self.send_with(data, |buf, data| {
+			let payload = crate::serde::serialize(data.borrow())?;
+
+			let payload_len = payload.len();
+			if payload_len > buf.len() {
+				return Err(Error::SizeLimit);
+			}
+
+			buf[..payload_len].copy_from_slice(&payload);
+			Ok(payload_len)
+		})
 	}
 }
 

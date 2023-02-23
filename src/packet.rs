@@ -9,7 +9,7 @@ pub struct PacketBuffer {
 #[allow(dead_code)]
 impl PacketBuffer {
 	pub fn new() -> Self {
-		Self { buffer: Buffer::new(0xffff) }
+		Self { buffer: Buffer::new(Self::MAX_PACKET_SIZE) }
 	}
 
 	pub fn reset(&mut self) {
@@ -45,6 +45,9 @@ impl PacketBuffer {
 impl PacketBuffer {
 	pub const VERSION: u16 = 0x1;
 	pub const HEADER_SIZE: usize = 8;
+	pub const MAX_PACKET_SIZE: usize = 0xffff;
+	pub const MAX_PAYLOAD_SIZE: usize =
+		Self::MAX_PACKET_SIZE - Self::HEADER_SIZE;
 
 	pub fn get_version(&self) -> u16 {
 		u16::from_be(read_offset::<u16>(&self.buffer, 0))

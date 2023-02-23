@@ -5,7 +5,6 @@ use crate::error::{Error, Result};
 use crate::io::Reader;
 use crate::packet::PacketBuffer;
 use crate::storage::Buffer;
-use crate::util;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
@@ -49,8 +48,9 @@ impl<'a, T> Receiver<'a, T> {
 	}
 }
 
-impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
-	/// Attempts to read an object from the sender end.
+impl<'a, T> Receiver<'a, T> {
+	/// Attempts to receive an object from the data stream using
+	/// a custom deserialization function.
 	///
 	/// If the underlying data stream is a blocking socket then `recv()` will block until
 	/// an object is available.
@@ -58,7 +58,27 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 	/// If the underlying data stream is a non-blocking socket then `recv()` will return
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
-	pub fn recv(&mut self) -> Result<T> {
+	///
+	/// The first parameter passed to `de_fn` is the buffer with the
+	/// serialized data.
+	///
+	/// `de_fn` must return the deserialized object.
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Receiver;
+	///
+	/// let mut rx = Receiver::<i32>::new(std::io::empty());
+	///
+	/// let number = rx.recv_with(|buf| {
+	///     let number = i32::from_be_bytes(buf[..2].try_into().unwrap());
+	///     Ok(number)
+	/// }).unwrap();
+	/// ```
+	pub fn recv_with<F>(&mut self, de_fn: F) -> Result<T>
+	where
+		F: FnOnce(&[u8]) -> Result<T>,
+	{
 		#[inline(never)]
 		#[track_caller]
 		fn fill_buf<R>(
@@ -130,9 +150,9 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 
 		self.buffer.reset();
 		let payload_len = packet_len - PacketBuffer::HEADER_SIZE;
-		let data = util::deserialize::<T>(
-			&self.buffer.payload()[..payload_len],
-		)?;
+
+		let payload_buffer = &self.buffer.payload()[..payload_len];
+		let data = de_fn(payload_buffer)?;
 
 		self.seq_no = self.seq_no.wrapping_add(1);
 
@@ -140,6 +160,30 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 		self.rx.stats_mut().update_received_time();
 
 		Ok(data)
+	}
+}
+
+#[cfg(feature = "serde")]
+impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
+	/// Attempts to read an object from the sender end.
+	///
+	/// If the underlying data stream is a blocking socket then `recv()` will block until
+	/// an object is available.
+	///
+	/// If the underlying data stream is a non-blocking socket then `recv()` will return
+	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
+	/// available.
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Receiver;
+	///
+	/// let mut rx = Receiver::<i32>::new(std::io::empty());
+	///
+	/// let number = rx.recv().unwrap();
+	/// ```
+	pub fn recv(&mut self) -> Result<T> {
+		self.recv_with(crate::serde::deserialize)
 	}
 }
 

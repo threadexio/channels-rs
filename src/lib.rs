@@ -15,6 +15,9 @@
 //! # Features
 //!   - `statistics`: Capture statistic data like: total bytes sent/received, timestamp of last packet, etc
 //!
+//! # Default features
+//!   - `serde`: Enables support for `serde` with `bincode`
+//!
 //! # Limitations
 //!   - At this time only objects with a memory footprint smaller than 65KiB or `u16::MAX` bytes can be sent through the channel. This should be enough for anything you might need to send over.
 //!     If you need more then you should seriously rethink if you really need all that data sent over. If yes, then this crate will be of little use to you.
@@ -122,6 +125,9 @@ mod packet;
 mod storage;
 mod util;
 
+#[cfg(feature = "serde")]
+mod serde;
+
 #[cfg(feature = "statistics")]
 pub mod stats;
 
@@ -134,7 +140,6 @@ pub use sender::Sender;
 mod receiver;
 pub use receiver::Receiver;
 
-use serde::{de::DeserializeOwned, ser::Serialize};
 use std::io::{Read, Write};
 
 /// A tuple containing a [`Sender`] and a [`Receiver`].
@@ -155,7 +160,7 @@ pub type Pair2<'r, 'w, S, R> = (Sender<'w, S>, Receiver<'r, R>);
 ///
 /// let (mut tx, mut rx) = channels::channel::<i32>(conn.try_clone().unwrap(), conn);
 /// ```
-pub fn channel<'r, 'w, T: Serialize + DeserializeOwned>(
+pub fn channel<'r, 'w, T>(
 	r: impl Read + 'r,
 	w: impl Write + 'w,
 ) -> Pair<'r, 'w, T> {
@@ -172,7 +177,7 @@ pub fn channel<'r, 'w, T: Serialize + DeserializeOwned>(
 ///
 /// let (mut tx, mut rx) = channels::channel2::<i32, i64>(conn.try_clone().unwrap(), conn);
 /// ```
-pub fn channel2<'r, 'w, S: Serialize, R: DeserializeOwned>(
+pub fn channel2<'r, 'w, S, R>(
 	r: impl Read + 'r,
 	w: impl Write + 'w,
 ) -> Pair2<'r, 'w, S, R> {

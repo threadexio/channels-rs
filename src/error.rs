@@ -1,3 +1,4 @@
+use std::error::Error as StdError;
 use std::io;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -14,7 +15,14 @@ pub enum Error {
 	OutOfOrder,
 
 	#[error(transparent)]
-	Serde(#[from] bincode::Error),
+	Serde(#[from] Box<dyn StdError>),
 	#[error(transparent)]
 	Io(#[from] io::Error),
+}
+
+#[cfg(feature = "serde")]
+impl From<bincode::Error> for Error {
+	fn from(value: bincode::Error) -> Self {
+		Self::Serde(value)
+	}
 }
