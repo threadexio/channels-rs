@@ -1,23 +1,47 @@
 use std::error::Error as StdError;
+use std::fmt;
 use std::io;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum Error {
-	#[error("peer does not have the correct crate version")]
 	VersionMismatch,
-	#[error("corrupted data")]
 	ChecksumError,
-	#[error("data too large")]
 	SizeLimit,
-	#[error("data was received out of order")]
 	OutOfOrder,
+	Serde(Box<dyn StdError>),
+	Io(io::Error),
+}
 
-	#[error(transparent)]
-	Serde(#[from] Box<dyn StdError>),
-	#[error(transparent)]
-	Io(#[from] io::Error),
+impl fmt::Display for Error {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::VersionMismatch => write!(
+				f,
+				"peer does not have the correct crate version"
+			),
+			Self::ChecksumError => write!(f, "corrupted data"),
+			Self::SizeLimit => write!(f, "data too large"),
+			Self::OutOfOrder => {
+				write!(f, "data was received out of order")
+			},
+			Self::Serde(e) => write!(f, "{}", e),
+			Self::Io(e) => write!(f, "{}", e),
+		}
+	}
+}
+
+impl From<Box<dyn StdError>> for Error {
+	fn from(value: Box<dyn StdError>) -> Self {
+		Self::Serde(value)
+	}
+}
+
+impl From<io::Error> for Error {
+	fn from(value: io::Error) -> Self {
+		Self::Io(value)
+	}
 }
 
 #[cfg(feature = "serde")]

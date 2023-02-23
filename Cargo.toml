@@ -14,7 +14,6 @@ categories = ["network-programming"]
 include = ["/src", "/examples", "LICENSE"]
 
 [dependencies]
-thiserror = "1.0"
 crc = "3.0"
 
 serde = { version = "1.0", optional = true }
