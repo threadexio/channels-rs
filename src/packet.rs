@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::storage::Buffer;
+use crate::io::Buffer;
 use crate::util::{read_offset, write_offset};
 
 pub struct PacketBuffer {

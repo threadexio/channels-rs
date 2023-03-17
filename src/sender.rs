@@ -1,11 +1,10 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
-use std::io::{self, Write};
+use std::io::Write;
 
 use crate::error::{Error, Result};
-use crate::io::Writer;
+use crate::io::{WriteExt, Writer};
 use crate::packet::PacketBuffer;
-use crate::storage::Buffer;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -86,44 +85,6 @@ impl<'a, T> Sender<'a, T> {
 		D: Borrow<T>,
 		F: FnOnce(&mut [u8], D) -> Result<usize>,
 	{
-		#[inline(never)]
-		#[track_caller]
-		fn write_all<W>(
-			buffer: &mut Buffer,
-			writer: &mut W,
-			limit: usize,
-		) -> Result<()>
-		where
-			W: Write,
-		{
-			let mut bytes_sent: usize = 0;
-			while bytes_sent < limit {
-				let remaining = limit - bytes_sent;
-
-				let i = match writer
-					.write(&buffer.after()[..remaining])
-				{
-					Ok(v) if v == 0 => {
-						return Err(Error::Io(
-							io::ErrorKind::UnexpectedEof.into(),
-						))
-					},
-					Ok(v) => v,
-					Err(e)
-						if e.kind() == io::ErrorKind::Interrupted =>
-					{
-						continue
-					},
-					Err(e) => return Err(Error::Io(e)),
-				};
-
-				bytes_sent += i;
-				buffer.seek_forward(i);
-			}
-
-			Ok(())
-		}
-
 		let payload_buffer = self.buffer.payload_mut();
 		let payload_len = ser_fn(payload_buffer, data)?;
 
@@ -139,11 +100,7 @@ impl<'a, T> Sender<'a, T> {
 		self.buffer.recalculate_header_checksum();
 
 		self.buffer.reset();
-		write_all(
-			self.buffer.buffer_mut(),
-			&mut self.tx,
-			packet_len,
-		)?;
+		self.tx.write_buffer(self.buffer.buffer_mut(), packet_len)?;
 
 		self.seq_no = self.seq_no.wrapping_add(1);
 

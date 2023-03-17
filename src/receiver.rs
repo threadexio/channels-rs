@@ -1,10 +1,9 @@
 use core::marker::PhantomData;
-use std::io::{self, Read};
+use std::io::Read;
 
-use crate::error::{Error, Result};
-use crate::io::Reader;
+use crate::error::Result;
+use crate::io::{ReadExt, Reader};
 use crate::packet::PacketBuffer;
-use crate::storage::Buffer;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
@@ -79,49 +78,10 @@ impl<'a, T> Receiver<'a, T> {
 	where
 		F: FnOnce(&[u8]) -> Result<T>,
 	{
-		#[inline(never)]
-		#[track_caller]
-		fn fill_buf<R>(
-			buffer: &mut Buffer,
-			reader: &mut R,
-			limit: usize,
-		) -> Result<()>
-		where
-			R: Read,
-		{
-			let mut bytes_read: usize = 0;
-			while limit > bytes_read {
-				let remaining = limit - bytes_read;
-
-				let i = match reader
-					.read(&mut buffer.after_mut()[..remaining])
-				{
-					Ok(v) if v == 0 => {
-						return Err(Error::Io(
-							io::ErrorKind::UnexpectedEof.into(),
-						))
-					},
-					Ok(v) => v,
-					Err(e)
-						if e.kind() == io::ErrorKind::Interrupted =>
-					{
-						continue
-					},
-					Err(e) => return Err(Error::Io(e)),
-				};
-
-				buffer.seek_forward(i);
-				bytes_read += i;
-			}
-
-			Ok(())
-		}
-
 		let buf_len = self.buffer.buffer().len();
 		if buf_len < PacketBuffer::HEADER_SIZE {
-			fill_buf(
+			self.rx.fill_buffer(
 				self.buffer.buffer_mut(),
-				&mut self.rx,
 				PacketBuffer::HEADER_SIZE - buf_len,
 			)?;
 
@@ -139,9 +99,8 @@ impl<'a, T> Receiver<'a, T> {
 		let packet_len = self.buffer.get_length() as usize;
 		let buf_len = self.buffer.buffer().len();
 		if buf_len < packet_len {
-			fill_buf(
+			self.rx.fill_buffer(
 				self.buffer.buffer_mut(),
-				&mut self.rx,
 				packet_len - buf_len,
 			)?;
 

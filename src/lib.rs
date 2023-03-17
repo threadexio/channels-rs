@@ -122,7 +122,6 @@
 mod crc;
 mod io;
 mod packet;
-mod storage;
 mod util;
 
 #[cfg(feature = "serde")]
