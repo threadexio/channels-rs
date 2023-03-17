@@ -41,7 +41,6 @@ fn client() {
 	for i in 0..ITER {
 		let mut data = Data {
 			buffer: (0..usize::from(u16::MAX) + i)
-				.into_iter()
 				.map(|x| x as u8)
 				.collect(),
 		};

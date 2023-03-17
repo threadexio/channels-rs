@@ -93,14 +93,15 @@ impl<'a, T> Sender<'a, T> {
 		}
 
 		self.buffer.set_version(PacketBuffer::VERSION);
+		self.buffer.set_id(self.seq_no);
 
 		let packet_len = PacketBuffer::HEADER_SIZE + payload_len;
 		self.buffer.set_length(packet_len as u16);
-		self.buffer.set_id(self.seq_no);
-		self.buffer.recalculate_header_checksum();
 
-		self.buffer.reset();
-		self.tx.write_buffer(self.buffer.buffer_mut(), packet_len)?;
+		self.buffer.update_header_checksum();
+
+		self.buffer.clear();
+		self.tx.write_buffer(&mut self.buffer, packet_len)?;
 
 		self.seq_no = self.seq_no.wrapping_add(1);
 

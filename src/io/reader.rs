@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use core::ops::{Deref, DerefMut};
 use std::io::{self, Read};
 

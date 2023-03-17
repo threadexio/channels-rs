@@ -1,4 +1,5 @@
 use core::cmp;
+use core::ops::{Deref, DerefMut};
 
 pub struct Buffer {
 	inner: Vec<u8>,
@@ -65,7 +66,7 @@ impl Buffer {
 	}
 }
 
-impl std::ops::Deref for Buffer {
+impl Deref for Buffer {
 	type Target = [u8];
 
 	fn deref(&self) -> &Self::Target {
@@ -73,7 +74,7 @@ impl std::ops::Deref for Buffer {
 	}
 }
 
-impl std::ops::DerefMut for Buffer {
+impl DerefMut for Buffer {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.inner
 	}

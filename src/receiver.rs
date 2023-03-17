@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 use std::io::Read;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::io::{ReadExt, Reader};
 use crate::packet::PacketBuffer;
 
@@ -78,36 +78,39 @@ impl<'a, T> Receiver<'a, T> {
 	where
 		F: FnOnce(&[u8]) -> Result<T>,
 	{
-		let buf_len = self.buffer.buffer().len();
-		if buf_len < PacketBuffer::HEADER_SIZE {
-			self.rx.fill_buffer(
-				self.buffer.buffer_mut(),
-				PacketBuffer::HEADER_SIZE - buf_len,
-			)?;
+		{
+			let buf_len = self.buffer.len();
+			if buf_len < PacketBuffer::HEADER_SIZE {
+				self.rx.fill_buffer(
+					&mut self.buffer,
+					PacketBuffer::HEADER_SIZE - buf_len,
+				)?;
 
-			debug_assert_eq!(
-				self.buffer.buffer().len(),
-				PacketBuffer::HEADER_SIZE
-			);
+				if let Err(e) = self.buffer.verify_header() {
+					self.buffer.clear();
+					return Err(e);
+				}
 
-			if let Err(e) = self.buffer.verify(self.seq_no) {
-				self.buffer.reset();
-				return Err(e);
+				if self.buffer.get_id() != self.seq_no {
+					self.buffer.clear();
+					return Err(Error::OutOfOrder);
+				}
 			}
 		}
 
 		let packet_len = self.buffer.get_length() as usize;
-		let buf_len = self.buffer.buffer().len();
-		if buf_len < packet_len {
-			self.rx.fill_buffer(
-				self.buffer.buffer_mut(),
-				packet_len - buf_len,
-			)?;
 
-			debug_assert_eq!(self.buffer.buffer().len(), packet_len);
+		{
+			let buf_len = self.buffer.len();
+			if buf_len < packet_len {
+				self.rx.fill_buffer(
+					&mut self.buffer,
+					packet_len - buf_len,
+				)?;
+			}
 		}
 
-		self.buffer.reset();
+		self.buffer.clear();
 		let payload_len = packet_len - PacketBuffer::HEADER_SIZE;
 
 		let payload_buffer = &self.buffer.payload()[..payload_len];
