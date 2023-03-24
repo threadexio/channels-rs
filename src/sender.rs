@@ -1,10 +1,11 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
+use core::ops::Range;
 use std::io::Write;
 
 use crate::error::{Error, Result};
 use crate::io::{WriteExt, Writer};
-use crate::packet::PacketBuffer;
+use crate::packet::{layer::*, PacketBuffer};
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -14,7 +15,7 @@ pub struct Sender<'a, T> {
 	_p: PhantomData<T>,
 	tx: Writer<Box<dyn Write + 'a>>,
 	buffer: PacketBuffer,
-	seq_no: u16,
+	layers: Id<()>,
 }
 
 impl<'a, T> Sender<'a, T> {
@@ -27,7 +28,7 @@ impl<'a, T> Sender<'a, T> {
 			_p: PhantomData,
 			tx: Writer::new(Box::new(tx)),
 			buffer: PacketBuffer::new(),
-			seq_no: 0,
+			layers: Id::new(()),
 		}
 	}
 
@@ -85,25 +86,39 @@ impl<'a, T> Sender<'a, T> {
 		D: Borrow<T>,
 		F: FnOnce(&mut [u8], D) -> Result<usize>,
 	{
-		let payload_buffer = self.buffer.payload_mut();
+		let payload_buffer =
+			self.layers.payload(self.buffer.payload_mut());
 		let payload_len = ser_fn(payload_buffer, data)?;
-
 		if payload_len > payload_buffer.len() {
 			return Err(Error::SizeLimit);
 		}
 
 		self.buffer.set_version(PacketBuffer::VERSION);
-		self.buffer.set_id(self.seq_no);
 
-		let packet_len = PacketBuffer::HEADER_SIZE + payload_len;
+		let lp = payload_len; // Payload length
+
+		let Range { start: sb, .. } = self.buffer.as_ptr_range();
+		let sb = sb as usize; // Buffer start
+
+		let payload_buffer =
+			self.layers.on_send(self.buffer.payload_mut())?;
+
+		let Range { start: sp, .. } = payload_buffer.as_ptr_range();
+		let sp = sp as usize; // Payload start
+		let ep = sp + lp; // Payload end
+
+		// sp <= ep (1), payload length is bigger or equal to 0 bytes
+		// sb < sp  (2), payload start is always bigger than the buffer start (there are headers preceding it)
+
+		// (2), (1) <=> sb < sp <= ep
+		//          <=> sb < ep
+		//          <=> ep - sb > 0, no overflows
+		let packet_len = ep - sb;
 		self.buffer.set_length(packet_len as u16);
 
 		self.buffer.update_header_checksum();
-
 		self.buffer.clear();
 		self.tx.write_buffer(&mut self.buffer, packet_len)?;
-
-		self.seq_no = self.seq_no.wrapping_add(1);
 
 		#[cfg(feature = "statistics")]
 		self.tx.stats_mut().update_sent_time();

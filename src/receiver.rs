@@ -1,9 +1,10 @@
 use core::marker::PhantomData;
+use core::ops::Range;
 use std::io::Read;
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::io::{ReadExt, Reader};
-use crate::packet::PacketBuffer;
+use crate::packet::{layer::*, PacketBuffer};
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
@@ -13,7 +14,7 @@ pub struct Receiver<'a, T> {
 	_p: PhantomData<T>,
 	rx: Reader<Box<dyn Read + 'a>>,
 	buffer: PacketBuffer,
-	seq_no: u16,
+	layers: Id<()>,
 }
 
 impl<'a, T> Receiver<'a, T> {
@@ -26,7 +27,7 @@ impl<'a, T> Receiver<'a, T> {
 			_p: PhantomData,
 			rx: Reader::new(Box::new(rx)),
 			buffer: PacketBuffer::new(),
-			seq_no: 0,
+			layers: Id::new(()),
 		}
 	}
 
@@ -90,11 +91,6 @@ impl<'a, T> Receiver<'a, T> {
 					self.buffer.clear();
 					return Err(e);
 				}
-
-				if self.buffer.get_id() != self.seq_no {
-					self.buffer.clear();
-					return Err(Error::OutOfOrder);
-				}
 			}
 		}
 
@@ -111,12 +107,24 @@ impl<'a, T> Receiver<'a, T> {
 		}
 
 		self.buffer.clear();
-		let payload_len = packet_len - PacketBuffer::HEADER_SIZE;
 
-		let payload_buffer = &self.buffer.payload()[..payload_len];
+		let lp = packet_len; // Packet length
+
+		let Range { start: sb, .. } = self.buffer.as_ptr_range();
+		let sb = sb as usize; // Buffer start
+
+		let payload_buffer =
+			self.layers.on_recv(self.buffer.payload_mut())?;
+
+		let Range { start: sp, .. } = payload_buffer.as_ptr_range();
+		let sp = sp as usize; // Payload start
+		let ep = sb + lp; // Payload end
+
+		// sp <= ep, payload length is bigger or equal to 0 bytes
+		let payload_len = ep - sp;
+		let payload_buffer = &payload_buffer[..payload_len];
+
 		let data = de_fn(payload_buffer)?;
-
-		self.seq_no = self.seq_no.wrapping_add(1);
 
 		#[cfg(feature = "statistics")]
 		self.rx.stats_mut().update_received_time();

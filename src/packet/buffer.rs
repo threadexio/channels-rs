@@ -48,7 +48,7 @@ impl PacketBuffer {
 
 impl PacketBuffer {
 	pub const VERSION: u16 = 0x1;
-	pub const HEADER_SIZE: usize = 8;
+	pub const HEADER_SIZE: usize = 6;
 	pub const MAX_PACKET_SIZE: usize = 0xffff;
 
 	pub fn get_version(&self) -> u16 {
@@ -59,28 +59,20 @@ impl PacketBuffer {
 		write_offset(&mut self.buffer, 0, u16::to_be(version))
 	}
 
-	pub fn get_id(&self) -> u16 {
+	pub fn get_length(&self) -> u16 {
 		u16::from_be(read_offset::<u16>(&self.buffer, 2))
 	}
 
-	pub fn set_id(&mut self, id: u16) {
-		write_offset(&mut self.buffer, 2, u16::to_be(id))
-	}
-
-	pub fn get_length(&self) -> u16 {
-		u16::from_be(read_offset::<u16>(&self.buffer, 4))
-	}
-
 	pub fn set_length(&mut self, length: u16) {
-		write_offset(&mut self.buffer, 4, u16::to_be(length))
+		write_offset(&mut self.buffer, 2, u16::to_be(length))
 	}
 
 	pub fn get_header_checksum(&self) -> u16 {
-		u16::from_be(read_offset::<u16>(&self.buffer, 6))
+		u16::from_be(read_offset::<u16>(&self.buffer, 4))
 	}
 
 	pub fn set_header_checksum(&mut self, checksum: u16) {
-		write_offset(&mut self.buffer, 6, u16::to_be(checksum))
+		write_offset(&mut self.buffer, 4, u16::to_be(checksum))
 	}
 
 	pub fn calculate_header_checksum(&mut self) -> u16 {
@@ -126,15 +118,12 @@ mod tests {
 		packet.set_version(1);
 		assert_eq!(packet.get_version(), 1);
 
-		packet.set_id(2);
-		assert_eq!(packet.get_id(), 2);
-
 		packet.set_length(3);
 		assert_eq!(packet.get_length(), 3);
 
 		packet.set_header_checksum(4);
 		assert_eq!(packet.get_header_checksum(), 4);
 
-		assert_eq!(packet.header(), &[0, 1, 0, 2, 0, 3, 0, 4]);
+		assert_eq!(packet.header(), &[0, 1, 0, 3, 0, 4]);
 	}
 }
