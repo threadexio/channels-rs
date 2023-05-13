@@ -5,51 +5,56 @@ use std::io::Write;
 
 use crate::error::{Error, Result};
 use crate::io::{WriteExt, Writer};
-use crate::packet::{layer::*, PacketBuffer};
+use crate::packet::{layer::*, PacketBuf};
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Sender<'a, T> {
+pub struct Sender<'w, T> {
 	_p: PhantomData<T>,
-	tx: Writer<Box<dyn Write + 'a>>,
-	buffer: PacketBuffer,
+	tx: Writer<'w>,
+	buffer: PacketBuf,
 	layers: Id<()>,
 }
 
-impl<'a, T> Sender<'a, T> {
+unsafe impl<T> Send for Sender<'_, T> {}
+unsafe impl<T> Sync for Sender<'_, T> {}
+
+impl<'w, T> Sender<'w, T> {
 	/// Creates a new [`Sender`] from `tx`.
 	pub fn new<W>(tx: W) -> Self
 	where
-		W: Write + 'a,
+		W: Write + 'w,
 	{
 		Self {
 			_p: PhantomData,
 			tx: Writer::new(Box::new(tx)),
-			buffer: PacketBuffer::new(),
+			buffer: PacketBuf::new(),
 			layers: Id::new(()),
 		}
 	}
 
 	/// Get a reference to the underlying reader.
 	pub fn get(&self) -> &dyn Write {
-		self.tx.as_ref()
+		self.tx.get()
 	}
 
 	/// Get a mutable reference to the underlying reader. Directly reading from the stream is not advised.
 	pub fn get_mut(&mut self) -> &mut dyn Write {
-		self.tx.as_mut()
+		self.tx.get_mut()
 	}
+}
 
-	#[cfg(feature = "statistics")]
+#[cfg(feature = "statistics")]
+impl<T> Sender<'_, T> {
 	/// Get statistics on this [`Sender`].
 	pub fn stats(&self) -> &crate::stats::SendStats {
 		self.tx.stats()
 	}
 }
 
-impl<'a, T> Sender<'a, T> {
+impl<T> Sender<'_, T> {
 	/// Attempts to send an object through the data stream
 	/// using a custom serialization function.
 	///
@@ -93,11 +98,12 @@ impl<'a, T> Sender<'a, T> {
 			return Err(Error::SizeLimit);
 		}
 
-		self.buffer.set_version(PacketBuffer::VERSION);
+		self.buffer.set_version(PacketBuf::VERSION);
 
 		let lp = payload_len; // Payload length
 
-		let Range { start: sb, .. } = self.buffer.as_ptr_range();
+		let Range { start: sb, .. } =
+			self.buffer.as_slice().as_ptr_range();
 		let sb = sb as usize; // Buffer start
 
 		let payload_buffer =
@@ -128,7 +134,7 @@ impl<'a, T> Sender<'a, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<'a, T: serde::Serialize> Sender<'a, T> {
+impl<T: serde::ser::Serialize> Sender<'_, T> {
 	/// Attempts to send an object through the data stream using `serde`.
 	///
 	/// # Example
@@ -149,18 +155,17 @@ impl<'a, T: serde::Serialize> Sender<'a, T> {
 		D: Borrow<T>,
 	{
 		self.send_with(data, |buf, data| {
-			let payload = crate::serde::serialize(data.borrow())?;
+			let mut payload_buffer = crate::io::BorrowedBuf::new(buf);
 
-			let payload_len = payload.len();
-			if payload_len > buf.len() {
-				return Err(Error::SizeLimit);
-			}
+			// DEBUG
+			dbg!(&payload_buffer);
 
-			buf[..payload_len].copy_from_slice(&payload);
+			let payload_len = crate::serde::serialize(
+				&mut payload_buffer,
+				data.borrow(),
+			)?;
+
 			Ok(payload_len)
 		})
 	}
 }
-
-unsafe impl<T> Send for Sender<'_, T> {}
-unsafe impl<T> Sync for Sender<'_, T> {}

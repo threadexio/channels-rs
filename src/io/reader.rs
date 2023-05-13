@@ -1,66 +1,51 @@
-#![allow(dead_code)]
+use std::io;
 
-use core::ops::{Deref, DerefMut};
-use std::io::{self, Read};
-
-use super::{Buffer, ReadExt};
+use super::{OwnedBuf, ReadExt};
 
 #[cfg(feature = "statistics")]
 use crate::stats;
 
-pub struct Reader<R> {
-	inner: R,
+pub struct Reader<'a> {
+	inner: Box<dyn io::Read + 'a>,
 
 	#[cfg(feature = "statistics")]
 	stats: stats::RecvStats,
 }
 
-impl<R> Reader<R>
-where
-	R: Read,
-{
-	pub fn new(reader: R) -> Self {
+impl<'a> Reader<'a> {
+	pub fn new<R>(reader: R) -> Self
+	where
+		R: io::Read + 'a,
+	{
 		Self {
-			inner: reader,
+			inner: Box::new(reader),
 
 			#[cfg(feature = "statistics")]
 			stats: stats::RecvStats::new(),
 		}
 	}
 
-	pub fn into_inner(self) -> R {
-		self.inner
+	pub fn get(&self) -> &dyn io::Read {
+		self.inner.as_ref()
 	}
 
-	#[cfg(feature = "statistics")]
+	pub fn get_mut(&mut self) -> &mut dyn io::Read {
+		self.inner.as_mut()
+	}
+}
+
+#[cfg(feature = "statistics")]
+impl Reader<'_> {
 	pub fn stats(&self) -> &stats::RecvStats {
 		&self.stats
 	}
 
-	#[cfg(feature = "statistics")]
 	pub fn stats_mut(&mut self) -> &mut stats::RecvStats {
 		&mut self.stats
 	}
 }
 
-impl<R> Deref for Reader<R> {
-	type Target = R;
-
-	fn deref(&self) -> &Self::Target {
-		&self.inner
-	}
-}
-
-impl<R> DerefMut for Reader<R> {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.inner
-	}
-}
-
-impl<R> Read for Reader<R>
-where
-	R: Read,
-{
+impl io::Read for Reader<'_> {
 	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
 		let i = self.inner.read(buf)?;
 
@@ -71,20 +56,19 @@ where
 	}
 }
 
-impl<R> ReadExt for Reader<R>
-where
-	R: Read,
-{
+impl ReadExt for Reader<'_> {
 	fn fill_buffer(
 		&mut self,
-		buf: &mut Buffer,
+		buf: &mut OwnedBuf,
 		limit: usize,
 	) -> io::Result<()> {
 		let mut bytes_read: usize = 0;
 		while limit > bytes_read {
 			let remaining = limit - bytes_read;
 
-			let i = match self.read(&mut buf.after_mut()[..remaining])
+			let i = match self
+				.inner
+				.read(&mut buf.after_mut()[..remaining])
 			{
 				Ok(v) if v == 0 => {
 					return Err(io::ErrorKind::UnexpectedEof.into())

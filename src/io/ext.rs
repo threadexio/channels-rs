@@ -1,11 +1,9 @@
 use std::io::Result;
 
-use super::Buffer;
-
 pub trait ReadExt {
 	fn fill_buffer(
 		&mut self,
-		buf: &mut Buffer,
+		buf: &mut super::OwnedBuf,
 		limit: usize,
 	) -> Result<()>;
 }
@@ -13,7 +11,7 @@ pub trait ReadExt {
 pub trait WriteExt {
 	fn write_buffer(
 		&mut self,
-		buf: &mut Buffer,
+		buf: &mut super::OwnedBuf,
 		limit: usize,
 	) -> Result<()>;
 }

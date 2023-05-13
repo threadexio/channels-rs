@@ -4,51 +4,56 @@ use std::io::Read;
 
 use crate::error::Result;
 use crate::io::{ReadExt, Reader};
-use crate::packet::{layer::*, PacketBuffer};
+use crate::packet::{layer::*, PacketBuf};
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Receiver<'a, T> {
+pub struct Receiver<'r, T> {
 	_p: PhantomData<T>,
-	rx: Reader<Box<dyn Read + 'a>>,
-	buffer: PacketBuffer,
+	rx: Reader<'r>,
+	buffer: PacketBuf,
 	layers: Id<()>,
 }
 
-impl<'a, T> Receiver<'a, T> {
+unsafe impl<T> Send for Receiver<'_, T> {}
+unsafe impl<T> Sync for Receiver<'_, T> {}
+
+impl<'r, T> Receiver<'r, T> {
 	/// Creates a new [`Receiver`] from `rx`.
 	pub fn new<R>(rx: R) -> Self
 	where
-		R: Read + 'a,
+		R: Read + 'r,
 	{
 		Self {
 			_p: PhantomData,
 			rx: Reader::new(Box::new(rx)),
-			buffer: PacketBuffer::new(),
+			buffer: PacketBuf::new(),
 			layers: Id::new(()),
 		}
 	}
 
 	/// Get a reference to the underlying reader.
 	pub fn get(&self) -> &dyn Read {
-		self.rx.as_ref()
+		self.rx.get()
 	}
 
 	/// Get a mutable reference to the underlying reader. Directly reading from the stream is not advised.
 	pub fn get_mut(&mut self) -> &mut dyn Read {
-		self.rx.as_mut()
+		self.rx.get_mut()
 	}
+}
 
-	#[cfg(feature = "statistics")]
+#[cfg(feature = "statistics")]
+impl<T> Receiver<'_, T> {
 	/// Get statistics on this [`Receiver`](Self).
 	pub fn stats(&self) -> &crate::stats::RecvStats {
 		self.rx.stats()
 	}
 }
 
-impl<'a, T> Receiver<'a, T> {
+impl<T> Receiver<'_, T> {
 	/// Attempts to receive an object from the data stream using
 	/// a custom deserialization function.
 	///
@@ -81,10 +86,10 @@ impl<'a, T> Receiver<'a, T> {
 	{
 		{
 			let buf_len = self.buffer.len();
-			if buf_len < PacketBuffer::HEADER_SIZE {
+			if buf_len < PacketBuf::HEADER_SIZE {
 				self.rx.fill_buffer(
 					&mut self.buffer,
-					PacketBuffer::HEADER_SIZE - buf_len,
+					PacketBuf::HEADER_SIZE - buf_len,
 				)?;
 
 				if let Err(e) = self.buffer.verify_header() {
@@ -110,7 +115,8 @@ impl<'a, T> Receiver<'a, T> {
 
 		let lp = packet_len; // Packet length
 
-		let Range { start: sb, .. } = self.buffer.as_ptr_range();
+		let Range { start: sb, .. } =
+			self.buffer.as_slice().as_ptr_range();
 		let sb = sb as usize; // Buffer start
 
 		let payload_buffer =
@@ -134,7 +140,7 @@ impl<'a, T> Receiver<'a, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
+impl<T: serde::de::DeserializeOwned> Receiver<'_, T> {
 	/// Attempts to read an object from the sender end.
 	///
 	/// If the underlying data stream is a blocking socket then `recv()` will block until
@@ -156,6 +162,3 @@ impl<'a, T: serde::de::DeserializeOwned> Receiver<'a, T> {
 		self.recv_with(crate::serde::deserialize)
 	}
 }
-
-unsafe impl<T> Send for Receiver<'_, T> {}
-unsafe impl<T> Sync for Receiver<'_, T> {}

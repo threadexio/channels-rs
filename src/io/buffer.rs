@@ -1,80 +1,52 @@
-use core::cmp;
-use core::ops::{Deref, DerefMut};
+use core::ops;
 
-pub struct Buffer {
-	inner: Vec<u8>,
-	cursor: usize,
+use super::Cursor;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnedBuf {
+	inner: Cursor<Vec<u8>>,
 }
 
-#[allow(dead_code)]
-impl Buffer {
+impl OwnedBuf {
 	pub fn new(capacity: usize) -> Self {
-		Self { cursor: 0, inner: vec![0u8; capacity] }
-	}
-
-	pub fn capacity(&self) -> usize {
-		self.inner.len()
-	}
-
-	pub fn len(&self) -> usize {
-		self.cursor
-	}
-
-	pub fn seek(&mut self, idx: usize) -> usize {
-		self.cursor = self.get_idx(idx);
-		self.cursor
-	}
-
-	pub fn seek_forward(&mut self, off: usize) -> usize {
-		self.seek(self.len().saturating_add(off))
-	}
-
-	pub fn seek_backward(&mut self, off: usize) -> usize {
-		self.seek(self.len().saturating_sub(off))
-	}
-
-	pub fn clear(&mut self) {
-		self.cursor = 0;
-	}
-
-	pub fn buffer(&self) -> &[u8] {
-		&self.inner
-	}
-
-	pub fn buffer_mut(&mut self) -> &mut [u8] {
-		&mut self.inner
-	}
-
-	pub fn after(&self) -> &[u8] {
-		&self.inner[self.cursor..]
-	}
-
-	pub fn after_mut(&mut self) -> &mut [u8] {
-		&mut self.inner[self.cursor..]
-	}
-
-	pub fn before(&self) -> &[u8] {
-		&self.inner[..self.cursor]
-	}
-
-	pub fn before_mut(&mut self) -> &mut [u8] {
-		&mut self.inner[..self.cursor]
-	}
-
-	fn get_idx(&self, idx: usize) -> usize {
-		cmp::min(idx, self.capacity())
+		Self { inner: Cursor::new(vec![0u8; capacity]) }
 	}
 }
 
-impl Deref for Buffer {
-	type Target = [u8];
+impl ops::Deref for OwnedBuf {
+	type Target = Cursor<Vec<u8>>;
 
 	fn deref(&self) -> &Self::Target {
 		&self.inner
 	}
 }
 
-impl DerefMut for Buffer {
+impl ops::DerefMut for OwnedBuf {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.inner
+	}
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BorrowedBuf<'a> {
+	inner: Cursor<&'a mut [u8]>,
+}
+
+impl<'a> BorrowedBuf<'a> {
+	pub fn new(slice: &'a mut [u8]) -> Self {
+		Self { inner: Cursor::new(slice) }
+	}
+}
+
+impl<'a> ops::Deref for BorrowedBuf<'a> {
+	type Target = Cursor<&'a mut [u8]>;
+
+	fn deref(&self) -> &Self::Target {
+		&self.inner
+	}
+}
+
+impl<'a> ops::DerefMut for BorrowedBuf<'a> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.inner
 	}

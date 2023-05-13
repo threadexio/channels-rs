@@ -1,66 +1,51 @@
-#![allow(dead_code)]
+use std::io;
 
-use core::ops::{Deref, DerefMut};
-use std::io::{self, Write};
-
-use super::{Buffer, WriteExt};
+use super::{OwnedBuf, WriteExt};
 
 #[cfg(feature = "statistics")]
 use crate::stats;
 
-pub struct Writer<W> {
-	inner: W,
+pub struct Writer<'a> {
+	inner: Box<dyn io::Write + 'a>,
 
 	#[cfg(feature = "statistics")]
 	stats: stats::SendStats,
 }
 
-impl<W> Writer<W>
-where
-	W: Write,
-{
-	pub fn new(writer: W) -> Self {
+impl<'a> Writer<'a> {
+	pub fn new<W>(writer: W) -> Self
+	where
+		W: io::Write + 'a,
+	{
 		Self {
-			inner: writer,
+			inner: Box::new(writer),
 
 			#[cfg(feature = "statistics")]
 			stats: stats::SendStats::new(),
 		}
 	}
 
-	pub fn into_inner(self) -> W {
-		self.inner
+	pub fn get(&self) -> &dyn io::Write {
+		self.inner.as_ref()
 	}
 
-	#[cfg(feature = "statistics")]
+	pub fn get_mut(&mut self) -> &mut dyn io::Write {
+		self.inner.as_mut()
+	}
+}
+
+#[cfg(feature = "statistics")]
+impl Writer<'_> {
 	pub fn stats(&self) -> &stats::SendStats {
 		&self.stats
 	}
 
-	#[cfg(feature = "statistics")]
 	pub fn stats_mut(&mut self) -> &mut stats::SendStats {
 		&mut self.stats
 	}
 }
 
-impl<W> Deref for Writer<W> {
-	type Target = W;
-
-	fn deref(&self) -> &Self::Target {
-		&self.inner
-	}
-}
-
-impl<W> DerefMut for Writer<W> {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.inner
-	}
-}
-
-impl<W> Write for Writer<W>
-where
-	W: Write,
-{
+impl io::Write for Writer<'_> {
 	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
 		let i = self.inner.write(buf)?;
 
@@ -75,20 +60,18 @@ where
 	}
 }
 
-impl<W> WriteExt for Writer<W>
-where
-	W: Write,
-{
+impl WriteExt for Writer<'_> {
 	fn write_buffer(
 		&mut self,
-		buf: &mut Buffer,
+		buf: &mut OwnedBuf,
 		limit: usize,
 	) -> io::Result<()> {
 		let mut bytes_sent: usize = 0;
 		while bytes_sent < limit {
 			let remaining = limit - bytes_sent;
 
-			let i = match self.write(&buf.after()[..remaining]) {
+			let i = match self.inner.write(&buf.after()[..remaining])
+			{
 				Ok(v) if v == 0 => {
 					return Err(io::ErrorKind::UnexpectedEof.into())
 				},

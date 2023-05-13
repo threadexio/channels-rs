@@ -1,4 +1,11 @@
+use core::ops::DerefMut;
+use std::io;
+
+use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
+
 use crate::error::*;
+use crate::io::BorrowedBuf;
 
 use bincode::Options;
 macro_rules! bincode {
@@ -11,14 +18,37 @@ macro_rules! bincode {
 	};
 }
 
-pub fn serialize<T: serde::ser::Serialize>(
-	data: &T,
-) -> Result<Vec<u8>> {
-	Ok(bincode!().serialize(data)?)
+/// Serialize `t` into `buf` and return the number of bytes
+/// written to `buf`.
+pub fn serialize<T>(buf: &mut BorrowedBuf, t: &T) -> Result<usize>
+where
+	T: Serialize,
+{
+	let old_len = buf.len();
+	bincode!().serialize_into(buf.deref_mut(), t).map_err(|e| {
+		match *e {
+			bincode::ErrorKind::SizeLimit => Error::SizeLimit,
+			bincode::ErrorKind::Io(io_err)
+				if io_err.kind() == io::ErrorKind::WriteZero =>
+			{
+				Error::SizeLimit
+			},
+			_ => Error::Serde(e),
+		}
+	})?;
+
+	let new_len = buf.len();
+
+	debug_assert!(old_len <= new_len);
+	Ok(new_len - old_len)
 }
 
-pub fn deserialize<T: serde::de::DeserializeOwned>(
-	data: &[u8],
-) -> Result<T> {
-	Ok(bincode!().deserialize::<T>(data)?)
+/// Deserialize `buf` into `T`. `buf` must have the exact number
+/// of bytes required to encode a `T`.
+pub fn deserialize<T>(buf: &[u8]) -> Result<T>
+where
+	T: DeserializeOwned,
+{
+	let t = bincode!().deserialize::<T>(buf)?;
+	Ok(t)
 }

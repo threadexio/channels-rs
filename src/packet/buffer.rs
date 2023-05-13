@@ -1,79 +1,120 @@
-#![allow(dead_code)]
-
-use core::ops::{Deref, DerefMut};
+use core::ops;
 
 use crate::error::*;
-use crate::io::Buffer;
+use crate::io::OwnedBuf;
 use crate::util::{read_offset, write_offset};
 
-pub struct PacketBuffer {
-	buffer: Buffer,
+macro_rules! packet_fields {
+	(@field
+		$field_name:ident : {
+			type: $field_ty:ty,
+			offset: $field_byte_offset:expr,
+			get: {
+				fn: $field_getter_fn_ident:ident,
+				vis: $field_getter_fn_vis:vis
+			},
+			set: {
+				fn: $field_setter_fn_ident:ident,
+				vis: $field_setter_fn_vis:vis
+			},
+			$(ser_fn: $field_ser_fn:expr,)?
+			$(de_fn: $field_de_fn:expr,)?
+		}
+		$($tail:tt)*
+	) => {
+		$field_getter_fn_vis fn $field_getter_fn_ident(&self) -> $field_ty {
+			let x = read_offset::<$field_ty>(self.inner.as_slice(), $field_byte_offset);
+			$(
+				let x = $field_de_fn(x);
+			)?
+			x
+		}
+
+		$field_setter_fn_vis fn $field_setter_fn_ident(&mut self, $field_name: $field_ty) {
+			let x = $field_name;
+			$(
+				let x = $field_ser_fn(x);
+			)?
+			write_offset(self.inner.as_mut_slice(), $field_byte_offset, x);
+		}
+
+		packet_fields!( @field $($tail)* );
+	};
+	(@field) => {};
+	($packet_struct:ident {
+		$($tail:tt)*
+	}) => {
+		impl $packet_struct {
+			packet_fields!( @field $($tail)* );
+		}
+	};
 }
 
-impl Deref for PacketBuffer {
-	type Target = Buffer;
+pub struct PacketBuf {
+	inner: OwnedBuf,
+}
 
-	fn deref(&self) -> &Self::Target {
-		&self.buffer
+impl PacketBuf {
+	pub const HEADER_SIZE: usize = 6;
+}
+
+packet_fields! {
+	PacketBuf {
+		version: {
+			type: u16,
+			offset: 0,
+			get: { fn: get_version, vis: pub },
+			set: { fn: set_version, vis: pub },
+			ser_fn: u16::to_be,
+			de_fn: u16::from_be,
+		}
+		length: {
+			type: u16,
+			offset: 2,
+			get: { fn: get_length, vis: pub },
+			set: { fn: set_length, vis: pub },
+			ser_fn: u16::to_be,
+			de_fn: u16::from_be,
+		}
+		header_checksum: {
+			type: u16,
+			offset: 4,
+			get: { fn: get_header_checksum, vis: pub },
+			set: { fn: set_header_checksum, vis: pub },
+			ser_fn: u16::to_be,
+			de_fn: u16::from_be,
+		}
 	}
 }
 
-impl DerefMut for PacketBuffer {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.buffer
-	}
-}
+impl PacketBuf {
+	pub const MAX_PACKET_SIZE: usize = 0xffff;
 
-impl PacketBuffer {
 	pub fn new() -> Self {
-		Self { buffer: Buffer::new(Self::MAX_PACKET_SIZE) }
+		Self { inner: OwnedBuf::new(Self::MAX_PACKET_SIZE) }
 	}
+}
 
+impl PacketBuf {
 	pub fn header(&self) -> &[u8] {
-		&self.buffer[..Self::HEADER_SIZE]
+		&self.inner.as_slice()[..Self::HEADER_SIZE]
 	}
 
 	pub fn header_mut(&mut self) -> &mut [u8] {
-		&mut self.buffer[..Self::HEADER_SIZE]
+		&mut self.inner.as_mut_slice()[..Self::HEADER_SIZE]
 	}
 
 	pub fn payload(&self) -> &[u8] {
-		&self.buffer[Self::HEADER_SIZE..]
+		&self.inner.as_slice()[Self::HEADER_SIZE..]
 	}
 
 	pub fn payload_mut(&mut self) -> &mut [u8] {
-		&mut self.buffer[Self::HEADER_SIZE..]
+		&mut self.inner.as_mut_slice()[Self::HEADER_SIZE..]
 	}
 }
 
-impl PacketBuffer {
+impl PacketBuf {
 	pub const VERSION: u16 = 0x1;
-	pub const HEADER_SIZE: usize = 6;
-	pub const MAX_PACKET_SIZE: usize = 0xffff;
-
-	pub fn get_version(&self) -> u16 {
-		u16::from_be(read_offset::<u16>(&self.buffer, 0))
-	}
-
-	pub fn set_version(&mut self, version: u16) {
-		write_offset(&mut self.buffer, 0, u16::to_be(version))
-	}
-
-	pub fn get_length(&self) -> u16 {
-		u16::from_be(read_offset::<u16>(&self.buffer, 2))
-	}
-
-	pub fn set_length(&mut self, length: u16) {
-		write_offset(&mut self.buffer, 2, u16::to_be(length))
-	}
-
-	pub fn get_header_checksum(&self) -> u16 {
-		u16::from_be(read_offset::<u16>(&self.buffer, 4))
-	}
-
-	pub fn set_header_checksum(&mut self, checksum: u16) {
-		write_offset(&mut self.buffer, 4, u16::to_be(checksum))
-	}
 
 	pub fn calculate_header_checksum(&mut self) -> u16 {
 		self.set_header_checksum(0);
@@ -107,13 +148,27 @@ impl PacketBuffer {
 	}
 }
 
+impl ops::Deref for PacketBuf {
+	type Target = OwnedBuf;
+
+	fn deref(&self) -> &Self::Target {
+		&self.inner
+	}
+}
+
+impl ops::DerefMut for PacketBuf {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.inner
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	#[test]
 	fn correct_endianness() {
-		let mut packet = PacketBuffer::new();
+		let mut packet = PacketBuf::new();
 
 		packet.set_version(1);
 		assert_eq!(packet.get_version(), 1);

@@ -1,4 +1,4 @@
 mod buffer;
-pub use buffer::PacketBuffer;
+pub use buffer::PacketBuf;
 
 pub mod layer;
