@@ -48,7 +48,7 @@ impl<'r, T> Receiver<'r, T> {
 #[cfg(feature = "statistics")]
 impl<T> Receiver<'_, T> {
 	/// Get statistics on this [`Receiver`](Self).
-	pub fn stats(&self) -> &crate::stats::RecvStats {
+	pub const fn stats(&self) -> &crate::stats::RecvStats {
 		self.rx.stats()
 	}
 }

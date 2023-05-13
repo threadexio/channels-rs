@@ -49,7 +49,7 @@ impl<'w, T> Sender<'w, T> {
 #[cfg(feature = "statistics")]
 impl<T> Sender<'_, T> {
 	/// Get statistics on this [`Sender`].
-	pub fn stats(&self) -> &crate::stats::SendStats {
+	pub const fn stats(&self) -> &crate::stats::SendStats {
 		self.tx.stats()
 	}
 }

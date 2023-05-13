@@ -36,7 +36,7 @@ impl<'a> Reader<'a> {
 
 #[cfg(feature = "statistics")]
 impl Reader<'_> {
-	pub fn stats(&self) -> &stats::RecvStats {
+	pub const fn stats(&self) -> &stats::RecvStats {
 		&self.stats
 	}
 

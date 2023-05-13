@@ -15,17 +15,17 @@ pub struct Cursor<T> {
 }
 
 impl<T> Cursor<T> {
-	pub fn new(inner: T) -> Self {
+	pub const fn new(inner: T) -> Self {
 		Self { inner, pos: 0 }
 	}
 
 	/// Get the amount of bytes currently present in the buffer.
-	pub fn len(&self) -> usize {
+	pub const fn len(&self) -> usize {
 		self.pos
 	}
 
 	/// Get the position of the cursor.
-	pub fn pos(&self) -> usize {
+	pub const fn pos(&self) -> usize {
 		self.pos
 	}
 }

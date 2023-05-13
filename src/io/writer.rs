@@ -36,7 +36,7 @@ impl<'a> Writer<'a> {
 
 #[cfg(feature = "statistics")]
 impl Writer<'_> {
-	pub fn stats(&self) -> &stats::SendStats {
+	pub const fn stats(&self) -> &stats::SendStats {
 		&self.stats
 	}
 

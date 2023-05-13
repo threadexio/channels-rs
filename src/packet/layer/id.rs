@@ -12,11 +12,11 @@ pub struct Id<T> {
 impl<T> Id<T> {
 	const HEADER_SIZE: usize = 2;
 
-	pub fn new(next: T) -> Self {
+	pub const fn new(next: T) -> Self {
 		Self { next, seq_id: 0 }
 	}
 
-	fn get_next_id(&self) -> u16 {
+	const fn get_next_id(&self) -> u16 {
 		self.seq_id.wrapping_add(1)
 	}
 }
