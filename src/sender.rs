@@ -157,9 +157,6 @@ impl<T: serde::ser::Serialize> Sender<'_, T> {
 		self.send_with(data, |buf, data| {
 			let mut payload_buffer = crate::io::BorrowedBuf::new(buf);
 
-			// DEBUG
-			dbg!(&payload_buffer);
-
 			let payload_len = crate::serde::serialize(
 				&mut payload_buffer,
 				data.borrow(),

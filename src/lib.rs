@@ -18,6 +18,7 @@
 	clippy::as_conversions,
 	rustdoc::all
 )]
+#![deny(missing_docs)]
 
 mod crc;
 mod io;
@@ -28,6 +29,9 @@ mod util;
 mod serde;
 
 #[cfg(feature = "statistics")]
+/// Structures that hold statistic information about channels.
+///
+/// See: [`statistics`](crate#features) feature.
 pub mod stats;
 
 mod error;

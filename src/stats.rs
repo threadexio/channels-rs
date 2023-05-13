@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+/// Statistic information about for [`Sender`](crate::Sender).
 #[derive(Debug, PartialEq, Eq)]
 pub struct SendStats {
 	total_sent: usize,
@@ -7,6 +8,7 @@ pub struct SendStats {
 	delta_sent: Duration,
 }
 
+/// Statistic information about for [`Receiver`](crate::Receiver).
 #[derive(Debug, PartialEq, Eq)]
 pub struct RecvStats {
 	total_received: usize,
@@ -38,12 +40,12 @@ impl SendStats {
 		self.total_sent
 	}
 
-	/// Returns the timestamp when the last whole packet was sent.
+	/// Returns the timestamp when the last packet was sent.
 	pub const fn last_sent(&self) -> Instant {
 		self.last_sent
 	}
 
-	/// Returns the duration since the last whole packet was sent.
+	/// Returns the duration between the last 2 packets.
 	pub const fn delta_sent(&self) -> Duration {
 		self.delta_sent
 	}
@@ -78,7 +80,7 @@ impl RecvStats {
 		self.last_received
 	}
 
-	/// Returns the duration since the last whole packet was received.
+	/// Returns the duration between the last 2 packets.
 	pub const fn delta_received(&self) -> Duration {
 		self.delta_received
 	}

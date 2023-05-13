@@ -152,13 +152,6 @@ where
 	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
 		let amt = copy_from_slice_min_len(buf, self.after_mut());
 
-		// DEBUG
-		eprintln!(
-			"wrote {:?} extra bytes. total: {:?}",
-			amt,
-			self.len()
-		);
-
 		self.seek_forward(amt);
 		Ok(amt)
 	}
