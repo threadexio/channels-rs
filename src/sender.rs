@@ -1,11 +1,10 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
-use core::ops::Range;
 use std::io::Write;
 
 use crate::error::{Error, Result};
 use crate::io::{WriteExt, Writer};
-use crate::packet::{layer::*, PacketBuf};
+use crate::packet::PacketBuf;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -14,8 +13,8 @@ use crate::packet::{layer::*, PacketBuf};
 pub struct Sender<'w, T> {
 	_p: PhantomData<T>,
 	tx: Writer<'w>,
-	buffer: PacketBuf,
-	layers: Id<()>,
+	pbuf: PacketBuf,
+	seq_no: u16,
 }
 
 unsafe impl<T> Send for Sender<'_, T> {}
@@ -30,8 +29,8 @@ impl<'w, T> Sender<'w, T> {
 		Self {
 			_p: PhantomData,
 			tx: Writer::new(Box::new(tx)),
-			buffer: PacketBuf::new(),
-			layers: Id::new(()),
+			pbuf: PacketBuf::new(),
+			seq_no: 0,
 		}
 	}
 
@@ -58,7 +57,7 @@ impl<T> Sender<'_, T> {
 	/// Attempts to send an object through the data stream
 	/// using a custom serialization function.
 	///
-	/// The first parameter passed to `ser_fn` is the buffer
+	/// The first parameter passed to `ser_fn` is the pbuf
 	/// where serialized data should be put.
 	///
 	/// The second parameter passed to `sef_fn` is `data`.
@@ -66,7 +65,7 @@ impl<T> Sender<'_, T> {
 	/// `ser_fn` must return the number of bytes the serialized
 	///  data consists of.
 	///
-	/// **NOTE:** The serialized payload must fit within the provided buffer.
+	/// **NOTE:** The serialized payload must fit within the provided pbuf.
 	///
 	/// # Example
 	/// ```no_run
@@ -91,40 +90,20 @@ impl<T> Sender<'_, T> {
 		D: Borrow<T>,
 		F: FnOnce(&mut [u8], D) -> Result<usize>,
 	{
-		let payload_buffer =
-			self.layers.payload(self.buffer.payload_mut());
+		let payload_buffer = self.pbuf.payload_mut();
 		let payload_len = ser_fn(payload_buffer, data)?;
 		if payload_len > payload_buffer.len() {
 			return Err(Error::SizeLimit);
 		}
 
-		self.buffer.set_version(PacketBuf::VERSION);
+		let packet_len = PacketBuf::HEADER_SIZE + payload_len;
+		self.pbuf.set_length(packet_len as u16);
+		self.pbuf.set_id(self.seq_no);
+		self.pbuf.finalize();
 
-		let lp = payload_len; // Payload length
-
-		let Range { start: sb, .. } =
-			self.buffer.as_slice().as_ptr_range();
-		let sb = sb as usize; // Buffer start
-
-		let payload_buffer =
-			self.layers.on_send(self.buffer.payload_mut())?;
-
-		let Range { start: sp, .. } = payload_buffer.as_ptr_range();
-		let sp = sp as usize; // Payload start
-		let ep = sp + lp; // Payload end
-
-		// sp <= ep (1), payload length is bigger or equal to 0 bytes
-		// sb < sp  (2), payload start is always bigger than the buffer start (there are headers preceding it)
-
-		// (2), (1) <=> sb < sp <= ep
-		//          <=> sb < ep
-		//          <=> ep - sb > 0, no overflows
-		let packet_len = ep - sb;
-		self.buffer.set_length(packet_len as u16);
-
-		self.buffer.update_header_checksum();
-		self.buffer.clear();
-		self.tx.write_buffer(&mut self.buffer, packet_len)?;
+		self.pbuf.clear();
+		self.tx.write_buffer(&mut self.pbuf, packet_len)?;
+		self.seq_no = self.seq_no.wrapping_add(1);
 
 		#[cfg(feature = "statistics")]
 		self.tx.stats_mut().update_sent_time();

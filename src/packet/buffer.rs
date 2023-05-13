@@ -11,18 +11,18 @@ macro_rules! packet_fields {
 			offset: $field_byte_offset:expr,
 			get: {
 				fn: $field_getter_fn_ident:ident,
-				vis: $field_getter_fn_vis:vis
+				$(vis: $field_getter_fn_vis:vis,)?
 			},
 			set: {
 				fn: $field_setter_fn_ident:ident,
-				vis: $field_setter_fn_vis:vis
+				$(vis: $field_setter_fn_vis:vis,)?
 			},
 			$(ser_fn: $field_ser_fn:expr,)?
 			$(de_fn: $field_de_fn:expr,)?
-		}
+		},
 		$($tail:tt)*
 	) => {
-		$field_getter_fn_vis fn $field_getter_fn_ident(&self) -> $field_ty {
+		$($field_getter_fn_vis)? fn $field_getter_fn_ident(&self) -> $field_ty {
 			let x = read_offset::<$field_ty>(self.inner.as_slice(), $field_byte_offset);
 			$(
 				let x = $field_de_fn(x);
@@ -30,7 +30,7 @@ macro_rules! packet_fields {
 			x
 		}
 
-		$field_setter_fn_vis fn $field_setter_fn_ident(&mut self, $field_name: $field_ty) {
+		$($field_setter_fn_vis)? fn $field_setter_fn_ident(&mut self, $field_name: $field_ty) {
 			let x = $field_name;
 			$(
 				let x = $field_ser_fn(x);
@@ -55,7 +55,7 @@ pub struct PacketBuf {
 }
 
 impl PacketBuf {
-	pub const HEADER_SIZE: usize = 6;
+	pub const HEADER_SIZE: usize = 8;
 }
 
 packet_fields! {
@@ -63,27 +63,35 @@ packet_fields! {
 		version: {
 			type: u16,
 			offset: 0,
-			get: { fn: get_version, vis: pub },
-			set: { fn: set_version, vis: pub },
+			get: { fn: get_version, },
+			set: { fn: set_version, },
 			ser_fn: u16::to_be,
 			de_fn: u16::from_be,
-		}
+		},
 		length: {
 			type: u16,
 			offset: 2,
-			get: { fn: get_length, vis: pub },
-			set: { fn: set_length, vis: pub },
+			get: { fn: get_length, vis: pub, },
+			set: { fn: set_length, vis: pub, },
 			ser_fn: u16::to_be,
 			de_fn: u16::from_be,
-		}
+		},
 		header_checksum: {
 			type: u16,
 			offset: 4,
-			get: { fn: get_header_checksum, vis: pub },
-			set: { fn: set_header_checksum, vis: pub },
+			get: { fn: get_header_checksum, },
+			set: { fn: set_header_checksum, },
 			ser_fn: u16::to_be,
 			de_fn: u16::from_be,
-		}
+		},
+		id: {
+			type: u16,
+			offset: 6,
+			get: { fn: get_id, vis: pub, },
+			set: { fn: set_id, vis: pub, },
+			ser_fn: u16::to_be,
+			de_fn: u16::from_be,
+		},
 	}
 }
 
@@ -114,16 +122,21 @@ impl PacketBuf {
 }
 
 impl PacketBuf {
-	pub const VERSION: u16 = 0x1;
+	const VERSION: u16 = 0x2;
 
-	pub fn calculate_header_checksum(&mut self) -> u16 {
+	fn calculate_header_checksum(&mut self) -> u16 {
 		self.set_header_checksum(0);
 		crate::crc::checksum(self.header())
 	}
 
-	pub fn update_header_checksum(&mut self) {
+	fn update_header_checksum(&mut self) {
 		let c = self.calculate_header_checksum();
 		self.set_header_checksum(c);
+	}
+
+	pub fn finalize(&mut self) {
+		self.set_version(Self::VERSION);
+		self.update_header_checksum();
 	}
 
 	pub fn verify_header(&mut self) -> Result<()> {
@@ -179,6 +192,6 @@ mod tests {
 		packet.set_header_checksum(4);
 		assert_eq!(packet.get_header_checksum(), 4);
 
-		assert_eq!(packet.header(), &[0, 1, 0, 3, 0, 4]);
+		assert_eq!(packet.header(), &[0, 1, 0, 3, 0, 4, 0, 0]);
 	}
 }

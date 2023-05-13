@@ -1,10 +1,10 @@
 use core::marker::PhantomData;
-use core::ops::Range;
 use std::io::Read;
 
 use crate::error::Result;
 use crate::io::{ReadExt, Reader};
-use crate::packet::{layer::*, PacketBuf};
+use crate::packet::PacketBuf;
+use crate::Error;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
@@ -13,8 +13,8 @@ use crate::packet::{layer::*, PacketBuf};
 pub struct Receiver<'r, T> {
 	_p: PhantomData<T>,
 	rx: Reader<'r>,
-	buffer: PacketBuf,
-	layers: Id<()>,
+	pbuf: PacketBuf,
+	seq_no: u16,
 }
 
 unsafe impl<T> Send for Receiver<'_, T> {}
@@ -29,8 +29,8 @@ impl<'r, T> Receiver<'r, T> {
 		Self {
 			_p: PhantomData,
 			rx: Reader::new(Box::new(rx)),
-			buffer: PacketBuf::new(),
-			layers: Id::new(()),
+			pbuf: PacketBuf::new(),
+			seq_no: 0,
 		}
 	}
 
@@ -64,7 +64,7 @@ impl<T> Receiver<'_, T> {
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	///
-	/// The first parameter passed to `de_fn` is the buffer with the
+	/// The first parameter passed to `de_fn` is the pbuf with the
 	/// serialized data.
 	///
 	/// `de_fn` must return the deserialized object.
@@ -84,53 +84,47 @@ impl<T> Receiver<'_, T> {
 	where
 		F: FnOnce(&[u8]) -> Result<T>,
 	{
+		// read the header
 		{
-			let buf_len = self.buffer.len();
+			let buf_len = self.pbuf.len();
 			if buf_len < PacketBuf::HEADER_SIZE {
 				self.rx.fill_buffer(
-					&mut self.buffer,
+					&mut self.pbuf,
 					PacketBuf::HEADER_SIZE - buf_len,
 				)?;
 
-				if let Err(e) = self.buffer.verify_header() {
-					self.buffer.clear();
+				if let Err(e) = self.pbuf.verify_header() {
+					self.pbuf.clear();
 					return Err(e);
 				}
+
+				if self.pbuf.get_id() != self.seq_no {
+					self.pbuf.clear();
+					return Err(Error::OutOfOrder);
+				}
+
+				self.seq_no = self.seq_no.wrapping_add(1);
 			}
 		}
 
-		let packet_len = self.buffer.get_length() as usize;
+		let packet_len = self.pbuf.get_length() as usize;
 
+		// read the rest of the packet
 		{
-			let buf_len = self.buffer.len();
+			let buf_len = self.pbuf.len();
 			if buf_len < packet_len {
 				self.rx.fill_buffer(
-					&mut self.buffer,
+					&mut self.pbuf,
 					packet_len - buf_len,
 				)?;
 			}
 		}
 
-		self.buffer.clear();
+		self.pbuf.clear();
+		let packet_buf = &self.pbuf.as_slice()[..packet_len];
+		let payload_buf = &packet_buf[PacketBuf::HEADER_SIZE..];
 
-		let lp = packet_len; // Packet length
-
-		let Range { start: sb, .. } =
-			self.buffer.as_slice().as_ptr_range();
-		let sb = sb as usize; // Buffer start
-
-		let payload_buffer =
-			self.layers.on_recv(self.buffer.payload_mut())?;
-
-		let Range { start: sp, .. } = payload_buffer.as_ptr_range();
-		let sp = sp as usize; // Payload start
-		let ep = sb + lp; // Payload end
-
-		// sp <= ep, payload length is bigger or equal to 0 bytes
-		let payload_len = ep - sp;
-		let payload_buffer = &payload_buffer[..payload_len];
-
-		let data = de_fn(payload_buffer)?;
+		let data = de_fn(payload_buf)?;
 
 		#[cfg(feature = "statistics")]
 		self.rx.stats_mut().update_received_time();
