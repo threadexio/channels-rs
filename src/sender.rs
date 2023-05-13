@@ -28,7 +28,7 @@ impl<'w, T> Sender<'w, T> {
 	{
 		Self {
 			_p: PhantomData,
-			tx: Writer::new(Box::new(tx)),
+			tx: Writer::new(tx),
 			pbuf: PacketBuf::new(),
 			seq_no: 0,
 		}

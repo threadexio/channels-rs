@@ -28,7 +28,7 @@ impl<'r, T> Receiver<'r, T> {
 	{
 		Self {
 			_p: PhantomData,
-			rx: Reader::new(Box::new(rx)),
+			rx: Reader::new(rx),
 			pbuf: PacketBuf::new(),
 			seq_no: 0,
 		}
