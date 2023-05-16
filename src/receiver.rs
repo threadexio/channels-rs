@@ -2,8 +2,8 @@ use core::marker::PhantomData;
 use std::io::Read;
 
 use crate::error::Result;
-use crate::io::{ReadExt, Reader};
-use crate::packet::PacketBuf;
+use crate::io::{self, Reader};
+use crate::packet::*;
 use crate::Error;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
@@ -14,7 +14,7 @@ pub struct Receiver<'r, T> {
 	_p: PhantomData<T>,
 	rx: Reader<'r>,
 	pbuf: PacketBuf,
-	seq_no: u16,
+	pid: PacketId,
 }
 
 unsafe impl<T> Send for Receiver<'_, T> {}
@@ -30,7 +30,7 @@ impl<'r, T> Receiver<'r, T> {
 			_p: PhantomData,
 			rx: Reader::new(rx),
 			pbuf: PacketBuf::new(),
-			seq_no: 0,
+			pid: PacketId::new(),
 		}
 	}
 
@@ -48,7 +48,7 @@ impl<'r, T> Receiver<'r, T> {
 #[cfg(feature = "statistics")]
 impl<T> Receiver<'_, T> {
 	/// Get statistics on this [`Receiver`](Self).
-	pub const fn stats(&self) -> &crate::stats::RecvStats {
+	pub fn stats(&self) -> &crate::stats::RecvStats {
 		self.rx.stats()
 	}
 }
@@ -64,7 +64,7 @@ impl<T> Receiver<'_, T> {
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	///
-	/// The first parameter passed to `de_fn` is the pbuf with the
+	/// The first parameter passed to `de_fn` is the buffer with the
 	/// serialized data.
 	///
 	/// `de_fn` must return the deserialized object.
@@ -84,47 +84,41 @@ impl<T> Receiver<'_, T> {
 	where
 		F: FnOnce(&[u8]) -> Result<T>,
 	{
-		// read the header
-		{
-			let buf_len = self.pbuf.len();
-			if buf_len < PacketBuf::HEADER_SIZE {
-				self.rx.fill_buffer(
-					&mut self.pbuf,
-					PacketBuf::HEADER_SIZE - buf_len,
-				)?;
+		if self.pbuf.len() < PacketBuf::HEADER_SIZE {
+			io::fill_buffer_to(
+				&mut self.pbuf,
+				&mut self.rx,
+				PacketBuf::HEADER_SIZE,
+			)?;
 
-				if let Err(e) = self.pbuf.verify_header() {
-					self.pbuf.clear();
-					return Err(e);
-				}
-
-				if self.pbuf.get_id() != self.seq_no {
-					self.pbuf.clear();
-					return Err(Error::OutOfOrder);
-				}
-
-				self.seq_no = self.seq_no.wrapping_add(1);
+			if let Err(e) = self.pbuf.verify_header() {
+				self.pbuf.clear();
+				return Err(e);
 			}
+
+			if self.pbuf.get_id() != self.pid {
+				self.pbuf.clear();
+				return Err(Error::OutOfOrder);
+			}
+
+			self.pid.next_id();
 		}
 
-		let packet_len = self.pbuf.get_length() as usize;
+		let packet_len = usize::from(self.pbuf.get_packet_length());
 
-		// read the rest of the packet
-		{
-			let buf_len = self.pbuf.len();
-			if buf_len < packet_len {
-				self.rx.fill_buffer(
-					&mut self.pbuf,
-					packet_len - buf_len,
-				)?;
-			}
+		if self.pbuf.len() < packet_len {
+			io::fill_buffer_to(
+				&mut self.pbuf,
+				&mut self.rx,
+				packet_len,
+			)?;
 		}
 
 		self.pbuf.clear();
-		let packet_buf = &self.pbuf.as_slice()[..packet_len];
-		let payload_buf = &packet_buf[PacketBuf::HEADER_SIZE..];
-
-		let data = de_fn(payload_buf)?;
+		let data = de_fn(
+			&self.pbuf.as_slice()[..packet_len]
+				[PacketBuf::HEADER_SIZE..],
+		)?;
 
 		#[cfg(feature = "statistics")]
 		self.rx.stats_mut().update_received_time();

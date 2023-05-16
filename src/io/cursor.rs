@@ -1,12 +1,18 @@
 use core::cmp;
 use core::fmt;
-use std::io;
+use core::ops;
+
+use super::{Read, Result, Write};
 
 pub trait BytesRef: AsRef<[u8]> {}
 impl<T> BytesRef for T where T: AsRef<[u8]> {}
 
 pub trait BytesMut: BytesRef + AsMut<[u8]> {}
 impl<T> BytesMut for T where T: BytesRef + AsMut<[u8]> {}
+
+pub type OwnedBuf = Cursor<Vec<u8>>;
+pub type BorrowedBuf<'a> = Cursor<&'a [u8]>;
+pub type BorrowedMutBuf<'a> = Cursor<&'a mut [u8]>;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Cursor<T> {
@@ -15,18 +21,23 @@ pub struct Cursor<T> {
 }
 
 impl<T> Cursor<T> {
-	pub const fn new(inner: T) -> Self {
+	pub fn new(inner: T) -> Self {
 		Self { inner, pos: 0 }
 	}
 
 	/// Get the amount of bytes currently present in the buffer.
-	pub const fn len(&self) -> usize {
+	pub fn len(&self) -> usize {
 		self.pos
 	}
 
 	/// Get the position of the cursor.
-	pub const fn pos(&self) -> usize {
+	pub fn pos(&self) -> usize {
 		self.pos
+	}
+
+	/// Destruct the Cursor into the underlying `T`.
+	pub fn into_inner(self) -> T {
+		self.inner
 	}
 }
 
@@ -134,29 +145,43 @@ where
 	}
 }
 
-impl<T> io::Read for Cursor<T>
+impl<T> ops::Deref for Cursor<T> {
+	type Target = T;
+
+	fn deref(&self) -> &Self::Target {
+		&self.inner
+	}
+}
+
+impl<T> ops::DerefMut for Cursor<T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.inner
+	}
+}
+
+impl<T> Read for Cursor<T>
 where
 	T: BytesRef,
 {
-	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 		let amt = copy_from_slice_min_len(self.after(), buf);
 		self.seek_forward(amt);
 		Ok(amt)
 	}
 }
 
-impl<T> io::Write for Cursor<T>
+impl<T> Write for Cursor<T>
 where
 	T: BytesMut,
 {
-	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+	fn write(&mut self, buf: &[u8]) -> Result<usize> {
 		let amt = copy_from_slice_min_len(buf, self.after_mut());
 
 		self.seek_forward(amt);
 		Ok(amt)
 	}
 
-	fn flush(&mut self) -> io::Result<()> {
+	fn flush(&mut self) -> Result<()> {
 		Ok(())
 	}
 }

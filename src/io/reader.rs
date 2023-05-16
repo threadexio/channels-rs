@@ -1,12 +1,10 @@
-use std::io;
-
-use super::{OwnedBuf, ReadExt};
+use super::{ErrorKind, OwnedBuf, Read, ReadExt, Result};
 
 #[cfg(feature = "statistics")]
 use crate::stats;
 
 pub struct Reader<'a> {
-	inner: Box<dyn io::Read + 'a>,
+	inner: Box<dyn Read + 'a>,
 
 	#[cfg(feature = "statistics")]
 	stats: stats::RecvStats,
@@ -15,7 +13,7 @@ pub struct Reader<'a> {
 impl<'a> Reader<'a> {
 	pub fn new<R>(reader: R) -> Self
 	where
-		R: io::Read + 'a,
+		R: Read + 'a,
 	{
 		Self {
 			inner: Box::new(reader),
@@ -25,18 +23,18 @@ impl<'a> Reader<'a> {
 		}
 	}
 
-	pub fn get(&self) -> &dyn io::Read {
+	pub fn get(&self) -> &dyn Read {
 		self.inner.as_ref()
 	}
 
-	pub fn get_mut(&mut self) -> &mut dyn io::Read {
+	pub fn get_mut(&mut self) -> &mut dyn Read {
 		self.inner.as_mut()
 	}
 }
 
 #[cfg(feature = "statistics")]
 impl Reader<'_> {
-	pub const fn stats(&self) -> &stats::RecvStats {
+	pub fn stats(&self) -> &stats::RecvStats {
 		&self.stats
 	}
 
@@ -45,8 +43,8 @@ impl Reader<'_> {
 	}
 }
 
-impl io::Read for Reader<'_> {
-	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+impl Read for Reader<'_> {
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 		let i = self.inner.read(buf)?;
 
 		#[cfg(feature = "statistics")]
@@ -61,7 +59,7 @@ impl ReadExt for Reader<'_> {
 		&mut self,
 		buf: &mut OwnedBuf,
 		limit: usize,
-	) -> io::Result<()> {
+	) -> Result<()> {
 		let mut bytes_read: usize = 0;
 		while limit > bytes_read {
 			let remaining = limit - bytes_read;
@@ -71,10 +69,10 @@ impl ReadExt for Reader<'_> {
 				.read(&mut buf.after_mut()[..remaining])
 			{
 				Ok(v) if v == 0 => {
-					return Err(io::ErrorKind::UnexpectedEof.into())
+					return Err(ErrorKind::UnexpectedEof.into())
 				},
 				Ok(v) => v,
-				Err(e) if e.kind() == io::ErrorKind::Interrupted => {
+				Err(e) if e.kind() == ErrorKind::Interrupted => {
 					continue
 				},
 				Err(e) => return Err(e),

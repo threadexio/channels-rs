@@ -3,8 +3,8 @@ use core::marker::PhantomData;
 use std::io::Write;
 
 use crate::error::{Error, Result};
-use crate::io::{WriteExt, Writer};
-use crate::packet::PacketBuf;
+use crate::io::{self, WriteExt, Writer};
+use crate::packet::{PacketBuf, PacketId};
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -14,7 +14,7 @@ pub struct Sender<'w, T> {
 	_p: PhantomData<T>,
 	tx: Writer<'w>,
 	pbuf: PacketBuf,
-	seq_no: u16,
+	pid: PacketId,
 }
 
 unsafe impl<T> Send for Sender<'_, T> {}
@@ -30,7 +30,7 @@ impl<'w, T> Sender<'w, T> {
 			_p: PhantomData,
 			tx: Writer::new(tx),
 			pbuf: PacketBuf::new(),
-			seq_no: 0,
+			pid: PacketId::new(),
 		}
 	}
 
@@ -48,7 +48,7 @@ impl<'w, T> Sender<'w, T> {
 #[cfg(feature = "statistics")]
 impl<T> Sender<'_, T> {
 	/// Get statistics on this [`Sender`].
-	pub const fn stats(&self) -> &crate::stats::SendStats {
+	pub fn stats(&self) -> &crate::stats::SendStats {
 		self.tx.stats()
 	}
 }
@@ -90,20 +90,20 @@ impl<T> Sender<'_, T> {
 		D: Borrow<T>,
 		F: FnOnce(&mut [u8], D) -> Result<usize>,
 	{
-		let payload_buffer = self.pbuf.payload_mut();
-		let payload_len = ser_fn(payload_buffer, data)?;
-		if payload_len > payload_buffer.len() {
+		let mut payload_buf = self.pbuf.payload_mut();
+		let payload_len = ser_fn(&mut payload_buf, data)?;
+		if payload_len > payload_buf.capacity() {
 			return Err(Error::SizeLimit);
 		}
 
 		let packet_len = PacketBuf::HEADER_SIZE + payload_len;
-		self.pbuf.set_length(packet_len as u16);
-		self.pbuf.set_id(self.seq_no);
+		self.pbuf.set_packet_length(packet_len as u16);
+		self.pbuf.set_id(self.pid);
 		self.pbuf.finalize();
 
 		self.pbuf.clear();
 		self.tx.write_buffer(&mut self.pbuf, packet_len)?;
-		self.seq_no = self.seq_no.wrapping_add(1);
+		self.pid.next_id();
 
 		#[cfg(feature = "statistics")]
 		self.tx.stats_mut().update_sent_time();
@@ -134,10 +134,8 @@ impl<T: serde::ser::Serialize> Sender<'_, T> {
 		D: Borrow<T>,
 	{
 		self.send_with(data, |buf, data| {
-			let mut payload_buffer = crate::io::BorrowedBuf::new(buf);
-
 			let payload_len = crate::serde::serialize(
-				&mut payload_buffer,
+				io::BorrowedMutBuf::new(buf),
 				data.borrow(),
 			)?;
 

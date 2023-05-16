@@ -8,7 +8,6 @@
 	clippy::correctness,
 	clippy::complexity,
 	clippy::deprecated,
-	clippy::missing_const_for_fn,
 	clippy::missing_panics_doc,
 	clippy::missing_safety_doc,
 	clippy::missing_doc_code_examples,

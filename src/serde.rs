@@ -1,11 +1,10 @@
-use core::ops::DerefMut;
 use std::io;
 
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use crate::error::*;
-use crate::io::BorrowedBuf;
+use crate::io::BorrowedMutBuf;
 
 use bincode::Options;
 macro_rules! bincode {
@@ -20,13 +19,14 @@ macro_rules! bincode {
 
 /// Serialize `t` into `buf` and return the number of bytes
 /// written to `buf`.
-pub fn serialize<T>(buf: &mut BorrowedBuf, t: &T) -> Result<usize>
+pub fn serialize<T>(mut buf: BorrowedMutBuf, t: &T) -> Result<usize>
 where
 	T: Serialize,
 {
 	let old_len = buf.len();
-	bincode!().serialize_into(buf.deref_mut(), t).map_err(|e| {
-		match *e {
+	bincode!()
+		.serialize_into(&mut buf, t)
+		.map_err(|e| match *e {
 			bincode::ErrorKind::SizeLimit => Error::SizeLimit,
 			bincode::ErrorKind::Io(io_err)
 				if io_err.kind() == io::ErrorKind::WriteZero =>
@@ -34,8 +34,7 @@ where
 				Error::SizeLimit
 			},
 			_ => Error::Serde(e),
-		}
-	})?;
+		})?;
 
 	let new_len = buf.len();
 

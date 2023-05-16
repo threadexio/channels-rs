@@ -5,10 +5,9 @@ proto = Proto("channels-rs", "channels-rs Protocol")
 proto.fields.version  = ProtoField.uint16("channels.version",  "Version")
 proto.fields.length   = ProtoField.uint16("channels.len",      "Length")
 proto.fields.checksum = ProtoField.uint16("channels.checksum", "Checksum", base.HEX)
-proto.fields.payload  = ProtoField.bytes("channels.payload", "Payload",  base.SPACE)
+proto.fields.id       = ProtoField.uint16("channels.id",       "ID")
+proto.fields.payload  = ProtoField.bytes ("channels.payload",  "Payload",  base.SPACE)
 
--- Layers
-proto.fields.id       = ProtoField.uint16("channels.id", "ID")
 
 function proto.dissector(buf, pinfo, tree)
 	pinfo.cols.protocol = "channels-rs"
@@ -17,9 +16,8 @@ function proto.dissector(buf, pinfo, tree)
 	local version  = buf(0, 2)
 	local length   = buf(2, 2)
 	local checksum = buf(4, 2)
-
-	-- ID Layer
 	local id       = buf(6, 2)
+
 	pinfo.cols.info:prepend("ID=" .. id:uint() .. " ")
 
 	local header_length = 8
@@ -36,12 +34,10 @@ function proto.dissector(buf, pinfo, tree)
 	length_tree:add("[Payload length]: " .. (buf:len() - header_length))
 
 	subtree:add_packet_field(proto.fields.checksum, checksum, ENC_BIG_ENDIAN)
-
-	-- Layers
 	subtree:add_packet_field(proto.fields.id,       id,       ENC_BIG_ENDIAN)
-
 	subtree:add_packet_field(proto.fields.payload,  payload,  ENC_BIG_ENDIAN)
 end
 
 tcp_table = DissectorTable.get("tcp.port")
-tcp_table:add(10000,proto)
+tcp_table:add(10000, proto)
+tcp_table:add(10001, proto)

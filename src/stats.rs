@@ -36,17 +36,17 @@ impl SendStats {
 	}
 
 	/// Returns the total amount of bytes sent by this [`Sender`](crate::Sender).
-	pub const fn total_sent(&self) -> usize {
+	pub fn total_sent(&self) -> usize {
 		self.total_sent
 	}
 
 	/// Returns the timestamp when the last packet was sent.
-	pub const fn last_sent(&self) -> Instant {
+	pub fn last_sent(&self) -> Instant {
 		self.last_sent
 	}
 
 	/// Returns the duration between the last 2 packets.
-	pub const fn delta_sent(&self) -> Duration {
+	pub fn delta_sent(&self) -> Duration {
 		self.delta_sent
 	}
 }
@@ -71,17 +71,17 @@ impl RecvStats {
 	}
 
 	/// Returns the total amount of bytes received by this [`Receiver`](crate::Receiver).
-	pub const fn total_received(&self) -> usize {
+	pub fn total_received(&self) -> usize {
 		self.total_received
 	}
 
 	/// Returns the timestamp when the last whole packet was received.
-	pub const fn last_received(&self) -> Instant {
+	pub fn last_received(&self) -> Instant {
 		self.last_received
 	}
 
 	/// Returns the duration between the last 2 packets.
-	pub const fn delta_received(&self) -> Duration {
+	pub fn delta_received(&self) -> Duration {
 		self.delta_received
 	}
 }
