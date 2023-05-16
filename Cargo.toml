@@ -1,7 +1,7 @@
 [package]
 name = "channels"
 description = "Bidirectional channel-like communication over generic Read/Write streams"
-version = "0.6.7"
+version = "0.6.8"
 edition = "2021"
 authors = ["1337"]
 license = "MIT"
