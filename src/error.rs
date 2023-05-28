@@ -24,14 +24,6 @@ pub enum Error {
 	/// This error is usually **NOT** recoverable and the channel should
 	/// be closed immediately.
 	ChecksumError,
-	/// The data requested to be sent is too big.
-	///
-	/// See: [`Limitations`](crate)
-	///
-	/// # Safety
-	///
-	/// This error is recoverable and the channel can still be used normally.
-	SizeLimit,
 	/// The underlying transport is not reliable and the sent data has
 	/// been received in the wrong order.
 	///
@@ -58,7 +50,6 @@ impl fmt::Display for Error {
 				"peer does not have the correct crate version"
 			),
 			Self::ChecksumError => write!(f, "corrupted data"),
-			Self::SizeLimit => write!(f, "data too large"),
 			Self::OutOfOrder => {
 				write!(f, "data was received out of order")
 			},

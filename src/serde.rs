@@ -1,5 +1,3 @@
-use std::io;
-
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
@@ -22,15 +20,8 @@ pub fn serialize<T>(t: &T) -> Result<Vec<u8>>
 where
 	T: Serialize,
 {
-	bincode!().serialize(t).map_err(|e| match *e {
-		bincode::ErrorKind::SizeLimit => Error::SizeLimit,
-		bincode::ErrorKind::Io(io_err)
-			if io_err.kind() == io::ErrorKind::WriteZero =>
-		{
-			Error::SizeLimit
-		},
-		_ => Error::Serde(e),
-	})
+	let data = bincode!().serialize(t)?;
+	Ok(data)
 }
 
 /// Deserialize `buf` into `T`. `buf` must have the exact number
