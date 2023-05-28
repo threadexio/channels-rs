@@ -84,6 +84,19 @@ impl<T> Receiver<'_, T> {
 	where
 		F: FnOnce(&[u8]) -> Result<T>,
 	{
+		let payload_len = self.recv_chunk()?;
+
+		let data = de_fn(&self.pbuf.payload()[..payload_len])?;
+
+		Ok(data)
+	}
+
+	/// Receives exactly one packet of data, returning
+	/// the amount of bytes that the payload consists
+	/// of. The received payload is written into the
+	/// buffer and must be read before further calls.
+	#[must_use = "unused payload size"]
+	fn recv_chunk(&mut self) -> Result<usize> {
 		if self.pbuf.len() < PacketBuf::HEADER_SIZE {
 			io::fill_buffer_to(
 				&mut self.pbuf,
@@ -115,20 +128,20 @@ impl<T> Receiver<'_, T> {
 		}
 
 		self.pbuf.clear();
-		let data = de_fn(
-			&self.pbuf.as_slice()[..packet_len]
-				[PacketBuf::HEADER_SIZE..],
-		)?;
 
 		#[cfg(feature = "statistics")]
 		self.rx.stats_mut().update_received_time();
 
-		Ok(data)
+		let payload_len = packet_len - PacketBuf::HEADER_SIZE;
+		Ok(payload_len)
 	}
 }
 
 #[cfg(feature = "serde")]
-impl<T: serde::de::DeserializeOwned> Receiver<'_, T> {
+impl<T> Receiver<'_, T>
+where
+	T: serde::de::DeserializeOwned,
+{
 	/// Attempts to read an object from the sender end.
 	///
 	/// If the underlying data stream is a blocking socket then `recv()` will block until

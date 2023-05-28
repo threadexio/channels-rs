@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use std::io::Write;
 
 use crate::error::{Error, Result};
-use crate::io::{self, WriteExt, Writer};
+use crate::io::{BorrowedMutBuf, WriteExt, Writer};
 use crate::packet::{PacketBuf, PacketId};
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
@@ -57,7 +57,7 @@ impl<T> Sender<'_, T> {
 	/// Attempts to send an object through the data stream
 	/// using a custom serialization function.
 	///
-	/// The first parameter passed to `ser_fn` is the pbuf
+	/// The first parameter passed to `ser_fn` is the buffer
 	/// where serialized data should be put.
 	///
 	/// The second parameter passed to `sef_fn` is `data`.
@@ -65,7 +65,7 @@ impl<T> Sender<'_, T> {
 	/// `ser_fn` must return the number of bytes the serialized
 	///  data consists of.
 	///
-	/// **NOTE:** The serialized payload must fit within the provided pbuf.
+	/// **NOTE:** The serialized payload must fit within the provided buffer.
 	///
 	/// # Example
 	/// ```no_run
@@ -96,6 +96,13 @@ impl<T> Sender<'_, T> {
 			return Err(Error::SizeLimit);
 		}
 
+		self.send_chunk(payload_len)
+	}
+
+	/// Prepares a packet with `payload_len` bytes and sends it.
+	/// Caller must write payload to the buffer before calling.
+	#[must_use = "unchecked send result"]
+	fn send_chunk(&mut self, payload_len: usize) -> Result<()> {
 		let packet_len = PacketBuf::HEADER_SIZE + payload_len;
 		self.pbuf.set_packet_length(packet_len as u16);
 		self.pbuf.set_id(self.pid);
@@ -113,7 +120,10 @@ impl<T> Sender<'_, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<T: serde::ser::Serialize> Sender<'_, T> {
+impl<T> Sender<'_, T>
+where
+	T: serde::ser::Serialize,
+{
 	/// Attempts to send an object through the data stream using `serde`.
 	///
 	/// # Example
@@ -134,12 +144,10 @@ impl<T: serde::ser::Serialize> Sender<'_, T> {
 		D: Borrow<T>,
 	{
 		self.send_with(data, |buf, data| {
-			let payload_len = crate::serde::serialize(
-				io::BorrowedMutBuf::new(buf),
+			crate::serde::serialize(
+				BorrowedMutBuf::new(buf),
 				data.borrow(),
-			)?;
-
-			Ok(payload_len)
+			)
 		})
 	}
 }
