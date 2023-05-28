@@ -1,8 +1,7 @@
 use core::marker::PhantomData;
-use std::io::{Read, Write};
 
 use crate::error::*;
-use crate::io::{self, Reader};
+use crate::io::{self, prelude::*, OwnedBuf, Reader};
 use crate::packet::*;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
@@ -83,7 +82,7 @@ impl<T> Receiver<'_, T> {
 	where
 		F: FnOnce(&[u8]) -> Result<T>,
 	{
-		let mut payload = io::OwnedBuf::new(vec![]);
+		let mut payload = OwnedBuf::new(vec![]);
 
 		loop {
 			let chunk_len = self.recv_chunk()?;

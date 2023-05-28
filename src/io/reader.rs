@@ -1,4 +1,4 @@
-use super::{ErrorKind, OwnedBuf, Read, ReadExt, Result};
+use super::{ErrorKind, OwnedBuf, Read, Result};
 
 #[cfg(feature = "statistics")]
 use crate::stats;
@@ -54,8 +54,8 @@ impl Read for Reader<'_> {
 	}
 }
 
-impl ReadExt for Reader<'_> {
-	fn fill_buffer(
+impl Reader<'_> {
+	pub fn fill_buffer(
 		&mut self,
 		buf: &mut OwnedBuf,
 		limit: usize,

@@ -1,9 +1,8 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
-use std::io::{Read, Write};
 
 use crate::error::*;
-use crate::io::{self, WriteExt, Writer};
+use crate::io::{prelude::*, OwnedBuf, Writer};
 use crate::packet::*;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
@@ -86,7 +85,7 @@ impl<T> Sender<'_, T> {
 		D: Borrow<T>,
 		F: FnOnce(D) -> Result<Vec<u8>>,
 	{
-		let mut payload = io::OwnedBuf::new(ser_fn(data)?);
+		let mut payload = OwnedBuf::new(ser_fn(data)?);
 
 		loop {
 			let mut dst = self.pbuf.payload_mut();

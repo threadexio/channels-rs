@@ -1,4 +1,4 @@
-use super::{ErrorKind, OwnedBuf, Result, Write, WriteExt};
+use super::{ErrorKind, OwnedBuf, Result, Write};
 
 #[cfg(feature = "statistics")]
 use crate::stats;
@@ -58,8 +58,8 @@ impl Write for Writer<'_> {
 	}
 }
 
-impl WriteExt for Writer<'_> {
-	fn write_buffer(
+impl Writer<'_> {
+	pub fn write_buffer(
 		&mut self,
 		buf: &mut OwnedBuf,
 		limit: usize,
