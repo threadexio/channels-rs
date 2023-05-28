@@ -35,10 +35,6 @@ The differences are:
 
 - `serde`: Adds support for sending/receiving any type with `serde` and `bincode`
 
-# Limitations
-
-- At this time only objects with a memory footprint smaller than 65KiB or `u16::MAX` bytes can be sent through the channel. This should be enough for anything you might need to send over.
-
 # Examples
 
 For more complete and complex examples see: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)

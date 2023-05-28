@@ -39,21 +39,13 @@ fn client() {
 		channels::channel(s.try_clone().unwrap(), s);
 
 	for i in 0..ITER {
-		let mut data = Data {
-			buffer: (0..usize::from(u16::MAX) + i)
+		let data = Data {
+			buffer: (0..usize::from(u16::MAX) + 16000 + i)
 				.map(|x| x as u8)
 				.collect(),
 		};
-		assert!(matches!(
-			tx.send(data.clone()),
-			Err(channels::Error::SizeLimit)
-		));
 
-		data.buffer.resize(
-			u16::MAX as usize - i - 128, /* ensure we allow enough space for the header */
-			0x0,
-		);
-		assert!(tx.send(data.clone()).is_ok());
+		tx.send(data.clone()).unwrap();
 
 		assert_eq!(rx.recv().unwrap(), data);
 	}

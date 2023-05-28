@@ -1,10 +1,10 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
-use std::io::Write;
+use std::io::{Read, Write};
 
-use crate::error::{Error, Result};
-use crate::io::{BorrowedMutBuf, WriteExt, Writer};
-use crate::packet::{PacketBuf, PacketId};
+use crate::error::*;
+use crate::io::{self, WriteExt, Writer};
+use crate::packet::*;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -73,12 +73,8 @@ impl<T> Sender<'_, T> {
 	///
 	/// let mut tx = Sender::<i32>::new(std::io::sink());
 	///
-	/// tx.send_with(42, |buf, data| {
-	///     let payload = data.to_be_bytes();
-	///
-	///     // i32 is 2 bytes in size
-	///     buf[..2].copy_from_slice(&payload);
-	///     Ok(2)
+	/// tx.send_with(42, |data| {
+	///     Ok(data.to_be_bytes().to_vec())
 	/// }).unwrap();
 	/// ```
 	pub fn send_with<D, F>(
@@ -88,15 +84,28 @@ impl<T> Sender<'_, T> {
 	) -> Result<()>
 	where
 		D: Borrow<T>,
-		F: FnOnce(&mut [u8], D) -> Result<usize>,
+		F: FnOnce(D) -> Result<Vec<u8>>,
 	{
-		let mut payload_buf = self.pbuf.payload_mut();
-		let payload_len = ser_fn(&mut payload_buf, data)?;
-		if payload_len > payload_buf.capacity() {
-			return Err(Error::SizeLimit);
+		let mut payload = io::OwnedBuf::new(ser_fn(data)?);
+
+		loop {
+			let mut dst = self.pbuf.payload_mut();
+			let chunk_len = payload.read(&mut dst)?;
+			if chunk_len == 0 {
+				break;
+			}
+
+			let mut flags = PacketFlags::zero();
+
+			if !payload.after().is_empty() {
+				flags |= PacketFlags::MORE_DATA;
+			}
+
+			self.pbuf.set_flags(flags);
+			self.send_chunk(chunk_len)?;
 		}
 
-		self.send_chunk(payload_len)
+		Ok(())
 	}
 
 	/// Prepares a packet with `payload_len` bytes and sends it.
@@ -143,11 +152,7 @@ where
 	where
 		D: Borrow<T>,
 	{
-		self.send_with(data, |buf, data| {
-			crate::serde::serialize(
-				BorrowedMutBuf::new(buf),
-				data.borrow(),
-			)
-		})
+		let data = data.borrow();
+		self.send_with(data, crate::serde::serialize)
 	}
 }

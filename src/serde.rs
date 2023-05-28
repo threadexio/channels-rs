@@ -4,7 +4,6 @@ use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
 use crate::error::*;
-use crate::io::BorrowedMutBuf;
 
 use bincode::Options;
 macro_rules! bincode {
@@ -19,27 +18,19 @@ macro_rules! bincode {
 
 /// Serialize `t` into `buf` and return the number of bytes
 /// written to `buf`.
-pub fn serialize<T>(mut buf: BorrowedMutBuf, t: &T) -> Result<usize>
+pub fn serialize<T>(t: &T) -> Result<Vec<u8>>
 where
 	T: Serialize,
 {
-	let old_len = buf.len();
-	bincode!()
-		.serialize_into(&mut buf, t)
-		.map_err(|e| match *e {
-			bincode::ErrorKind::SizeLimit => Error::SizeLimit,
-			bincode::ErrorKind::Io(io_err)
-				if io_err.kind() == io::ErrorKind::WriteZero =>
-			{
-				Error::SizeLimit
-			},
-			_ => Error::Serde(e),
-		})?;
-
-	let new_len = buf.len();
-
-	debug_assert!(old_len <= new_len);
-	Ok(new_len - old_len)
+	bincode!().serialize(t).map_err(|e| match *e {
+		bincode::ErrorKind::SizeLimit => Error::SizeLimit,
+		bincode::ErrorKind::Io(io_err)
+			if io_err.kind() == io::ErrorKind::WriteZero =>
+		{
+			Error::SizeLimit
+		},
+		_ => Error::Serde(e),
+	})
 }
 
 /// Deserialize `buf` into `T`. `buf` must have the exact number
