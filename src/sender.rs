@@ -113,6 +113,8 @@ impl<T> Sender<'_, T> {
 	#[must_use = "unchecked send result"]
 	fn send_chunk(&mut self, payload_len: usize) -> Result<()> {
 		let packet_len = PacketBuf::HEADER_SIZE + payload_len;
+
+		#[allow(clippy::as_conversions)]
 		self.pbuf.set_packet_length(packet_len as u16);
 		self.pbuf.set_id(self.pid);
 		self.pbuf.finalize();

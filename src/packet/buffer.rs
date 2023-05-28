@@ -3,90 +3,9 @@ use core::ops;
 
 use crate::error::*;
 use crate::io;
-use crate::util::{read_offset, write_offset};
+use crate::mem::{read_offset, write_offset};
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct PacketId(u8);
-
-impl PacketId {
-	pub fn new() -> Self {
-		Self::default()
-	}
-
-	pub fn next_id(&mut self) -> &mut Self {
-		self.0 = self.0.wrapping_add(1);
-		self
-	}
-}
-
-impl From<u8> for PacketId {
-	fn from(value: u8) -> Self {
-		Self(value)
-	}
-}
-
-impl From<PacketId> for u8 {
-	fn from(value: PacketId) -> Self {
-		value.0
-	}
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct PacketFlags(u8);
-
-impl PacketFlags {
-	pub const MORE_DATA: Self = Self(0b_1000_0000);
-
-	pub fn zero() -> Self {
-		Self(0)
-	}
-
-	pub unsafe fn new_unchecked(f: u8) -> Self {
-		Self(f)
-	}
-}
-
-impl From<PacketFlags> for u8 {
-	fn from(value: PacketFlags) -> Self {
-		value.0
-	}
-}
-
-impl ops::BitAnd for PacketFlags {
-	type Output = bool;
-
-	fn bitand(self, rhs: Self) -> Self::Output {
-		self.0 & rhs.0 != 0
-	}
-}
-
-impl ops::BitOr for PacketFlags {
-	type Output = Self;
-
-	fn bitor(self, rhs: Self) -> Self::Output {
-		Self(self.0 | rhs.0)
-	}
-}
-
-impl ops::BitOrAssign for PacketFlags {
-	fn bitor_assign(&mut self, rhs: Self) {
-		self.0 |= rhs.0;
-	}
-}
-
-impl ops::BitXor for PacketFlags {
-	type Output = Self;
-
-	fn bitxor(self, rhs: Self) -> Self::Output {
-		Self(self.0 & !rhs.0)
-	}
-}
-
-impl ops::BitXorAssign for PacketFlags {
-	fn bitxor_assign(&mut self, rhs: Self) {
-		self.0 &= !rhs.0;
-	}
-}
+use super::types::*;
 
 pub struct PacketBuf {
 	inner: io::OwnedBuf,
@@ -107,9 +26,11 @@ impl ops::DerefMut for PacketBuf {
 }
 
 impl PacketBuf {
-	pub const MAX_PACKET_SIZE: usize = 0xffff; // u16::MAX
+	const MAX_PACKET_SIZE: usize = 0xffff; // u16::MAX
 	pub const MAX_PAYLOAD_SIZE: usize =
 		Self::MAX_PACKET_SIZE - Self::HEADER_SIZE;
+
+	const VERSION: u16 = 0x1;
 
 	pub fn new() -> Self {
 		Self {
@@ -259,11 +180,7 @@ impl PacketBuf {
 	}
 }
 
-impl PacketBuf {}
-
 impl PacketBuf {
-	const VERSION: u16 = 0x1;
-
 	pub fn get_packet_length(&self) -> u16 {
 		unsafe { self.unsafe_get_packet_length() }
 	}
@@ -271,7 +188,9 @@ impl PacketBuf {
 	pub fn set_packet_length(&mut self, length: u16) {
 		unsafe { self.unsafe_set_packet_length(length) }
 	}
+}
 
+impl PacketBuf {
 	pub fn get_id(&self) -> PacketId {
 		unsafe { PacketId::from(self.unsafe_get_packet_id()) }
 	}
@@ -279,7 +198,9 @@ impl PacketBuf {
 	pub fn set_id(&mut self, id: PacketId) {
 		unsafe { self.unsafe_set_packet_id(id.into()) }
 	}
+}
 
+impl PacketBuf {
 	pub fn get_flags(&self) -> PacketFlags {
 		unsafe { PacketFlags::new_unchecked(self.unsafe_get_flags()) }
 	}
@@ -287,7 +208,9 @@ impl PacketBuf {
 	pub fn set_flags(&mut self, flags: PacketFlags) {
 		unsafe { self.unsafe_set_flags(flags.into()) }
 	}
+}
 
+impl PacketBuf {
 	pub fn finalize(&mut self) {
 		unsafe { self.unsafe_set_version(Self::VERSION) }
 		self.update_header_checksum();

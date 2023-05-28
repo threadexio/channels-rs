@@ -13,14 +13,17 @@
 	clippy::missing_doc_code_examples,
 	clippy::cast_lossless,
 	clippy::cast_possible_wrap,
+	clippy::as_conversions,
+	clippy::useless_conversion,
+	clippy::wrong_self_convention,
 	rustdoc::all
 )]
 #![deny(missing_docs)]
 
 mod crc;
 mod io;
+mod mem;
 mod packet;
-mod util;
 
 #[cfg(feature = "serde")]
 mod serde;
