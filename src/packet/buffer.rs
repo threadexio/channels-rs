@@ -147,8 +147,8 @@ packet_fields! { PacketBuf
 	{ // Header Checksum
 		type: u16,
 		offset: 4,
-		get: { fn: unsafe_get_header_checksum, map: u16::from_be, },
-		set: { fn: unsafe_set_header_checksum, map: u16::to_be, },
+		get: { fn: unsafe_get_header_checksum, },
+		set: { fn: unsafe_set_header_checksum, },
 	}
 	{ // Packet flags
 		type: u8,
@@ -165,16 +165,40 @@ packet_fields! { PacketBuf
 }
 
 impl PacketBuf {
-	fn calculate_header_checksum(&mut self) -> u16 {
-		unsafe { self.unsafe_set_header_checksum(0) }
-		crate::crc::checksum(*self.header())
-	}
+	fn calculate_header_checksum(&self) -> u16 {
+		let header = *self.header();
+		debug_assert!(
+			header.len() & 0b1 == 0,
+			"the packet header must have even length"
+		);
 
-	fn get_header_checksum(&self) -> u16 {
-		unsafe { self.unsafe_get_header_checksum() }
+		#[allow(clippy::as_conversions, clippy::cast_lossless)]
+		unsafe {
+			let mut addr = header.as_ptr().cast::<u16>();
+			let mut left = header.len();
+			let mut sum: u32 = 0;
+
+			while left >= 2 {
+				sum += (*addr) as u32;
+				addr = addr.add(1);
+				left -= 2;
+			}
+
+			loop {
+				let upper = sum >> 16;
+				if upper == 0 {
+					break;
+				}
+
+				sum = upper + (sum & 0xffff);
+			}
+
+			!(sum as u16)
+		}
 	}
 
 	fn update_header_checksum(&mut self) {
+		unsafe { self.unsafe_set_header_checksum(0) }
 		let new_checksum = self.calculate_header_checksum();
 		unsafe { self.unsafe_set_header_checksum(new_checksum) }
 	}
@@ -223,12 +247,8 @@ impl PacketBuf {
 		}
 
 		// verify header checksum
-		{
-			let unverified = self.get_header_checksum();
-			let calculated = self.calculate_header_checksum();
-			if unverified != calculated {
-				return Err(Error::ChecksumError);
-			}
+		if self.calculate_header_checksum() != 0 {
+			return Err(Error::ChecksumError);
 		}
 
 		Ok(())

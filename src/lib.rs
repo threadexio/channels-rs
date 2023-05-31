@@ -20,7 +20,6 @@
 )]
 #![deny(missing_docs)]
 
-mod crc;
 mod io;
 mod mem;
 mod packet;
