@@ -11,6 +11,9 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
+[*.py]
+indent_style = space
+
 [*.yaml]
 indent_style = space
 indent_size = 2

@@ -1,4 +1,3 @@
-use core::mem;
 use core::ops;
 
 use crate::error::*;
@@ -29,8 +28,6 @@ impl PacketBuf {
 	const MAX_PACKET_SIZE: usize = 0xffff; // u16::MAX
 	pub const MAX_PAYLOAD_SIZE: usize =
 		Self::MAX_PACKET_SIZE - Self::HEADER_SIZE;
-
-	const VERSION: u16 = 0x1;
 
 	pub fn new() -> Self {
 		Self {
@@ -92,77 +89,9 @@ impl PacketBuf {
 	}
 }
 
-macro_rules! packet_fields {
-	($packet_struct_name:ident $(
-		{
-			type: $field_type:ty,
-			offset: $field_byte_offset:literal,
-			$(get: { fn: $field_getter_fn_ident:ident, $(vis: $field_getter_vis:vis,)? $(map: $field_get_map_fn:expr,)? },)?
-			$(set: { fn: $field_setter_fn_ident:ident, $(vis: $field_setter_vis:vis,)? $(map: $field_set_map_fn:expr,)? },)?
-		}
-	)*) => {
-		impl $packet_struct_name {
-			pub const HEADER_SIZE: usize = 0 $( + mem::size_of::<$field_type>())*;
-
-			$(
-				$(
-					$($field_getter_vis)? unsafe fn $field_getter_fn_ident(&self) -> $field_type {
-						debug_assert!($field_byte_offset + mem::size_of::<$field_type>() <= Self::HEADER_SIZE);
-
-						let x = read_offset(self.inner.as_ref(), $field_byte_offset);
-						$(let x = $field_get_map_fn(x);)?
-						x
-					}
-				)?
-			)*
-
-			$(
-				$(
-					$($field_setter_vis)? unsafe fn $field_setter_fn_ident(&mut self, value: $field_type) {
-						debug_assert!($field_byte_offset + mem::size_of::<$field_type>() <= Self::HEADER_SIZE);
-
-						let x = value;
-						$(let x = $field_set_map_fn(x);)?
-						write_offset(self.inner.as_mut(), $field_byte_offset, x);
-					}
-				)?
-			)*
-		}
-	};
-}
-
-packet_fields! { PacketBuf
-	{ // Version
-		type: u16,
-		offset: 0,
-		get: { fn: unsafe_get_version, map: u16::from_be, },
-		set: { fn: unsafe_set_version, map: u16::to_be, },
-	}
-	{ // Packet Length
-		type: u16,
-		offset: 2,
-		get: { fn: unsafe_get_packet_length, map: u16::from_be, },
-		set: { fn: unsafe_set_packet_length, map: u16::to_be, },
-	}
-	{ // Header Checksum
-		type: u16,
-		offset: 4,
-		get: { fn: unsafe_get_header_checksum, },
-		set: { fn: unsafe_set_header_checksum, },
-	}
-	{ // Packet flags
-		type: u8,
-		offset: 6,
-		get: { fn: unsafe_get_flags, map: u8::from_be, },
-		set: { fn: unsafe_set_flags, map: u8::to_be, },
-	}
-	{ // Packet ID
-		type: u8,
-		offset: 7,
-		get: { fn: unsafe_get_packet_id, map: u8::from_be, },
-		set: { fn: unsafe_set_packet_id, map: u8::to_be, },
-	}
-}
+// The header is entirely generated from a custom JSON file.
+// See `tools/header.py` and `spec/header.json` for more.
+include!("./generated.rs");
 
 impl PacketBuf {
 	fn calculate_header_checksum(&self) -> u16 {
@@ -236,13 +165,13 @@ impl PacketBuf {
 
 impl PacketBuf {
 	pub fn finalize(&mut self) {
-		unsafe { self.unsafe_set_version(Self::VERSION) }
+		unsafe { self.unsafe_set_version(Self::HEADER_HASH) }
 		self.update_header_checksum();
 	}
 
 	pub fn verify_header(&mut self) -> Result<()> {
 		// check version
-		if unsafe { self.unsafe_get_version() } != Self::VERSION {
+		if unsafe { self.unsafe_get_version() } != Self::HEADER_HASH {
 			return Err(Error::VersionMismatch);
 		}
 
