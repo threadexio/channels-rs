@@ -30,7 +30,7 @@ This field encodes the length of the entire packet in bytes from the start of th
 
 > TODO: Examine the possibility of introducing Error Correction Codes here instead.
 
-This field is responsible for ensuring that any error in the header is detected. The checksum must be the final modification made to the header before it is sent out and must be calculated while this field is set to 0. The algorithm used for calculating the checksum is CRC-16/GSM.
+This field is responsible for ensuring that any error in the header is detected. The checksum must be the final modification made to the header before it is sent out and must be calculated while this field is set to 0. The algorithm used for calculating the checksum is the [Internet Checksum](https://en.wikipedia.org/wiki/Internet_checksum) algorithm.
 
 ### Flags
 
