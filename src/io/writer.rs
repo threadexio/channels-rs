@@ -3,37 +3,34 @@ use super::{ErrorKind, OwnedBuf, Result, Write};
 #[cfg(feature = "statistics")]
 use crate::stats;
 
-pub struct Writer<'a> {
-	inner: Box<dyn Write + 'a>,
+pub struct Writer<W> {
+	inner: W,
 
 	#[cfg(feature = "statistics")]
 	stats: stats::SendStats,
 }
 
-impl<'a> Writer<'a> {
-	pub fn new<W>(writer: W) -> Self
-	where
-		W: Write + 'a,
-	{
+impl<W> Writer<W> {
+	pub fn new(writer: W) -> Self {
 		Self {
-			inner: Box::new(writer),
+			inner: writer,
 
 			#[cfg(feature = "statistics")]
 			stats: stats::SendStats::new(),
 		}
 	}
 
-	pub fn get(&self) -> &dyn Write {
-		self.inner.as_ref()
+	pub fn get(&self) -> &W {
+		&self.inner
 	}
 
-	pub fn get_mut(&mut self) -> &mut dyn Write {
-		self.inner.as_mut()
+	pub fn get_mut(&mut self) -> &mut W {
+		&mut self.inner
 	}
 }
 
 #[cfg(feature = "statistics")]
-impl Writer<'_> {
+impl<W> Writer<W> {
 	pub fn stats(&self) -> &stats::SendStats {
 		&self.stats
 	}
@@ -43,7 +40,10 @@ impl Writer<'_> {
 	}
 }
 
-impl Write for Writer<'_> {
+impl<W> Write for Writer<W>
+where
+	W: Write,
+{
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
 		let i = self.inner.write(buf)?;
 
@@ -58,7 +58,10 @@ impl Write for Writer<'_> {
 	}
 }
 
-impl Writer<'_> {
+impl<W> Writer<W>
+where
+	W: Write,
+{
 	pub fn write_buffer(
 		&mut self,
 		buf: &mut OwnedBuf,

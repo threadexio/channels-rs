@@ -53,8 +53,8 @@ impl fmt::Display for Error {
 			Self::OutOfOrder => {
 				write!(f, "data was received out of order")
 			},
-			Self::Serde(e) => write!(f, "{}", e),
-			Self::Io(e) => write!(f, "{}", e),
+			Self::Serde(e) => write!(f, "{e}"),
+			Self::Io(e) => write!(f, "{e}"),
 		}
 	}
 }

@@ -83,9 +83,7 @@ where
 	/// This method will panic if `idx` is
 	/// out of bounds.
 	pub fn seek(&mut self, pos: usize) {
-		if pos > self.capacity() {
-			panic!("index out of bounds")
-		}
+		assert!(pos <= self.capacity(), "index out of bounds");
 
 		unsafe {
 			self.set_pos(pos);

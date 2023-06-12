@@ -9,22 +9,19 @@ use crate::packet::*;
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Sender<'w, T> {
+pub struct Sender<T, W> {
 	_p: PhantomData<T>,
-	tx: Writer<'w>,
+	tx: Writer<W>,
 	pbuf: PacketBuf,
 	pid: PacketId,
 }
 
-unsafe impl<T> Send for Sender<'_, T> {}
-unsafe impl<T> Sync for Sender<'_, T> {}
+unsafe impl<T, W> Send for Sender<T, W> {}
+unsafe impl<T, W> Sync for Sender<T, W> {}
 
-impl<'w, T> Sender<'w, T> {
+impl<T, W> Sender<T, W> {
 	/// Creates a new [`Sender`] from `tx`.
-	pub fn new<W>(tx: W) -> Self
-	where
-		W: Write + 'w,
-	{
+	pub fn new(tx: W) -> Self {
 		Self {
 			_p: PhantomData,
 			tx: Writer::new(tx),
@@ -34,25 +31,28 @@ impl<'w, T> Sender<'w, T> {
 	}
 
 	/// Get a reference to the underlying reader.
-	pub fn get(&self) -> &dyn Write {
+	pub fn get(&self) -> &W {
 		self.tx.get()
 	}
 
 	/// Get a mutable reference to the underlying reader. Directly reading from the stream is not advised.
-	pub fn get_mut(&mut self) -> &mut dyn Write {
+	pub fn get_mut(&mut self) -> &mut W {
 		self.tx.get_mut()
 	}
 }
 
 #[cfg(feature = "statistics")]
-impl<T> Sender<'_, T> {
+impl<T, W> Sender<T, W> {
 	/// Get statistics on this [`Sender`].
 	pub fn stats(&self) -> &crate::stats::SendStats {
 		self.tx.stats()
 	}
 }
 
-impl<T> Sender<'_, T> {
+impl<T, W> Sender<T, W>
+where
+	W: Write,
+{
 	/// Attempts to send an object through the data stream
 	/// using a custom serialization function.
 	///
@@ -70,9 +70,9 @@ impl<T> Sender<'_, T> {
 	/// ```no_run
 	/// use channels::Sender;
 	///
-	/// let mut tx = Sender::<i32>::new(std::io::sink());
+	/// let mut tx = Sender::new(std::io::sink());
 	///
-	/// tx.send_with(42, |data| {
+	/// tx.send_with(42_i32, |data| {
 	///     Ok(data.to_be_bytes().to_vec())
 	/// }).unwrap();
 	/// ```
@@ -130,8 +130,9 @@ impl<T> Sender<'_, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<T> Sender<'_, T>
+impl<T, W> Sender<T, W>
 where
+	W: Write,
 	T: serde::ser::Serialize,
 {
 	/// Attempts to send an object through the data stream using `serde`.
@@ -145,7 +146,7 @@ where
 	///     a: i32
 	/// }
 	///
-	/// let mut tx = Sender::<Data>::new(std::io::sink());
+	/// let mut tx = Sender::new(std::io::sink());
 	///
 	/// tx.send(Data { a: 42 }).unwrap();
 	/// ```

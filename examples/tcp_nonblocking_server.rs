@@ -1,5 +1,5 @@
 use std::io;
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 
 fn main() {
 	let listener = TcpListener::bind("127.0.0.1:10000").unwrap();
@@ -15,7 +15,7 @@ fn main() {
 		let (connection, _) = listener.accept().unwrap();
 		connection.set_nonblocking(true).unwrap();
 
-		clients.push(channels::channel::<i32>(
+		clients.push(channels::channel(
 			connection.try_clone().unwrap(),
 			connection,
 		));
@@ -34,8 +34,8 @@ fn main() {
 }
 
 fn handle_client(
-	tx: &mut channels::Sender<i32>,
-	rx: &mut channels::Receiver<i32>,
+	tx: &mut channels::Sender<i32, TcpStream>,
+	rx: &mut channels::Receiver<i32, TcpStream>,
 ) -> channels::Result<()> {
 	let received = match rx.recv() {
 		Ok(v) => {

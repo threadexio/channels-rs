@@ -49,9 +49,9 @@ let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
 
 loop {
     let (stream, _) = listener.accept().unwrap();
-    let (mut tx, mut rx) = channels::channel::<i32>(stream.try_clone().unwrap(), stream);
+    let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
-    let client_data = rx.recv().unwrap();
+    let client_data: i32 = rx.recv().unwrap();
 
     println!("Client sent: {}", client_data);
 
@@ -66,7 +66,7 @@ use std::io;
 use std::net::TcpStream;
 
 let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
-let (mut tx, mut rx) = channels::channel::<i32>(stream.try_clone().unwrap(), stream);
+let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
 tx.send(1337_i32).unwrap();
 
@@ -86,10 +86,10 @@ loop {
     let (stream, _) = listener.accept().unwrap();
 
     std::thread::spawn(move || {
-        let (mut tx, mut rx) = channels::channel::<i32>(stream.try_clone().unwrap(), stream);
+        let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
         loop {
-            let client_data = rx.recv().unwrap();
+            let client_data: i32 = rx.recv().unwrap();
 
             println!("Client sent: {}", client_data);
 
@@ -106,7 +106,7 @@ use std::io;
 use std::net::TcpStream;
 
 let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
-let (mut tx, mut rx) = channels::channel::<i32>(stream.try_clone().unwrap(), stream);
+let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
 // Receiving thread
 let recv_thread = std::thread::spawn(move || loop {

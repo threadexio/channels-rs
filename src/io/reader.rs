@@ -3,37 +3,34 @@ use super::{ErrorKind, OwnedBuf, Read, Result};
 #[cfg(feature = "statistics")]
 use crate::stats;
 
-pub struct Reader<'a> {
-	inner: Box<dyn Read + 'a>,
+pub struct Reader<R> {
+	inner: R,
 
 	#[cfg(feature = "statistics")]
 	stats: stats::RecvStats,
 }
 
-impl<'a> Reader<'a> {
-	pub fn new<R>(reader: R) -> Self
-	where
-		R: Read + 'a,
-	{
+impl<R> Reader<R> {
+	pub fn new(reader: R) -> Self {
 		Self {
-			inner: Box::new(reader),
+			inner: reader,
 
 			#[cfg(feature = "statistics")]
 			stats: stats::RecvStats::new(),
 		}
 	}
 
-	pub fn get(&self) -> &dyn Read {
-		self.inner.as_ref()
+	pub fn get(&self) -> &R {
+		&self.inner
 	}
 
-	pub fn get_mut(&mut self) -> &mut dyn Read {
-		self.inner.as_mut()
+	pub fn get_mut(&mut self) -> &mut R {
+		&mut self.inner
 	}
 }
 
 #[cfg(feature = "statistics")]
-impl Reader<'_> {
+impl<R> Reader<R> {
 	pub fn stats(&self) -> &stats::RecvStats {
 		&self.stats
 	}
@@ -43,7 +40,10 @@ impl Reader<'_> {
 	}
 }
 
-impl Read for Reader<'_> {
+impl<R> Read for Reader<R>
+where
+	R: Read,
+{
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 		let i = self.inner.read(buf)?;
 
@@ -54,7 +54,10 @@ impl Read for Reader<'_> {
 	}
 }
 
-impl Reader<'_> {
+impl<R> Reader<R>
+where
+	R: Read,
+{
 	pub fn fill_buffer(
 		&mut self,
 		buf: &mut OwnedBuf,

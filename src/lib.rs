@@ -8,6 +8,7 @@
 	clippy::correctness,
 	clippy::complexity,
 	clippy::deprecated,
+	clippy::missing_doc_code_examples,
 	clippy::missing_panics_doc,
 	clippy::missing_safety_doc,
 	clippy::missing_doc_code_examples,
@@ -33,7 +34,8 @@ mod serde;
 /// See: [`statistics`](crate#features) feature.
 pub mod stats;
 
-mod error;
+/// Error module.
+pub mod error;
 pub use error::{Error, Result};
 
 mod sender;
@@ -42,13 +44,12 @@ pub use sender::Sender;
 mod receiver;
 pub use receiver::Receiver;
 
-use std::io::{Read, Write};
-
 /// A tuple containing a [`Sender`] and a [`Receiver`].
-pub type Pair<'r, 'w, T> = (Sender<'w, T>, Receiver<'r, T>);
+pub type Pair<T, Reader, Writer> = Pair2<T, T, Reader, Writer>;
 
 /// A tuple containing a [`Sender`] and a [`Receiver`] that use different types.
-pub type Pair2<'r, 'w, S, R> = (Sender<'w, S>, Receiver<'r, R>);
+pub type Pair2<S, R, Reader, Writer> =
+	(Sender<S, Writer>, Receiver<R, Reader>);
 
 /// Creates a new channel.
 ///
@@ -60,13 +61,16 @@ pub type Pair2<'r, 'w, S, R> = (Sender<'w, S>, Receiver<'r, R>);
 ///
 /// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
 ///
-/// let (mut tx, mut rx) = channels::channel::<i32>(conn.try_clone().unwrap(), conn);
+/// let (mut tx, mut rx) = channels::channel(conn.try_clone().unwrap(), conn);
+///
+/// tx.send(42_i32).unwrap();
+/// let received: i32 = rx.recv().unwrap();
 /// ```
-pub fn channel<'r, 'w, T>(
-	r: impl Read + 'r,
-	w: impl Write + 'w,
-) -> Pair<'r, 'w, T> {
-	channel2::<T, T>(r, w)
+pub fn channel<T, Reader, Writer>(
+	r: Reader,
+	w: Writer,
+) -> Pair<T, Reader, Writer> {
+	channel2::<T, T, Reader, Writer>(r, w)
 }
 
 /// Creates a new channel that sends and receives different types.
@@ -77,11 +81,14 @@ pub fn channel<'r, 'w, T>(
 ///
 /// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
 ///
-/// let (mut tx, mut rx) = channels::channel2::<i32, i64>(conn.try_clone().unwrap(), conn);
+/// let (mut tx, mut rx) = channels::channel2(conn.try_clone().unwrap(), conn);
+///
+/// tx.send(42_i32).unwrap();
+/// let received: i64 = rx.recv().unwrap();
 /// ```
-pub fn channel2<'r, 'w, S, R>(
-	r: impl Read + 'r,
-	w: impl Write + 'w,
-) -> Pair2<'r, 'w, S, R> {
+pub fn channel2<S, R, Reader, Writer>(
+	r: Reader,
+	w: Writer,
+) -> Pair2<S, R, Reader, Writer> {
 	(Sender::new(w), Receiver::new(r))
 }

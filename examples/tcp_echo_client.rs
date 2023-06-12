@@ -7,7 +7,7 @@ use rand::Rng;
 fn main() {
 	let connection = TcpStream::connect("127.0.0.1:10000").unwrap();
 
-	let (mut tx, mut rx) = channels::channel::<i32>(
+	let (mut tx, mut rx) = channels::channel(
 		connection.try_clone().unwrap(),
 		connection,
 	);

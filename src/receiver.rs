@@ -1,29 +1,26 @@
 use core::marker::PhantomData;
 
 use crate::error::*;
-use crate::io::{self, prelude::*, OwnedBuf, Reader};
+use crate::io::{prelude::*, OwnedBuf, Reader};
 use crate::packet::*;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Receiver<'r, T> {
+pub struct Receiver<T, R> {
 	_p: PhantomData<T>,
-	rx: Reader<'r>,
+	rx: Reader<R>,
 	pbuf: PacketBuf,
 	pid: PacketId,
 }
 
-unsafe impl<T> Send for Receiver<'_, T> {}
-unsafe impl<T> Sync for Receiver<'_, T> {}
+unsafe impl<T, R> Send for Receiver<T, R> {}
+unsafe impl<T, R> Sync for Receiver<T, R> {}
 
-impl<'r, T> Receiver<'r, T> {
+impl<T, R> Receiver<T, R> {
 	/// Creates a new [`Receiver`] from `rx`.
-	pub fn new<R>(rx: R) -> Self
-	where
-		R: Read + 'r,
-	{
+	pub fn new(rx: R) -> Self {
 		Self {
 			_p: PhantomData,
 			rx: Reader::new(rx),
@@ -33,25 +30,28 @@ impl<'r, T> Receiver<'r, T> {
 	}
 
 	/// Get a reference to the underlying reader.
-	pub fn get(&self) -> &dyn Read {
+	pub fn get(&self) -> &R {
 		self.rx.get()
 	}
 
 	/// Get a mutable reference to the underlying reader. Directly reading from the stream is not advised.
-	pub fn get_mut(&mut self) -> &mut dyn Read {
+	pub fn get_mut(&mut self) -> &mut R {
 		self.rx.get_mut()
 	}
 }
 
 #[cfg(feature = "statistics")]
-impl<T> Receiver<'_, T> {
+impl<T, R> Receiver<T, R> {
 	/// Get statistics on this [`Receiver`](Self).
 	pub fn stats(&self) -> &crate::stats::RecvStats {
 		self.rx.stats()
 	}
 }
 
-impl<T> Receiver<'_, T> {
+impl<T, R> Receiver<T, R>
+where
+	R: Read,
+{
 	/// Attempts to receive an object from the data stream using
 	/// a custom deserialization function.
 	///
@@ -71,7 +71,7 @@ impl<T> Receiver<'_, T> {
 	/// ```no_run
 	/// use channels::Receiver;
 	///
-	/// let mut rx = Receiver::<i32>::new(std::io::empty());
+	/// let mut rx = Receiver::new(std::io::empty());
 	///
 	/// let number = rx.recv_with(|buf| {
 	///     let number = i32::from_be_bytes(buf[..2].try_into().unwrap());
@@ -108,12 +108,18 @@ impl<T> Receiver<'_, T> {
 	/// buffer and must be read before further calls.
 	#[must_use = "unused payload size"]
 	fn recv_chunk(&mut self) -> Result<usize> {
+		let mut fill_buffer_to =
+			|buf: &mut OwnedBuf, limit: usize| -> Result<()> {
+				let buf_len = buf.len();
+				if buf_len < limit {
+					self.rx.fill_buffer(buf, limit - buf_len)?;
+				}
+
+				Ok(())
+			};
+
 		if self.pbuf.len() < PacketBuf::HEADER_SIZE {
-			io::fill_buffer_to(
-				&mut self.pbuf,
-				&mut self.rx,
-				PacketBuf::HEADER_SIZE,
-			)?;
+			fill_buffer_to(&mut self.pbuf, PacketBuf::HEADER_SIZE)?;
 
 			if let Err(e) = self.pbuf.verify_header() {
 				self.pbuf.clear();
@@ -131,11 +137,7 @@ impl<T> Receiver<'_, T> {
 		let packet_len = usize::from(self.pbuf.get_packet_length());
 
 		if self.pbuf.len() < packet_len {
-			io::fill_buffer_to(
-				&mut self.pbuf,
-				&mut self.rx,
-				packet_len,
-			)?;
+			fill_buffer_to(&mut self.pbuf, packet_len)?;
 		}
 
 		self.pbuf.clear();
@@ -149,8 +151,9 @@ impl<T> Receiver<'_, T> {
 }
 
 #[cfg(feature = "serde")]
-impl<T> Receiver<'_, T>
+impl<T, R> Receiver<T, R>
 where
+	R: Read,
 	T: serde::de::DeserializeOwned,
 {
 	/// Attempts to read an object from the sender end.
@@ -166,9 +169,9 @@ where
 	/// ```no_run
 	/// use channels::Receiver;
 	///
-	/// let mut rx = Receiver::<i32>::new(std::io::empty());
+	/// let mut rx = Receiver::new(std::io::empty());
 	///
-	/// let number = rx.recv().unwrap();
+	/// let number: i32 = rx.recv().unwrap();
 	/// ```
 	pub fn recv(&mut self) -> Result<T> {
 		self.recv_with(crate::serde::deserialize)
