@@ -55,10 +55,10 @@ where
 	/// Attempts to receive an object from the data stream using
 	/// a custom deserialization function.
 	///
-	/// If the underlying data stream is a blocking socket then `recv()` will block until
+	/// If the underlying data stream is a blocking socket then `try_recv()` will block until
 	/// an object is available.
 	///
-	/// If the underlying data stream is a non-blocking socket then `recv()` will return
+	/// If the underlying data stream is a non-blocking socket then `try_recv()` will return
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	///
@@ -73,12 +73,12 @@ where
 	///
 	/// let mut rx = Receiver::new(std::io::empty());
 	///
-	/// let number = rx.recv_with(|buf| {
+	/// let number = rx.try_recv_with(|buf| {
 	///     let number = i32::from_be_bytes(buf[..2].try_into().unwrap());
 	///     Ok(number)
 	/// }).unwrap();
 	/// ```
-	pub fn recv_with<F>(&mut self, de_fn: F) -> Result<T>
+	pub fn try_recv_with<F>(&mut self, de_fn: F) -> Result<T>
 	where
 		F: FnOnce(&[u8]) -> Result<T>,
 	{
@@ -158,10 +158,10 @@ where
 {
 	/// Attempts to read an object from the sender end.
 	///
-	/// If the underlying data stream is a blocking socket then `recv()` will block until
+	/// If the underlying data stream is a blocking socket then `try_recv()` will block until
 	/// an object is available.
 	///
-	/// If the underlying data stream is a non-blocking socket then `recv()` will return
+	/// If the underlying data stream is a non-blocking socket then `try_recv()` will return
 	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
 	/// available.
 	///
@@ -171,9 +171,17 @@ where
 	///
 	/// let mut rx = Receiver::new(std::io::empty());
 	///
-	/// let number: i32 = rx.recv().unwrap();
+	/// let number: i32 = rx.try_recv().unwrap();
 	/// ```
-	pub fn recv(&mut self) -> Result<T> {
-		self.recv_with(crate::serde::deserialize)
+	pub fn try_recv(&mut self) -> Result<T> {
+		self.try_recv_with(crate::serde::deserialize)
+	}
+
+	/// TODO: docs
+	pub async fn recv(&mut self) -> Result<T> {
+		std::future::poll_fn(|_cx| {
+			crate::error::poll_result(self.try_recv())
+		})
+		.await
 	}
 }

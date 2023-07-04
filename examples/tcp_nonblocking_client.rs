@@ -17,7 +17,7 @@ fn main() {
 	let mut i = 0;
 	loop {
 		use std::io::ErrorKind;
-		match rx.recv() {
+		match rx.try_recv() {
 			Ok(v) => println!("Received: {v}"),
 			Err(e) => match e {
 				channels::Error::VersionMismatch => {
@@ -44,7 +44,7 @@ fn main() {
 
 		i += 1;
 
-		tx.send(i).unwrap();
+		tx.try_send(i).unwrap();
 
 		// some expensive computation
 		thread::sleep(Duration::from_secs(rng.gen_range(1..5)));

@@ -12,7 +12,7 @@
 
 **channels** is a crate that allows for easy and fast communication between processes, threads and systems.
 
-Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`] and [`std::io::Write`].
+try_Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`] and [`std::io::Write`].
 
 This crate is similar to [`std::sync::mpsc`] in terms of the API, and most of the documentation
 for that module carries over to this crate.
@@ -33,7 +33,7 @@ The differences are:
 
 ## Default features
 
-- `serde`: Adds support for sending/receiving any type with `serde` and `bincode`
+- `serde`: Adds support for try_sending/receiving any type with `serde` and `bincode`
 
 # Examples
 
@@ -51,11 +51,11 @@ loop {
     let (stream, _) = listener.accept().unwrap();
     let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
-    let client_data: i32 = rx.recv().unwrap();
+    let client_data: i32 = rx.try_recv().unwrap();
 
     println!("Client sent: {}", client_data);
 
-    tx.send(client_data).unwrap();
+    tx.try_send(client_data).unwrap();
 }
 ```
 
@@ -68,9 +68,9 @@ use std::net::TcpStream;
 let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
 let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
-tx.send(1337_i32).unwrap();
+tx.try_send(1337_i32).unwrap();
 
-let received_data = rx.recv().unwrap();
+let received_data = rx.try_recv().unwrap();
 
 assert_eq!(received_data, 1337_i32);
 ```
@@ -89,17 +89,17 @@ loop {
         let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
         loop {
-            let client_data: i32 = rx.recv().unwrap();
+            let client_data: i32 = rx.try_recv().unwrap();
 
             println!("Client sent: {}", client_data);
 
-            tx.send(client_data).unwrap();
+            tx.try_send(client_data).unwrap();
         }
     });
 }
 ```
 
-## Send/Recv with 2 threads
+## try_Send/Recv with 2 threads
 
 ```rust no_run
 use std::io;
@@ -110,18 +110,18 @@ let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
 // Receiving thread
 let recv_thread = std::thread::spawn(move || loop {
-    println!("Received: {}", rx.recv().unwrap());
+    println!("Received: {}", rx.try_recv().unwrap());
 });
 
-// Sending thread
-let send_thread = std::thread::spawn(move || {
+// try_Sending thread
+let try_send_thread = std::thread::spawn(move || {
     let mut counter: i32 = 0;
     loop {
-        tx.send(counter).unwrap();
+        tx.try_send(counter).unwrap();
         counter += 1;
     }
 });
 
 recv_thread.join().unwrap();
-send_thread.join().unwrap();
+try_send_thread.join().unwrap();
 ```

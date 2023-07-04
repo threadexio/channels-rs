@@ -21,14 +21,14 @@ fn server() {
 		channels::channel(s.try_clone().unwrap(), s);
 
 	for i in 0..ITER {
-		let data: Data = rx.recv().unwrap();
+		let data: Data = rx.try_recv().unwrap();
 
 		assert_eq!(
 			data,
 			Data { a: 42, b: i, c: format!("test str #{i}") }
 		);
 
-		tx.send(data).unwrap();
+		tx.try_send(data).unwrap();
 	}
 }
 
@@ -40,9 +40,9 @@ fn client() {
 	for i in 0..ITER {
 		let data = Data { a: 42, b: i, c: format!("test str #{i}") };
 
-		tx.send(data.clone()).unwrap();
+		tx.try_send(data.clone()).unwrap();
 
-		assert_eq!(rx.recv().unwrap(), data);
+		assert_eq!(rx.try_recv().unwrap(), data);
 	}
 }
 

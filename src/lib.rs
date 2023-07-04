@@ -63,8 +63,8 @@ pub type Pair2<S, R, Reader, Writer> =
 ///
 /// let (mut tx, mut rx) = channels::channel(conn.try_clone().unwrap(), conn);
 ///
-/// tx.send(42_i32).unwrap();
-/// let received: i32 = rx.recv().unwrap();
+/// tx.try_send(42_i32).unwrap();
+/// let received: i32 = rx.try_recv().unwrap();
 /// ```
 pub fn channel<T, Reader, Writer>(
 	r: Reader,
@@ -83,8 +83,8 @@ pub fn channel<T, Reader, Writer>(
 ///
 /// let (mut tx, mut rx) = channels::channel2(conn.try_clone().unwrap(), conn);
 ///
-/// tx.send(42_i32).unwrap();
-/// let received: i64 = rx.recv().unwrap();
+/// tx.try_send(42_i32).unwrap();
+/// let received: i64 = rx.try_recv().unwrap();
 /// ```
 pub fn channel2<S, R, Reader, Writer>(
 	r: Reader,

@@ -37,7 +37,7 @@ fn handle_client(
 	tx: &mut channels::Sender<i32, TcpStream>,
 	rx: &mut channels::Receiver<i32, TcpStream>,
 ) -> channels::Result<()> {
-	let received = match rx.recv() {
+	let received = match rx.try_recv() {
 		Ok(v) => {
 			println!("Received {v}",);
 			v
@@ -52,7 +52,7 @@ fn handle_client(
 		},
 	};
 
-	tx.send(-received)?;
+	tx.try_send(-received)?;
 
 	Ok(())
 }

@@ -8,13 +8,13 @@ fn connection_handler(connection: TcpStream) {
 	);
 
 	loop {
-		let received: i32 = rx.recv().unwrap();
+		let received: i32 = rx.try_recv().unwrap();
 		println!(
 			"{}: Received: {received}",
 			thread::current().name().unwrap()
 		);
 
-		tx.send(received).unwrap();
+		tx.try_send(received).unwrap();
 	}
 }
 

@@ -53,7 +53,7 @@ impl<T, W> Sender<T, W>
 where
 	W: Write,
 {
-	/// Attempts to send an object through the data stream
+	/// Attempts to try_send an object through the data stream
 	/// using a custom serialization function.
 	///
 	/// The first parameter passed to `ser_fn` is the buffer
@@ -72,11 +72,11 @@ where
 	///
 	/// let mut tx = Sender::new(std::io::sink());
 	///
-	/// tx.send_with(42_i32, |data| {
+	/// tx.try_send_with(42_i32, |data| {
 	///     Ok(data.to_be_bytes().to_vec())
 	/// }).unwrap();
 	/// ```
-	pub fn send_with<D, F>(
+	pub fn try_send_with<D, F>(
 		&mut self,
 		data: D,
 		ser_fn: F,
@@ -109,7 +109,7 @@ where
 
 	/// Prepares a packet with `payload_len` bytes and sends it.
 	/// Caller must write payload to the buffer before calling.
-	#[must_use = "unchecked send result"]
+	#[must_use = "unchecked try_send result"]
 	fn send_chunk(&mut self, payload_len: usize) -> Result<()> {
 		let packet_len = PacketBuf::HEADER_SIZE + payload_len;
 
@@ -135,7 +135,7 @@ where
 	W: Write,
 	T: serde::ser::Serialize,
 {
-	/// Attempts to send an object through the data stream using `serde`.
+	/// Attempts to try_send an object through the data stream using `serde`.
 	///
 	/// # Example
 	/// ```no_run
@@ -148,13 +148,26 @@ where
 	///
 	/// let mut tx = Sender::new(std::io::sink());
 	///
-	/// tx.send(Data { a: 42 }).unwrap();
+	/// tx.try_send(Data { a: 42 }).unwrap();
 	/// ```
-	pub fn send<D>(&mut self, data: D) -> Result<()>
+	pub fn try_send<D>(&mut self, data: D) -> Result<()>
 	where
 		D: Borrow<T>,
 	{
 		let data = data.borrow();
-		self.send_with(data, crate::serde::serialize)
+		self.try_send_with(data, crate::serde::serialize)
+	}
+
+	/// TODO: docs
+	pub async fn send<D>(&mut self, data: D) -> Result<()>
+	where
+		D: Borrow<T>,
+	{
+		let data = data.borrow();
+
+		std::future::poll_fn(|_cx| {
+			crate::error::poll_result(self.try_send(data))
+		})
+		.await
 	}
 }

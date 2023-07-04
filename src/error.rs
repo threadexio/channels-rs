@@ -1,12 +1,14 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
+use std::task::Poll;
 
 /// A result type for [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// The error type returned by [`Sender`](crate::Sender)s and [`Receiver`](crate::Receiver)s.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
 	/// The 2 peers are not using the same protocol version. This means
 	/// that each end is not using the same version of the crate.
@@ -82,3 +84,15 @@ impl From<bincode::Error> for Error {
 
 unsafe impl Send for Error {}
 unsafe impl Sync for Error {}
+
+pub(crate) fn poll_result<T>(x: Result<T>) -> Poll<Result<T>> {
+	match x {
+		Ok(x) => Poll::Ready(Ok(x)),
+		Err(Error::Io(e))
+			if e.kind() == io::ErrorKind::WouldBlock =>
+		{
+			Poll::Pending
+		},
+		Err(e) => Poll::Ready(Err(e)),
+	}
+}
