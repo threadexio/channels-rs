@@ -1,7 +1,8 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
-use std::task::Poll;
+
+use crate::serdes;
 
 /// A result type for [`Error`].
 pub type Result<T> = core::result::Result<T, Error>;
@@ -37,12 +38,15 @@ pub enum Error {
 	/// The serializer has encountered an error while trying to serialize/deserialize
 	/// the data. This error is usually recoverable and the channel might still be
 	/// able to be used normally.
-	Serde(Box<dyn StdError>),
+	Serde(serdes::Error),
 	/// The underlying transport has returned an error while the data was
 	/// being sent/received. This error is recoverable and the channel can
 	/// continue to be used normally.
 	Io(io::Error),
 }
+
+unsafe impl Send for Error {}
+unsafe impl Sync for Error {}
 
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -63,8 +67,8 @@ impl fmt::Display for Error {
 
 impl StdError for Error {}
 
-impl From<Box<dyn StdError>> for Error {
-	fn from(value: Box<dyn StdError>) -> Self {
+impl From<serdes::Error> for Error {
+	fn from(value: serdes::Error) -> Self {
 		Self::Serde(value)
 	}
 }
@@ -75,24 +79,12 @@ impl From<io::Error> for Error {
 	}
 }
 
-#[cfg(feature = "serde")]
-impl From<bincode::Error> for Error {
-	fn from(value: bincode::Error) -> Self {
-		Self::Serde(value)
-	}
-}
-
-unsafe impl Send for Error {}
-unsafe impl Sync for Error {}
-
-pub(crate) fn poll_result<T>(x: Result<T>) -> Poll<Result<T>> {
-	match x {
-		Ok(x) => Poll::Ready(Ok(x)),
-		Err(Error::Io(e))
-			if e.kind() == io::ErrorKind::WouldBlock =>
-		{
-			Poll::Pending
-		},
-		Err(e) => Poll::Ready(Err(e)),
+impl PartialEq for Error {
+	fn eq(&self, other: &Self) -> bool {
+		use core::mem::discriminant;
+		match (self, other) {
+			(Self::Serde(l0), Self::Serde(r0)) => l0 == r0,
+			_ => discriminant(self) == discriminant(other),
+		}
 	}
 }

@@ -33,13 +33,13 @@ The differences are:
 
 ## Default features
 
-- `serde`: Adds support for try_sending/receiving any type with `serde` and `bincode`
+- `serde`: Adds support for sending/receiving any type with `serde` and `bincode`
 
 # Examples
 
 For more complete and complex examples see: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
 
-## Simple echo server
+## TCP Echo server
 
 ```rust no_run
 use std::io;
@@ -51,15 +51,15 @@ loop {
     let (stream, _) = listener.accept().unwrap();
     let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
-    let client_data: i32 = rx.try_recv().unwrap();
+    let client_data: i32 = rx.recv().unwrap();
 
     println!("Client sent: {}", client_data);
 
-    tx.try_send(client_data).unwrap();
+    tx.send(client_data).unwrap();
 }
 ```
 
-## Simple echo client
+## TCP Echo client
 
 ```rust no_run
 use std::io;
@@ -68,60 +68,9 @@ use std::net::TcpStream;
 let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
 let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
 
-tx.try_send(1337_i32).unwrap();
+tx.send(1337_i32).unwrap();
 
-let received_data = rx.try_recv().unwrap();
+let received_data = rx.recv().unwrap();
 
 assert_eq!(received_data, 1337_i32);
-```
-
-## Multi-threaded echo server
-
-```rust no_run
-use std::net::TcpListener;
-
-let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
-
-loop {
-    let (stream, _) = listener.accept().unwrap();
-
-    std::thread::spawn(move || {
-        let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
-
-        loop {
-            let client_data: i32 = rx.try_recv().unwrap();
-
-            println!("Client sent: {}", client_data);
-
-            tx.try_send(client_data).unwrap();
-        }
-    });
-}
-```
-
-## try_Send/Recv with 2 threads
-
-```rust no_run
-use std::io;
-use std::net::TcpStream;
-
-let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
-let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
-
-// Receiving thread
-let recv_thread = std::thread::spawn(move || loop {
-    println!("Received: {}", rx.try_recv().unwrap());
-});
-
-// try_Sending thread
-let try_send_thread = std::thread::spawn(move || {
-    let mut counter: i32 = 0;
-    loop {
-        tx.try_send(counter).unwrap();
-        counter += 1;
-    }
-});
-
-recv_thread.join().unwrap();
-try_send_thread.join().unwrap();
 ```

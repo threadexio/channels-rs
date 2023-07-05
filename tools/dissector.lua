@@ -2,7 +2,7 @@
 
 proto = Proto("channels-rs", "channels-rs Protocol")
 
-proto.fields.version  = ProtoField.uint16("channels.version",  "Version")
+proto.fields.version  = ProtoField.uint16("channels.version",  "Version",  base.HEX)
 proto.fields.length   = ProtoField.uint16("channels.len",      "Length")
 proto.fields.checksum = ProtoField.uint16("channels.checksum", "Checksum", base.HEX)
 proto.fields.flags    = ProtoField.uint8("channels.flags",     "Flags",    base.HEX)

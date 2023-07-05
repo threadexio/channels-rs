@@ -3,41 +3,14 @@ use super::{ErrorKind, OwnedBuf, Result, Write};
 #[cfg(feature = "statistics")]
 use crate::stats;
 
-pub struct Writer<W> {
+pub struct Writer<W>
+where
+	W: Write,
+{
 	inner: W,
 
 	#[cfg(feature = "statistics")]
 	stats: stats::SendStats,
-}
-
-impl<W> Writer<W> {
-	pub fn new(writer: W) -> Self {
-		Self {
-			inner: writer,
-
-			#[cfg(feature = "statistics")]
-			stats: stats::SendStats::new(),
-		}
-	}
-
-	pub fn get(&self) -> &W {
-		&self.inner
-	}
-
-	pub fn get_mut(&mut self) -> &mut W {
-		&mut self.inner
-	}
-}
-
-#[cfg(feature = "statistics")]
-impl<W> Writer<W> {
-	pub fn stats(&self) -> &stats::SendStats {
-		&self.stats
-	}
-
-	pub fn stats_mut(&mut self) -> &mut stats::SendStats {
-		&mut self.stats
-	}
 }
 
 impl<W> Write for Writer<W>
@@ -62,6 +35,23 @@ impl<W> Writer<W>
 where
 	W: Write,
 {
+	pub fn new(writer: W) -> Self {
+		Self {
+			inner: writer,
+
+			#[cfg(feature = "statistics")]
+			stats: stats::SendStats::new(),
+		}
+	}
+
+	pub fn get(&self) -> &W {
+		&self.inner
+	}
+
+	pub fn get_mut(&mut self) -> &mut W {
+		&mut self.inner
+	}
+
 	pub fn write_buffer(
 		&mut self,
 		buf: &mut OwnedBuf,
@@ -88,5 +78,19 @@ where
 		}
 
 		Ok(())
+	}
+}
+
+#[cfg(feature = "statistics")]
+impl<W> Writer<W>
+where
+	W: Write,
+{
+	pub fn stats(&self) -> &stats::SendStats {
+		&self.stats
+	}
+
+	pub fn stats_mut(&mut self) -> &mut stats::SendStats {
+		&mut self.stats
 	}
 }

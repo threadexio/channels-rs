@@ -4,28 +4,64 @@ use crate::error::*;
 use crate::io::{prelude::*, OwnedBuf, Reader};
 use crate::packet::*;
 
+use crate::serdes::{self, Deserializer};
+
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Receiver<T, R> {
+pub struct Receiver<T, R, D>
+where
+	R: Read,
+	D: Deserializer<T>,
+{
 	_p: PhantomData<T>,
 	rx: Reader<R>,
 	pbuf: PacketBuf,
 	pid: PacketId,
+
+	deserializer: D,
 }
 
-unsafe impl<T, R> Send for Receiver<T, R> {}
-unsafe impl<T, R> Sync for Receiver<T, R> {}
+unsafe impl<T, R, D> Send for Receiver<T, R, D>
+where
+	R: Read,
+	D: Deserializer<T>,
+{
+}
 
-impl<T, R> Receiver<T, R> {
+unsafe impl<T, R, D> Sync for Receiver<T, R, D>
+where
+	R: Read,
+	D: Deserializer<T>,
+{
+}
+
+#[cfg(feature = "serde")]
+impl<T, R> Receiver<T, R, serdes::Bincode>
+where
+	for<'de> T: serde::Deserialize<'de>,
+	R: Read,
+{
 	/// Creates a new [`Receiver`] from `rx`.
 	pub fn new(rx: R) -> Self {
+		Self::with_deserializer(rx, serdes::Bincode)
+	}
+}
+
+impl<T, R, D> Receiver<T, R, D>
+where
+	R: Read,
+	D: Deserializer<T>,
+{
+	/// Create a mew [`Sender`] from `tx` that uses `deserializer`.
+	pub fn with_deserializer(rx: R, deserializer: D) -> Self {
 		Self {
 			_p: PhantomData,
 			rx: Reader::new(rx),
 			pbuf: PacketBuf::new(),
 			pid: PacketId::new(),
+			deserializer,
 		}
 	}
 
@@ -38,34 +74,22 @@ impl<T, R> Receiver<T, R> {
 	pub fn get_mut(&mut self) -> &mut R {
 		self.rx.get_mut()
 	}
-}
 
-#[cfg(feature = "statistics")]
-impl<T, R> Receiver<T, R> {
+	#[cfg(feature = "statistics")]
 	/// Get statistics on this [`Receiver`](Self).
 	pub fn stats(&self) -> &crate::stats::RecvStats {
 		self.rx.stats()
 	}
-}
 
-impl<T, R> Receiver<T, R>
-where
-	R: Read,
-{
-	/// Attempts to receive an object from the data stream using
-	/// a custom deserialization function.
+	/// Attempts to receive an object from the data stream using a
+	/// custom deserialization function.
 	///
-	/// If the underlying data stream is a blocking socket then `try_recv()` will block until
-	/// an object is available.
+	/// If the underlying data stream is a blocking socket then `recv()`
+	/// will block until an object is available.
 	///
-	/// If the underlying data stream is a non-blocking socket then `try_recv()` will return
-	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
-	/// available.
-	///
-	/// The first parameter passed to `de_fn` is the buffer with the
-	/// serialized data.
-	///
-	/// `de_fn` must return the deserialized object.
+	/// If the underlying data stream is non-blocking then `recv()` will
+	/// return an error with a kind of `std::io::ErrorKind::WouldBlock`
+	/// whenever the complete object is not available.
 	///
 	/// # Example
 	/// ```no_run
@@ -73,15 +97,9 @@ where
 	///
 	/// let mut rx = Receiver::new(std::io::empty());
 	///
-	/// let number = rx.try_recv_with(|buf| {
-	///     let number = i32::from_be_bytes(buf[..2].try_into().unwrap());
-	///     Ok(number)
-	/// }).unwrap();
+	/// let number: i32 = rx.recv().unwrap();
 	/// ```
-	pub fn try_recv_with<F>(&mut self, de_fn: F) -> Result<T>
-	where
-		F: FnOnce(&[u8]) -> Result<T>,
-	{
+	pub fn recv(&mut self) -> Result<T> {
 		let mut payload = OwnedBuf::new(vec![]);
 
 		loop {
@@ -97,7 +115,7 @@ where
 			}
 		}
 
-		let data = de_fn(&payload)?;
+		let data = self.deserializer.deserialize(&payload)?;
 
 		Ok(data)
 	}
@@ -147,41 +165,5 @@ where
 
 		let payload_len = packet_len - PacketBuf::HEADER_SIZE;
 		Ok(payload_len)
-	}
-}
-
-#[cfg(feature = "serde")]
-impl<T, R> Receiver<T, R>
-where
-	R: Read,
-	T: serde::de::DeserializeOwned,
-{
-	/// Attempts to read an object from the sender end.
-	///
-	/// If the underlying data stream is a blocking socket then `try_recv()` will block until
-	/// an object is available.
-	///
-	/// If the underlying data stream is a non-blocking socket then `try_recv()` will return
-	/// an error with a kind of `std::io::ErrorKind::WouldBlock` whenever the complete object is not
-	/// available.
-	///
-	/// # Example
-	/// ```no_run
-	/// use channels::Receiver;
-	///
-	/// let mut rx = Receiver::new(std::io::empty());
-	///
-	/// let number: i32 = rx.try_recv().unwrap();
-	/// ```
-	pub fn try_recv(&mut self) -> Result<T> {
-		self.try_recv_with(crate::serde::deserialize)
-	}
-
-	/// TODO: docs
-	pub async fn recv(&mut self) -> Result<T> {
-		std::future::poll_fn(|_cx| {
-			crate::error::poll_result(self.try_recv())
-		})
-		.await
 	}
 }

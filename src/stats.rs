@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 /// Statistic information about for [`Sender`](crate::Sender).
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SendStats {
 	total_sent: usize,
 	last_sent: Instant,
@@ -9,7 +9,7 @@ pub struct SendStats {
 }
 
 /// Statistic information about for [`Receiver`](crate::Receiver).
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecvStats {
 	total_received: usize,
 	last_received: Instant,

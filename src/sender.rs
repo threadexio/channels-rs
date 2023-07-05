@@ -5,28 +5,64 @@ use crate::error::*;
 use crate::io::{prelude::*, OwnedBuf, Writer};
 use crate::packet::*;
 
+use crate::serdes::{self, Serializer};
+
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Sender<T, W> {
+pub struct Sender<T, W, S>
+where
+	W: Write,
+	S: Serializer<T>,
+{
 	_p: PhantomData<T>,
 	tx: Writer<W>,
 	pbuf: PacketBuf,
 	pid: PacketId,
+
+	serializer: S,
 }
 
-unsafe impl<T, W> Send for Sender<T, W> {}
-unsafe impl<T, W> Sync for Sender<T, W> {}
+unsafe impl<T, W, S> Send for Sender<T, W, S>
+where
+	W: Write,
+	S: Serializer<T>,
+{
+}
 
-impl<T, W> Sender<T, W> {
+unsafe impl<T, W, S> Sync for Sender<T, W, S>
+where
+	W: Write,
+	S: Serializer<T>,
+{
+}
+
+#[cfg(feature = "serde")]
+impl<T, W> Sender<T, W, serdes::Bincode>
+where
+	T: serde::Serialize,
+	W: Write,
+{
 	/// Creates a new [`Sender`] from `tx`.
 	pub fn new(tx: W) -> Self {
+		Self::with_serializer(tx, serdes::Bincode)
+	}
+}
+
+impl<T, W, S> Sender<T, W, S>
+where
+	W: Write,
+	S: Serializer<T>,
+{
+	/// Create a mew [`Sender`] from `tx` that uses `serializer`.
+	pub fn with_serializer(tx: W, serializer: S) -> Self {
 		Self {
 			_p: PhantomData,
 			tx: Writer::new(tx),
 			pbuf: PacketBuf::new(),
 			pid: PacketId::new(),
+			serializer,
 		}
 	}
 
@@ -39,32 +75,14 @@ impl<T, W> Sender<T, W> {
 	pub fn get_mut(&mut self) -> &mut W {
 		self.tx.get_mut()
 	}
-}
 
-#[cfg(feature = "statistics")]
-impl<T, W> Sender<T, W> {
+	#[cfg(feature = "statistics")]
 	/// Get statistics on this [`Sender`].
 	pub fn stats(&self) -> &crate::stats::SendStats {
 		self.tx.stats()
 	}
-}
 
-impl<T, W> Sender<T, W>
-where
-	W: Write,
-{
-	/// Attempts to try_send an object through the data stream
-	/// using a custom serialization function.
-	///
-	/// The first parameter passed to `ser_fn` is the buffer
-	/// where serialized data should be put.
-	///
-	/// The second parameter passed to `sef_fn` is `data`.
-	///
-	/// `ser_fn` must return the number of bytes the serialized
-	///  data consists of.
-	///
-	/// **NOTE:** The serialized payload must fit within the provided buffer.
+	/// Attempts to send an object through the data stream.
 	///
 	/// # Example
 	/// ```no_run
@@ -72,20 +90,15 @@ where
 	///
 	/// let mut tx = Sender::new(std::io::sink());
 	///
-	/// tx.try_send_with(42_i32, |data| {
-	///     Ok(data.to_be_bytes().to_vec())
-	/// }).unwrap();
+	/// tx.send(42_i32).unwrap();
 	/// ```
-	pub fn try_send_with<D, F>(
-		&mut self,
-		data: D,
-		ser_fn: F,
-	) -> Result<()>
+	pub fn send<D>(&mut self, data: D) -> Result<()>
 	where
 		D: Borrow<T>,
-		F: FnOnce(D) -> Result<Vec<u8>>,
 	{
-		let mut payload = OwnedBuf::new(ser_fn(data)?);
+		let data = data.borrow();
+		let mut payload =
+			OwnedBuf::new(self.serializer.serialize(data)?);
 
 		loop {
 			let mut dst = self.pbuf.payload_mut();
@@ -109,7 +122,7 @@ where
 
 	/// Prepares a packet with `payload_len` bytes and sends it.
 	/// Caller must write payload to the buffer before calling.
-	#[must_use = "unchecked try_send result"]
+	#[must_use = "unchecked send result"]
 	fn send_chunk(&mut self, payload_len: usize) -> Result<()> {
 		let packet_len = PacketBuf::HEADER_SIZE + payload_len;
 
@@ -126,48 +139,5 @@ where
 		self.tx.stats_mut().update_sent_time();
 
 		Ok(())
-	}
-}
-
-#[cfg(feature = "serde")]
-impl<T, W> Sender<T, W>
-where
-	W: Write,
-	T: serde::ser::Serialize,
-{
-	/// Attempts to try_send an object through the data stream using `serde`.
-	///
-	/// # Example
-	/// ```no_run
-	/// use channels::Sender;
-	///
-	/// #[derive(serde::Serialize)]
-	/// struct Data {
-	///     a: i32
-	/// }
-	///
-	/// let mut tx = Sender::new(std::io::sink());
-	///
-	/// tx.try_send(Data { a: 42 }).unwrap();
-	/// ```
-	pub fn try_send<D>(&mut self, data: D) -> Result<()>
-	where
-		D: Borrow<T>,
-	{
-		let data = data.borrow();
-		self.try_send_with(data, crate::serde::serialize)
-	}
-
-	/// TODO: docs
-	pub async fn send<D>(&mut self, data: D) -> Result<()>
-	where
-		D: Borrow<T>,
-	{
-		let data = data.borrow();
-
-		std::future::poll_fn(|_cx| {
-			crate::error::poll_result(self.try_send(data))
-		})
-		.await
 	}
 }

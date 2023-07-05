@@ -19,7 +19,7 @@ fn server() {
 		channels::channel(s.try_clone().unwrap(), s);
 
 	for _ in 0..ITER {
-		let data: Data = rx.try_recv().unwrap();
+		let data: Data = rx.recv().unwrap();
 
 		assert!(
 			data.buffer
@@ -29,7 +29,7 @@ fn server() {
 			"the buffer has corrupted data"
 		);
 
-		tx.try_send(data).unwrap();
+		tx.send(data).unwrap();
 	}
 }
 
@@ -45,9 +45,9 @@ fn client() {
 				.collect(),
 		};
 
-		tx.try_send(data.clone()).unwrap();
+		tx.send(data.clone()).unwrap();
 
-		assert_eq!(rx.try_recv().unwrap(), data);
+		assert_eq!(rx.recv().unwrap(), data);
 	}
 }
 
