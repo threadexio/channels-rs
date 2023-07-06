@@ -48,6 +48,7 @@ use io::{Read, Write};
 /// A tuple containing a [`Sender`] and a [`Receiver`].
 pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 
+#[cfg(feature = "serde")]
 /// Create a new channel.
 ///
 /// **NOTE:** If you need a [`Sender`] and a [`Receiver`] that use
