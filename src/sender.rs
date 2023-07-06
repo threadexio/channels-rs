@@ -1,7 +1,7 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
 
-use crate::error::*;
+use crate::error::SendError;
 use crate::io::{prelude::*, OwnedBuf, Writer};
 use crate::packet::*;
 
@@ -92,7 +92,7 @@ where
 	///
 	/// tx.send(42_i32).unwrap();
 	/// ```
-	pub fn send<D>(&mut self, data: D) -> Result<()>
+	pub fn send<D>(&mut self, data: D) -> Result<(), SendError>
 	where
 		D: Borrow<T>,
 	{
@@ -123,7 +123,10 @@ where
 	/// Prepares a packet with `payload_len` bytes and sends it.
 	/// Caller must write payload to the buffer before calling.
 	#[must_use = "unchecked send result"]
-	fn send_chunk(&mut self, payload_len: usize) -> Result<()> {
+	fn send_chunk(
+		&mut self,
+		payload_len: usize,
+	) -> Result<(), SendError> {
 		let packet_len = PacketBuf::HEADER_SIZE + payload_len;
 
 		#[allow(clippy::as_conversions)]

@@ -1,6 +1,6 @@
 use core::ops;
 
-use crate::error::*;
+use crate::error::RecvError;
 use crate::io;
 use crate::mem::{read_offset, write_offset};
 
@@ -169,15 +169,15 @@ impl PacketBuf {
 		self.update_header_checksum();
 	}
 
-	pub fn verify_header(&mut self) -> Result<()> {
+	pub fn verify_header(&mut self) -> Result<(), RecvError> {
 		// check version
 		if unsafe { self.unsafe_get_version() } != Self::HEADER_HASH {
-			return Err(Error::VersionMismatch);
+			return Err(RecvError::VersionMismatch);
 		}
 
 		// verify header checksum
 		if self.calculate_header_checksum() != 0 {
-			return Err(Error::ChecksumError);
+			return Err(RecvError::ChecksumError);
 		}
 
 		Ok(())

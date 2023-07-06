@@ -36,7 +36,6 @@ pub mod stats;
 
 /// Error module.
 pub mod error;
-pub use error::{Error, Result};
 
 mod sender;
 pub use sender::Sender;

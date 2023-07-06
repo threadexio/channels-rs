@@ -30,7 +30,7 @@ fn main() {
 	loop {
 		// loop over all clients, if there is an error in
 		// with any client, that client is immediately dropped
-		clients.retain_mut(|(tx, rx)| handle_client(tx, rx).is_ok());
+		clients.retain_mut(|(tx, rx)| handle_client(tx, rx));
 
 		// do something else
 		println!("Doing work!");
@@ -38,26 +38,24 @@ fn main() {
 	}
 }
 
-fn handle_client(
-	tx: &mut Sender,
-	rx: &mut Receiver,
-) -> channels::Result<()> {
+use channels::error::*;
+
+fn handle_client(tx: &mut Sender, rx: &mut Receiver) -> bool {
 	let received = match rx.recv() {
 		Ok(v) => {
 			println!("Received {v}",);
 			v
 		},
-		Err(e) => match e {
-			channels::Error::Io(io_err)
-				if io_err.kind() == io::ErrorKind::WouldBlock =>
-			{
-				return Ok(())
-			},
-			_ => return Err(e),
+		Err(RecvError::Io(e))
+			if e.kind() == io::ErrorKind::WouldBlock =>
+		{
+			return true;
+		},
+		Err(e) => {
+			eprintln!("error: {e}");
+			return false;
 		},
 	};
 
-	tx.send(-received)?;
-
-	Ok(())
+	tx.send(-received).is_ok()
 }

@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::error::*;
+use crate::error::RecvError;
 use crate::io::{prelude::*, OwnedBuf, Reader};
 use crate::packet::*;
 
@@ -99,7 +99,7 @@ where
 	///
 	/// let number: i32 = rx.recv().unwrap();
 	/// ```
-	pub fn recv(&mut self) -> Result<T> {
+	pub fn recv(&mut self) -> Result<T, RecvError> {
 		let mut payload = OwnedBuf::new(vec![]);
 
 		loop {
@@ -125,16 +125,17 @@ where
 	/// of. The received payload is written into the
 	/// buffer and must be read before further calls.
 	#[must_use = "unused payload size"]
-	fn recv_chunk(&mut self) -> Result<usize> {
-		let mut fill_buffer_to =
-			|buf: &mut OwnedBuf, limit: usize| -> Result<()> {
-				let buf_len = buf.len();
-				if buf_len < limit {
-					self.rx.fill_buffer(buf, limit - buf_len)?;
-				}
+	fn recv_chunk(&mut self) -> Result<usize, RecvError> {
+		let mut fill_buffer_to = |buf: &mut OwnedBuf,
+		                          limit: usize|
+		 -> Result<(), RecvError> {
+			let buf_len = buf.len();
+			if buf_len < limit {
+				self.rx.fill_buffer(buf, limit - buf_len)?;
+			}
 
-				Ok(())
-			};
+			Ok(())
+		};
 
 		if self.pbuf.len() < PacketBuf::HEADER_SIZE {
 			fill_buffer_to(&mut self.pbuf, PacketBuf::HEADER_SIZE)?;
@@ -146,7 +147,7 @@ where
 
 			if self.pbuf.get_id() != self.pid {
 				self.pbuf.clear();
-				return Err(Error::OutOfOrder);
+				return Err(RecvError::OutOfOrder);
 			}
 
 			self.pid.next_id();
