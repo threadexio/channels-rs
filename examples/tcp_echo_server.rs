@@ -2,13 +2,12 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 
 fn connection_handler(connection: TcpStream) {
-	let (mut tx, mut rx) = channels::channel(
+	let (mut tx, mut rx) = channels::channel::<i32, _, _>(
 		connection.try_clone().unwrap(),
 		connection,
 	);
 
-	loop {
-		let received: i32 = rx.recv().unwrap();
+	for received in rx.incoming() {
 		println!(
 			"{}: Received: {received}",
 			thread::current().name().unwrap()

@@ -40,7 +40,7 @@ where
 	R: Read,
 	D: Deserializer<T>,
 {
-	/// Create a mew [`Sender`] from `tx` that uses `deserializer`.
+	/// Create a mew [`Receiver`] from `rx` that uses `deserializer`.
 	pub fn with_deserializer(rx: R, deserializer: D) -> Self {
 		Self {
 			_p: PhantomData,
@@ -56,7 +56,8 @@ where
 		self.rx.get()
 	}
 
-	/// Get a mutable reference to the underlying reader. Directly reading from the stream is not advised.
+	/// Get a mutable reference to the underlying reader. Directly
+	/// reading from the stream is not advised.
 	pub fn get_mut(&mut self) -> &mut R {
 		self.rx.get_mut()
 	}
@@ -70,10 +71,10 @@ where
 	/// Attempts to receive an object from the data stream using a
 	/// custom deserialization function.
 	///
-	/// If the underlying data stream is a blocking socket then `recv()`
-	/// will block until an object is available.
+	/// - If the underlying reader is a blocking then `recv()` will
+	/// block until an object is available.
 	///
-	/// If the underlying data stream is non-blocking then `recv()` will
+	/// - If the underlying reader is non-blocking then `recv()` will
 	/// return an error with a kind of `std::io::ErrorKind::WouldBlock`
 	/// whenever the complete object is not available.
 	///
@@ -155,5 +156,46 @@ where
 
 		let payload_len = packet_len - PacketBuf::HEADER_SIZE;
 		Ok(payload_len)
+	}
+
+	/// Get an iterator over incoming messages. The iterator will
+	/// return `None` messages when an error is returned by [`Receiver::recv`].
+	///
+	/// See: [`Incoming`].
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Receiver;
+	///
+	/// let mut rx = Receiver::<i32, _, _>::new(std::io::empty());
+	///
+	/// for number in rx.incoming() {
+	///     println!("Received number: {number}");
+	/// }
+	/// ```
+	pub fn incoming(&mut self) -> Incoming<T, R, D> {
+		Incoming(self)
+	}
+}
+
+/// An iterator over incoming messages of a [`Receiver`]. The iterator
+/// will return `None` only when [`Receiver::recv`] returns with an error.
+///
+/// **NOTE:** If the reader is non-blocking then the iterator will return
+/// `None` even in the case where [`Receiver::recv`] would return `WouldBlock`.
+pub struct Incoming<'r, T, R, D>(&'r mut Receiver<T, R, D>)
+where
+	R: Read,
+	D: Deserializer<T>;
+
+impl<T, R, D> Iterator for Incoming<'_, T, R, D>
+where
+	R: Read,
+	D: Deserializer<T>,
+{
+	type Item = T;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.0.recv().ok()
 	}
 }

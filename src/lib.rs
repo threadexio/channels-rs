@@ -17,7 +17,8 @@
 	clippy::as_conversions,
 	clippy::useless_conversion,
 	clippy::wrong_self_convention,
-	rustdoc::all
+	rustdoc::all,
+	rustdoc::broken_intra_doc_links
 )]
 #![deny(missing_docs)]
 
@@ -31,16 +32,20 @@ pub mod serdes;
 #[cfg(feature = "statistics")]
 /// Structures that hold statistic information about channels.
 ///
-/// See: [`statistics`](crate#features) feature.
+/// See: [`statistics`] feature.
+///
+/// [`statistics`]: crate#features
 pub mod stats;
 
 /// Error module.
 pub mod error;
 
-mod sender;
+/// Module containing the implementation for [`Sender`].
+pub mod sender;
 pub use sender::Sender;
 
-mod receiver;
+/// Module containing the implementation for [`Receiver`].
+pub mod receiver;
 pub use receiver::Receiver;
 
 use io::{Read, Write};
@@ -52,8 +57,8 @@ pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 /// Create a new channel.
 ///
 /// **NOTE:** If you need a [`Sender`] and a [`Receiver`] that use
-/// different types, the `new` or the `with_serializer` and `with_deserializer` methods on
-/// [`Sender`] and [`Receiver`].
+/// different types, the `new` or the [`Sender::with_serializer`] and
+/// [`Receiver::with_deserializer`] methods.
 ///
 /// # Usage
 /// ```no_run
