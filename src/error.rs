@@ -1,10 +1,7 @@
 use core::fmt;
-use core::mem::discriminant;
 
 use std::error::Error as StdError;
 use std::io;
-
-use crate::serdes;
 
 /// The error type returned by [`Sender`](crate::Sender).
 #[derive(Debug)]
@@ -13,7 +10,7 @@ pub enum SendError {
 	/// The serializer has encountered an error while trying to serialize/deserialize
 	/// the data. This error is usually recoverable and the channel might still be
 	/// able to be used normally.
-	Serde(serdes::Error),
+	Serde(Box<dyn StdError>),
 	/// The underlying transport has returned an error while the data was
 	/// being sent/received. This error is recoverable and the channel can
 	/// continue to be used normally.
@@ -31,20 +28,11 @@ impl fmt::Display for SendError {
 
 impl StdError for SendError {}
 
-impl PartialEq for SendError {
-	fn eq(&self, other: &Self) -> bool {
-		match (self, other) {
-			(Self::Serde(l0), Self::Serde(r0)) => l0 == r0,
-			_ => discriminant(self) == discriminant(other),
-		}
-	}
-}
-
-impl From<serdes::Error> for SendError {
+/* impl From<serdes::Error> for SendError {
 	fn from(value: serdes::Error) -> Self {
 		Self::Serde(value)
 	}
-}
+} */
 
 impl From<io::Error> for SendError {
 	fn from(value: io::Error) -> Self {
@@ -59,7 +47,7 @@ pub enum RecvError {
 	/// The serializer has encountered an error while trying to serialize/deserialize
 	/// the data. This error is usually recoverable and the channel might still be
 	/// able to be used normally.
-	Serde(serdes::Error),
+	Serde(Box<dyn StdError>),
 	/// The underlying transport has returned an error while the data was
 	/// being sent/received. This error is recoverable and the channel can
 	/// continue to be used normally.
@@ -106,21 +94,6 @@ impl fmt::Display for RecvError {
 }
 
 impl StdError for RecvError {}
-
-impl PartialEq for RecvError {
-	fn eq(&self, other: &Self) -> bool {
-		match (self, other) {
-			(Self::Serde(l0), Self::Serde(r0)) => l0 == r0,
-			_ => discriminant(self) == discriminant(other),
-		}
-	}
-}
-
-impl From<serdes::Error> for RecvError {
-	fn from(value: serdes::Error) -> Self {
-		Self::Serde(value)
-	}
-}
 
 impl From<io::Error> for RecvError {
 	fn from(value: io::Error) -> Self {

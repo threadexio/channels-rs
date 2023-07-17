@@ -24,20 +24,6 @@ where
 	serializer: S,
 }
 
-unsafe impl<T, W, S> Send for Sender<T, W, S>
-where
-	W: Write,
-	S: Serializer<T>,
-{
-}
-
-unsafe impl<T, W, S> Sync for Sender<T, W, S>
-where
-	W: Write,
-	S: Serializer<T>,
-{
-}
-
 #[cfg(feature = "serde")]
 impl<T, W> Sender<T, W, serdes::Bincode>
 where
@@ -97,8 +83,12 @@ where
 		D: Borrow<T>,
 	{
 		let data = data.borrow();
-		let mut payload =
-			OwnedBuf::new(self.serializer.serialize(data)?);
+		let serialized_data = self
+			.serializer
+			.serialize(data)
+			.map_err(|x| SendError::Serde(Box::new(x)))?;
+
+		let mut payload = OwnedBuf::new(serialized_data);
 
 		loop {
 			let mut dst = self.pbuf.payload_mut();

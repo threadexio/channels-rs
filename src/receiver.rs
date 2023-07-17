@@ -23,20 +23,6 @@ where
 	deserializer: D,
 }
 
-unsafe impl<T, R, D> Send for Receiver<T, R, D>
-where
-	R: Read,
-	D: Deserializer<T>,
-{
-}
-
-unsafe impl<T, R, D> Sync for Receiver<T, R, D>
-where
-	R: Read,
-	D: Deserializer<T>,
-{
-}
-
 #[cfg(feature = "serde")]
 impl<T, R> Receiver<T, R, serdes::Bincode>
 where
@@ -115,7 +101,10 @@ where
 			}
 		}
 
-		let data = self.deserializer.deserialize(&payload)?;
+		let data = self
+			.deserializer
+			.deserialize(&payload)
+			.map_err(|x| RecvError::Serde(Box::new(x)))?;
 
 		Ok(data)
 	}

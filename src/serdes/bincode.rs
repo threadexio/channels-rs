@@ -1,6 +1,6 @@
-use super::impl_prelude::*;
+use super::{Deserializer, Serializer};
 
-use bincode::{ErrorKind, Options};
+use bincode::Options;
 macro_rules! bincode {
 	() => {
 		::bincode::options()
@@ -19,11 +19,10 @@ impl<T> Serializer<T> for Bincode
 where
 	T: serde::Serialize,
 {
-	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Error> {
-		match bincode!().serialize(t) {
-			Ok(v) => Ok(v),
-			Err(e) => Err(Error::Other(e.to_string())),
-		}
+	type Error = bincode::Error;
+
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
+		bincode!().serialize(t)
 	}
 }
 
@@ -31,13 +30,9 @@ impl<T> Deserializer<T> for Bincode
 where
 	for<'de> T: serde::Deserialize<'de>,
 {
-	fn deserialize(&mut self, buf: &[u8]) -> Result<T, Error> {
-		match bincode!().deserialize(buf) {
-			Ok(v) => Ok(v),
-			Err(e) => match *e {
-				ErrorKind::SizeLimit => Err(Error::NotEnough),
-				_ => Err(Error::Other(e.to_string())),
-			},
-		}
+	type Error = bincode::Error;
+
+	fn deserialize(&mut self, buf: &[u8]) -> Result<T, Self::Error> {
+		bincode!().deserialize(buf)
 	}
 }
