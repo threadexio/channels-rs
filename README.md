@@ -10,7 +10,7 @@
 [docs-badge]: https://img.shields.io/docsrs/channels?style=flat-square&logo=docs.rs&labelColor=0d1117
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/.github/images/logo.svg" width="300px">
+  <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/.github/images/logo.svg" width="200px">
 
   [![license-badge]][crates-io]
   [![version-badge]][crates-io]
