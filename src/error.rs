@@ -28,12 +28,6 @@ impl fmt::Display for SendError {
 
 impl StdError for SendError {}
 
-/* impl From<serdes::Error> for SendError {
-	fn from(value: serdes::Error) -> Self {
-		Self::Serde(value)
-	}
-} */
-
 impl From<io::Error> for SendError {
 	fn from(value: io::Error) -> Self {
 		Self::Io(value)
