@@ -26,6 +26,9 @@ mod io;
 mod mem;
 mod packet;
 
+/// Adapter types for [`std::io::Read`]/[`std::io::Write`] streams.
+pub mod adapter;
+
 /// Serialization/Deserialization traits and types.
 pub mod serdes;
 
@@ -55,6 +58,10 @@ pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 
 #[cfg(feature = "serde")]
 /// Create a new channel.
+///
+/// If your reader and writer are one type that does not support splitting
+/// its 2 halves, use the `split` function from [`adapter::unsync`]
+/// or [`adapter::sync`].
 ///
 /// **NOTE:** If you need a [`Sender`] and a [`Receiver`] that use
 /// different types, the `new` or the [`Sender::with_serializer`] and
