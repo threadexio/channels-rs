@@ -114,17 +114,17 @@ function add_flag_to_subtree(tree, name, bit, is_set)
 end
 
 function bitand(a, b)
-    local result = 0
-    local bitval = 1
-    while a > 0 and b > 0 do
-      if a % 2 == 1 and b % 2 == 1 then -- test the rightmost bits
-          result = result + bitval      -- set the current bit
-      end
-      bitval = bitval * 2 -- shift left
-      a = math.floor(a/2) -- shift right
-      b = math.floor(b/2)
-    end
-    return result
+	local result = 0
+	local bitval = 1
+	while a > 0 and b > 0 do
+	  if a % 2 == 1 and b % 2 == 1 then -- test the rightmost bits
+		  result = result + bitval      -- set the current bit
+	  end
+	  bitval = bitval * 2 -- shift left
+	  a = math.floor(a/2) -- shift right
+	  b = math.floor(b/2)
+	end
+	return result
 end
 
 function bitshl(a, b)

@@ -1,31 +1,55 @@
 [crates-io]: https://crates.io/crates/channels
+[docs-rs]: https://docs.rs/channels/latest/channels
+[github-actions]: https://github.com/threadexio/channels-rs/actions/workflows/ci.yaml
 
-[license-badge]: https://img.shields.io/crates/l/channels?style=for-the-badge
-[version-badge]: https://img.shields.io/crates/v/channels?style=for-the-badge
-[downloads-badge]: https://img.shields.io/crates/d/channels?style=for-the-badge
+[license-badge]: https://img.shields.io/github/license/threadexio/channels-rs?style=flat-square&labelColor=0d1117&color=decd87
+[version-badge]: https://img.shields.io/crates/v/channels?style=flat-square&logo=rust&labelColor=0d1117&color=decd87
+[downloads-badge]: https://img.shields.io/crates/d/channels?style=flat-square&logo=rust&labelColor=0d1117&color=decd87
+
+[tests-badge]: https://img.shields.io/github/actions/workflow/status/threadexio/channels-rs/ci.yaml?style=flat-square&logo=github&label=tests&labelColor=0d1117
+[docs-badge]: https://img.shields.io/docsrs/channels?style=flat-square&logo=docs.rs&labelColor=0d1117
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/.github/images/logo.svg" width="300px">
+
+  [![license-badge]][crates-io]
+  [![version-badge]][crates-io]
+  [![downloads-badge]][crates-io]
+
+  [![tests-badge]][github-actions]
+  [![docs-badge]][docs-rs]
+
+</div>
+
+[`std::io::Read`]: std::io::Read
+[`std::io::Write`]: std::io::Write
+[`std::sync::mpsc`]: std::sync::mpsc
+
+[`serde`]: mod@serde
+[`bincode`]: mod@bincode
+
+[`Serializer`]: crate::serdes::Serializer
+[`Deserializer`]: crate::serdes::Deserializer
 
 # **channels-rs**
 
-[![license-badge]][crates-io]
-[![version-badge]][crates-io]
-[![downloads-badge]][crates-io]
-
 **channels** is a crate that allows for easy and fast communication between processes, threads and systems.
 
-try_Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`] and [`std::io::Write`].
+Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`] and [`std::io::Write`].
 
 This crate is similar to [`std::sync::mpsc`] in terms of the API, and most of the documentation
 for that module carries over to this crate.
 
 Don't think of these channels as a replacement for [`std::sync::mpsc`], but as another implementation that works over many different transports.
 
-These channels are meant to be used in combination with network sockets, local sockets, pipes, etc. And can be chained with other adapter types to create complex
-and structured packets.
+These channels are meant to be used in combination with network sockets, local sockets, pipes, etc.
 
 The differences are:
 
 - Channels **will** block, unless the underlying stream is set as non-blocking.
 - The amount of messages that can be queued up before reading is dependent on the underlying stream.
+
+**:warning: Warning:** This library does not support transparently encryption or authentication of the data. This functionality must be implemented by a [`Serializer`] and [`Deserializer`].
 
 # Features
 
@@ -33,7 +57,7 @@ The differences are:
 
 ## Default features
 
-- `serde`: Adds support for sending/receiving any type with `serde` and `bincode`
+- `serde`: Adds support for sending/receiving any type with [`serde`] and [`bincode`]
 
 # Examples
 
