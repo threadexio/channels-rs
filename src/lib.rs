@@ -25,6 +25,7 @@
 mod io;
 mod mem;
 mod packet;
+mod util;
 
 /// Adapter types for [`std::io::Read`]/[`std::io::Write`] streams.
 pub mod adapter;

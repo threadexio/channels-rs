@@ -1,16 +1,10 @@
 #![allow(clippy::mut_from_ref)]
-use core::cell::{Cell, UnsafeCell};
-use core::marker::PhantomData;
+use core::cell::UnsafeCell;
 use std::rc::Rc;
 
 use std::io::{Read, Result, Write};
 
-/// Marker type that implements `!Send`.
-/// Workaround for unimplemented negative trait impls.
-type PhantomUnsend = PhantomData<*const ()>;
-/// Marker type that implements `!Sync`.
-/// Workaround for unimplemented negative trait impls.
-type PhantomUnsync = PhantomData<Cell<()>>;
+use crate::util::PhantomUnsend;
 
 /// The read half of `T`. This half can **NOT** be sent to other
 /// threads as it implements neither [`Send`] nor [`Sync`].
@@ -20,8 +14,7 @@ where
 	T: Read,
 {
 	inner: Rc<UnsafeCell<T>>,
-	_marker1: PhantomUnsend,
-	_marker2: PhantomUnsync,
+	_marker: PhantomUnsend,
 }
 
 impl<T> ReadHalf<T>
@@ -50,8 +43,7 @@ where
 	T: Write,
 {
 	inner: Rc<UnsafeCell<T>>,
-	_marker1: PhantomUnsend,
-	_marker2: PhantomUnsync,
+	_marker: PhantomUnsend,
 }
 
 impl<T> WriteHalf<T>
@@ -86,14 +78,9 @@ where
 	(
 		ReadHalf {
 			inner: Rc::clone(&rw),
-			_marker1: PhantomData,
-			_marker2: PhantomData,
+			_marker: PhantomUnsend::default(),
 		},
-		WriteHalf {
-			inner: rw,
-			_marker1: PhantomData,
-			_marker2: PhantomData,
-		},
+		WriteHalf { inner: rw, _marker: PhantomUnsend::default() },
 	)
 }
 
