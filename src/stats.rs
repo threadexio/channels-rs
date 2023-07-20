@@ -1,3 +1,9 @@
+//! Structures that hold statistic information about channels.
+//!
+//! See: [`statistics`] feature.
+//!
+//! [`statistics`]: crate#features
+
 use std::time::{Duration, Instant};
 
 /// Statistic information about for [`Sender`](crate::Sender).

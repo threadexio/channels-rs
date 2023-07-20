@@ -1,3 +1,5 @@
+//! Module containing the implementation for [`Sender`].
+
 use core::borrow::Borrow;
 use core::marker::PhantomData;
 

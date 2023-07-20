@@ -1,3 +1,5 @@
+//! Module containing the implementation for [`Receiver`].
+
 use core::marker::PhantomData;
 
 use crate::error::RecvError;
@@ -183,6 +185,10 @@ where
 ///
 /// **NOTE:** If the reader is non-blocking then the iterator will return
 /// `None` even in the case where [`Receiver::recv`] would return `WouldBlock`.
+///
+/// When the iterator returns `None` it does not always mean that further
+/// calls to `next()` will also return `None`. This behavior depends on the
+/// underlying reader.
 pub struct Incoming<'r, T, R, D>(&'r mut Receiver<T, R, D>)
 where
 	R: Read,

@@ -27,28 +27,16 @@ mod mem;
 mod packet;
 mod util;
 
-/// Adapter types for [`std::io::Read`]/[`std::io::Write`] streams.
 pub mod adapter;
-
-/// Serialization/Deserialization traits and types.
+pub mod error;
 pub mod serdes;
 
 #[cfg(feature = "statistics")]
-/// Structures that hold statistic information about channels.
-///
-/// See: [`statistics`] feature.
-///
-/// [`statistics`]: crate#features
 pub mod stats;
 
-/// Error module.
-pub mod error;
-
-/// Module containing the implementation for [`Sender`].
 pub mod sender;
 pub use sender::Sender;
 
-/// Module containing the implementation for [`Receiver`].
 pub mod receiver;
 pub use receiver::Receiver;
 

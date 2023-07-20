@@ -1,4 +1,29 @@
+//! Non-atomic adapter types. Only safe for single threaded applications.
+//!
+//! So the following code will not compile.
+//!
+//! ```compile_fail
+//! use channels::adapter::unsync::*;
+//!
+//! use std::io::{Read, Write, Cursor};
+//! use std::thread;
+//!
+//! // `Cursor` implements both Read and Write
+//! let rw = Cursor::new(vec![0u8; 32]);
+//!
+//! let (mut r, mut w) = split(rw);
+//! thread::scope(|s| {
+//!     s.spawn(|| {
+//!         let _ = r.read(&mut []).unwrap();
+//!     });
+//!
+//!     s.spawn(move || {
+//!         let _ = w.write(&[]).unwrap();
+//!     });
+//! });
+//! ```
 #![allow(clippy::mut_from_ref)]
+
 use core::cell::UnsafeCell;
 use std::rc::Rc;
 

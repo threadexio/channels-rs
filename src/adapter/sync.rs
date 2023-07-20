@@ -1,3 +1,34 @@
+//! Atomic adapter types. Safe for both single and multi-threaded
+//! applications.
+//!
+//! Atomics have significant performance overhead over their [`unsync`]
+//! counterparts.
+//!
+//! So the following code will compile.
+//!
+//! ```no_run
+//! use channels::adapter::sync::*;
+//!
+//! use std::io::{Read, Write, Cursor};
+//! use std::thread;
+//!
+//! let rw = Cursor::new(vec![0u8; 32]);
+//!
+//! let (mut r, mut w) = split(rw);
+//!
+//! thread::scope(|s| {
+//!     s.spawn(|| {
+//!         let _ = r.read(&mut []).unwrap();
+//!     });
+//!
+//!     s.spawn(move || {
+//!         let _ = w.write(&[]).unwrap();
+//!     });
+//! });
+//! ```
+//!
+//! [`unsync`]: super::unsync
+
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 

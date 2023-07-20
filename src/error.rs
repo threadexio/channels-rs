@@ -1,3 +1,5 @@
+//! Error module.
+
 use core::fmt;
 
 use std::error::Error as StdError;

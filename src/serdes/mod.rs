@@ -1,3 +1,5 @@
+//! Custom serializers/deserializers.
+
 use std::error::Error as StdError;
 
 /// A trait describing a simple type serializer.
