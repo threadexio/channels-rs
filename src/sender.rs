@@ -13,11 +13,7 @@ use crate::serdes::{self, Serializer};
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Sender<T, W, S>
-where
-	W: Write,
-	S: Serializer<T>,
-{
+pub struct Sender<T, W, S> {
 	_p: PhantomData<T>,
 	tx: Writer<W>,
 	pbuf: PacketBuf,
@@ -27,22 +23,14 @@ where
 }
 
 #[cfg(feature = "serde")]
-impl<T, W> Sender<T, W, serdes::Bincode>
-where
-	T: serde::Serialize,
-	W: Write,
-{
+impl<T, W> Sender<T, W, serdes::Bincode> {
 	/// Creates a new [`Sender`] from `tx`.
 	pub fn new(tx: W) -> Self {
 		Self::with_serializer(tx, serdes::Bincode)
 	}
 }
 
-impl<T, W, S> Sender<T, W, S>
-where
-	W: Write,
-	S: Serializer<T>,
-{
+impl<T, W, S> Sender<T, W, S> {
 	/// Create a mew [`Sender`] from `tx` that uses `serializer`.
 	pub fn with_serializer(tx: W, serializer: S) -> Self {
 		Self {
@@ -69,7 +57,13 @@ where
 	pub fn stats(&self) -> &crate::stats::SendStats {
 		self.tx.stats()
 	}
+}
 
+impl<T, W, S> Sender<T, W, S>
+where
+	W: Write,
+	S: Serializer<T>,
+{
 	/// Attempts to send an object through the data stream.
 	///
 	/// # Example

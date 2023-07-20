@@ -12,11 +12,7 @@ use crate::serdes::{self, Deserializer};
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-pub struct Receiver<T, R, D>
-where
-	R: Read,
-	D: Deserializer<T>,
-{
+pub struct Receiver<T, R, D> {
 	_p: PhantomData<T>,
 	rx: Reader<R>,
 	pbuf: PacketBuf,
@@ -26,22 +22,14 @@ where
 }
 
 #[cfg(feature = "serde")]
-impl<T, R> Receiver<T, R, serdes::Bincode>
-where
-	for<'de> T: serde::Deserialize<'de>,
-	R: Read,
-{
+impl<T, R> Receiver<T, R, serdes::Bincode> {
 	/// Creates a new [`Receiver`] from `rx`.
 	pub fn new(rx: R) -> Self {
 		Self::with_deserializer(rx, serdes::Bincode)
 	}
 }
 
-impl<T, R, D> Receiver<T, R, D>
-where
-	R: Read,
-	D: Deserializer<T>,
-{
+impl<T, R, D> Receiver<T, R, D> {
 	/// Create a mew [`Receiver`] from `rx` that uses `deserializer`.
 	pub fn with_deserializer(rx: R, deserializer: D) -> Self {
 		Self {
@@ -70,6 +58,31 @@ where
 		self.rx.stats()
 	}
 
+	/// Get an iterator over incoming messages. The iterator will
+	/// return `None` messages when an error is returned by [`Receiver::recv`].
+	///
+	/// See: [`Incoming`].
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Receiver;
+	///
+	/// let mut rx = Receiver::<i32, _, _>::new(std::io::empty());
+	///
+	/// for number in rx.incoming() {
+	///     println!("Received number: {number}");
+	/// }
+	/// ```
+	pub fn incoming(&mut self) -> Incoming<T, R, D> {
+		Incoming(self)
+	}
+}
+
+impl<T, R, D> Receiver<T, R, D>
+where
+	R: Read,
+	D: Deserializer<T>,
+{
 	/// Attempts to receive an object from the data stream using a
 	/// custom deserialization function.
 	///
@@ -159,25 +172,6 @@ where
 		let payload_len = packet_len - PacketBuf::HEADER_SIZE;
 		Ok(payload_len)
 	}
-
-	/// Get an iterator over incoming messages. The iterator will
-	/// return `None` messages when an error is returned by [`Receiver::recv`].
-	///
-	/// See: [`Incoming`].
-	///
-	/// # Example
-	/// ```no_run
-	/// use channels::Receiver;
-	///
-	/// let mut rx = Receiver::<i32, _, _>::new(std::io::empty());
-	///
-	/// for number in rx.incoming() {
-	///     println!("Received number: {number}");
-	/// }
-	/// ```
-	pub fn incoming(&mut self) -> Incoming<T, R, D> {
-		Incoming(self)
-	}
 }
 
 /// An iterator over incoming messages of a [`Receiver`]. The iterator
@@ -189,10 +183,7 @@ where
 /// When the iterator returns `None` it does not always mean that further
 /// calls to `next()` will also return `None`. This behavior depends on the
 /// underlying reader.
-pub struct Incoming<'r, T, R, D>(&'r mut Receiver<T, R, D>)
-where
-	R: Read,
-	D: Deserializer<T>;
+pub struct Incoming<'r, T, R, D>(&'r mut Receiver<T, R, D>);
 
 impl<T, R, D> Iterator for Incoming<'_, T, R, D>
 where

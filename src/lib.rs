@@ -40,8 +40,6 @@ pub use sender::Sender;
 pub mod receiver;
 pub use receiver::Receiver;
 
-use io::{Read, Write};
-
 /// A tuple containing a [`Sender`] and a [`Receiver`].
 pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 
@@ -70,12 +68,6 @@ pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 pub fn channel<T, R, W>(
 	r: R,
 	w: W,
-) -> Pair<T, R, W, serdes::Bincode, serdes::Bincode>
-where
-	T: serde::Serialize,
-	T: for<'de> serde::Deserialize<'de>,
-	R: Read,
-	W: Write,
-{
+) -> Pair<T, R, W, serdes::Bincode, serdes::Bincode> {
 	(Sender::new(w), Receiver::new(r))
 }
