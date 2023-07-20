@@ -2,10 +2,11 @@
 
 use core::marker::PhantomData;
 
-use crate::error::RecvError;
-use crate::io::{prelude::*, OwnedBuf, Reader};
-use crate::packet::*;
+use std::io::{self, Read, Write};
 
+use crate::error::RecvError;
+use crate::io::{BytesMut, Cursor, Reader};
+use crate::packet::{Buffer, Flags, Header, Id};
 use crate::serdes::{self, Deserializer};
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
@@ -14,11 +15,11 @@ use crate::serdes::{self, Deserializer};
 /// See [crate-level documentation](crate).
 pub struct Receiver<T, R, D> {
 	_p: PhantomData<T>,
-	rx: Reader<R>,
-	pbuf: PacketBuf,
-	pid: PacketId,
-
 	deserializer: D,
+
+	rx: Reader<R>,
+	pbuf: Buffer,
+	pid: Id,
 }
 
 #[cfg(feature = "serde")]
@@ -35,8 +36,8 @@ impl<T, R, D> Receiver<T, R, D> {
 		Self {
 			_p: PhantomData,
 			rx: Reader::new(rx),
-			pbuf: PacketBuf::new(),
-			pid: PacketId::new(),
+			pbuf: Buffer::new(),
+			pid: Id::default(),
 			deserializer,
 		}
 	}
@@ -102,75 +103,75 @@ where
 	/// let number: i32 = rx.recv().unwrap();
 	/// ```
 	pub fn recv(&mut self) -> Result<T, RecvError> {
-		let mut payload = OwnedBuf::new(vec![]);
+		let mut payload = Cursor::new(vec![]);
 
 		loop {
-			let chunk_len = self.recv_chunk()?;
+			let header = self.recv_chunk()?;
 
-			let payload_len = payload.len();
-			payload.resize(payload_len + chunk_len, 0);
+			let received_size = header.payload_length() as usize;
 
-			payload.write_all(&self.pbuf.payload()[..chunk_len])?;
+			{
+				let new_size = payload.len() + received_size;
+				payload.get_mut().resize(new_size, 0);
+				payload.write_all(
+					&self.pbuf.payload()[..received_size],
+				)?;
+			}
 
-			if !(self.pbuf.get_flags() & PacketFlags::MORE_DATA) {
+			if !(header.flags & Flags::MORE_DATA) {
 				break;
 			}
 		}
 
+		#[cfg(feature = "statistics")]
+		self.rx.stats_mut().update_received_time();
+
 		let data = self
 			.deserializer
-			.deserialize(&payload)
+			.deserialize(payload.as_slice())
 			.map_err(|x| RecvError::Serde(Box::new(x)))?;
 
 		Ok(data)
 	}
 
-	/// Receives exactly one packet of data, returning
-	/// the amount of bytes that the payload consists
-	/// of. The received payload is written into the
-	/// buffer and must be read before further calls.
+	/// Receives exactly one packet of data, returning its header. The
+	/// received payload is written into the buffer and must be read
+	/// before any further calls.
 	#[must_use = "unused payload size"]
-	fn recv_chunk(&mut self) -> Result<usize, RecvError> {
-		let mut fill_buffer_to = |buf: &mut OwnedBuf,
-		                          limit: usize|
-		 -> Result<(), RecvError> {
-			let buf_len = buf.len();
-			if buf_len < limit {
-				self.rx.fill_buffer(buf, limit - buf_len)?;
-			}
+	fn recv_chunk(&mut self) -> Result<Header, RecvError> {
+		if self.pbuf.position() < Buffer::HEADER_SIZE_USIZE {
+			fill_buf_to(
+				&mut self.rx,
+				&mut self.pbuf,
+				Buffer::HEADER_SIZE_USIZE,
+			)?;
 
-			Ok(())
-		};
+			let header = match self.pbuf.verify() {
+				Ok(v) => v,
+				Err(e) => {
+					self.pbuf.clear();
+					return Err(e);
+				},
+			};
 
-		if self.pbuf.len() < PacketBuf::HEADER_SIZE {
-			fill_buffer_to(&mut self.pbuf, PacketBuf::HEADER_SIZE)?;
-
-			if let Err(e) = self.pbuf.verify_header() {
-				self.pbuf.clear();
-				return Err(e);
-			}
-
-			if self.pbuf.get_id() != self.pid {
+			if header.id != self.pid {
 				self.pbuf.clear();
 				return Err(RecvError::OutOfOrder);
 			}
 
-			self.pid.next_id();
+			self.pid = self.pid.next();
 		}
 
-		let packet_len = usize::from(self.pbuf.get_packet_length());
+		let header = self.pbuf.header();
+		let packet_len = header.length as usize;
 
-		if self.pbuf.len() < packet_len {
-			fill_buffer_to(&mut self.pbuf, packet_len)?;
+		if self.pbuf.position() < packet_len {
+			fill_buf_to(&mut self.rx, &mut self.pbuf, packet_len)?;
 		}
 
 		self.pbuf.clear();
 
-		#[cfg(feature = "statistics")]
-		self.rx.stats_mut().update_received_time();
-
-		let payload_len = packet_len - PacketBuf::HEADER_SIZE;
-		Ok(payload_len)
+		Ok(header)
 	}
 }
 
@@ -195,4 +196,35 @@ where
 	fn next(&mut self) -> Option<Self::Item> {
 		self.0.recv().ok()
 	}
+}
+
+/// Continuously call `read` until `buf` reaches position `limit`.
+fn fill_buf_to<R, T>(
+	reader: &mut Reader<R>,
+	buf: &mut Cursor<T>,
+	limit: usize,
+) -> io::Result<()>
+where
+	R: Read,
+	T: BytesMut,
+{
+	use io::ErrorKind;
+
+	while buf.position() < limit {
+		let pos = buf.position();
+
+		let i = match reader.read(&mut buf.as_mut_slice()[pos..limit])
+		{
+			Ok(v) if v == 0 => {
+				return Err(ErrorKind::UnexpectedEof.into())
+			},
+			Ok(v) => v,
+			Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+			Err(e) => return Err(e),
+		};
+
+		buf.advance(i).unwrap();
+	}
+
+	Ok(())
 }

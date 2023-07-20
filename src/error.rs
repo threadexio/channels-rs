@@ -73,6 +73,10 @@ pub enum RecvError {
 	/// This error is usually **NOT** recoverable and the channel should
 	/// be closed immediately.
 	OutOfOrder,
+	/// The received header contained invalid data. This error is
+	/// usually **NOT** recoverable and the channel should be closed
+	/// immediately.
+	InvalidHeader,
 }
 
 impl fmt::Display for RecvError {
@@ -84,6 +88,9 @@ impl fmt::Display for RecvError {
 			Self::ChecksumError => write!(f, "corrupted data"),
 			Self::OutOfOrder => {
 				write!(f, "data was received out of order")
+			},
+			Self::InvalidHeader => {
+				write!(f, "invalid packet")
 			},
 		}
 	}

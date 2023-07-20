@@ -3,7 +3,7 @@
  *
  * Header spec: spec/header.json
  */
-impl PacketBuf {
+impl Buffer {
 	unsafe fn unsafe_get_version(&self) -> u16 {
 		let x = read_offset(self.as_slice(), 0);
 		u16::from_be(x)
@@ -50,5 +50,7 @@ impl PacketBuf {
 	}
 
 	pub const HEADER_HASH: u16 = 0xfd3f;
-	pub const HEADER_SIZE: usize = 8;
+
+	pub const HEADER_SIZE_USIZE: usize = 8;
+	pub const HEADER_SIZE_U16: u16 = 8;
 }

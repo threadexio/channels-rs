@@ -35,7 +35,7 @@ def generate_header(fields) -> str:
     current_offset = 0
     hdr_hash_input = ""
 
-    result += "impl PacketBuf {"
+    result += "impl Buffer {"
     for field in fields:
         hdr_hash_input += field["name"] + field["type"] + f"{current_offset}"
 
@@ -65,7 +65,9 @@ write_offset(self.as_mut_slice(), {current_offset}, {f'{field["set"]["map"]}(val
 
     result += f"""
 pub const HEADER_HASH: u16 = {hex(hdr_hash)};
-pub const HEADER_SIZE: usize = {current_offset};
+
+pub const HEADER_SIZE_USIZE: usize = {current_offset};
+pub const HEADER_SIZE_U16: u16 = {current_offset};
     """
     result += "}"
     return result

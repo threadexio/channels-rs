@@ -3,10 +3,11 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
 
-use crate::error::SendError;
-use crate::io::{prelude::*, OwnedBuf, Writer};
-use crate::packet::*;
+use std::io::{self, Read, Write};
 
+use crate::error::SendError;
+use crate::io::{BytesRef, Cursor, Writer};
+use crate::packet::{Buffer, Flags, Header, Id};
 use crate::serdes::{self, Serializer};
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
@@ -15,11 +16,11 @@ use crate::serdes::{self, Serializer};
 /// See [crate-level documentation](crate).
 pub struct Sender<T, W, S> {
 	_p: PhantomData<T>,
-	tx: Writer<W>,
-	pbuf: PacketBuf,
-	pid: PacketId,
-
 	serializer: S,
+
+	tx: Writer<W>,
+	pbuf: Buffer,
+	pid: Id,
 }
 
 #[cfg(feature = "serde")]
@@ -36,8 +37,8 @@ impl<T, W, S> Sender<T, W, S> {
 		Self {
 			_p: PhantomData,
 			tx: Writer::new(tx),
-			pbuf: PacketBuf::new(),
-			pid: PacketId::new(),
+			pbuf: Buffer::new(),
+			pid: Id::default(),
 			serializer,
 		}
 	}
@@ -74,6 +75,8 @@ where
 	///
 	/// tx.send(42_i32).unwrap();
 	/// ```
+	#[allow(clippy::missing_panics_doc)]
+	// This method does not actually panic. See the comments bellow.
 	pub fn send<D>(&mut self, data: D) -> Result<(), SendError>
 	where
 		D: Borrow<T>,
@@ -84,49 +87,119 @@ where
 			.serialize(data)
 			.map_err(|x| SendError::Serde(Box::new(x)))?;
 
-		let mut payload = OwnedBuf::new(serialized_data);
+		let mut payload = Cursor::new(serialized_data);
 
 		loop {
-			let mut dst = self.pbuf.payload_mut();
-			let chunk_len = payload.read(&mut dst)?;
-			if chunk_len == 0 {
+			let dst: &mut [u8] = self.pbuf.payload_mut();
+
+			// SAFETY:
+			//
+			// (1) 0 <= payload_len <= dst.len()      , `read()` cannot violate this
+			// (2) dst.len() <= self.pbuf.len()      , see `payload_mut()`
+			// (3) self.pbuf.len() = MAX_PACKET_SIZE , see `Buffer::new()`
+			// (4) MAX_PACKET_SIZE = u16::MAX        , see `Buffer`
+			//
+			// (3), (4) <=> self.pbuf.len() = MAX_PACKET_SIZE = u16::MAX
+			//          <=> self.pbuf.len() = u16::MAX (5)
+			//
+			// (2), (5) <=> dst.len() <= self.pbuf.len()
+			//          <=> dst.len() <= u16::MAX (6)
+			//
+			// (1), (6) <=> 0 <= payload_len <= dst.len()
+			//          <=> 0 <= payload_len <= u16::MAX
+			//
+			// So `payload_len` is safe to convert to `u16`. Thus the following
+			// cannot panic.
+			let payload_len: u16 =
+				payload.read(dst)?.try_into().unwrap();
+			if payload_len == 0 {
 				break;
 			}
 
-			let mut flags = PacketFlags::zero();
+			let mut packet_flags = Flags::zero();
 
-			if !payload.after().is_empty() {
-				flags |= PacketFlags::MORE_DATA;
+			if payload.position() < payload.len() {
+				packet_flags |= Flags::MORE_DATA;
 			}
 
-			self.pbuf.set_flags(flags);
-			self.send_chunk(chunk_len)?;
+			// SAFETY:
+			//
+			// (7) dst.len() = self.pbuf.len() - HEADER_SIZE , see `payload_mut()`
+			//
+			// (1), (7) <=> 0 <= payload_len <= dst.len()
+			//          <=> 0 <= payload_len <= self.pbuf.len() - HEADER_SIZE
+			//          <=> HEADER_SIZE <= payload_len + HEADER_SIZE <= self.pbuf.len() (8)
+			//
+			// (3), (8) <=> HEADER_SIZE <= payload_len + HEADER_SIZE <= u16::MAX
+			//
+			// So `payload_len + HEADER_SIZE` still fits inside a u16, so
+			// no overflow can occur.
+			let header = Header {
+				// SAFETY: HEADER_SIZE can't even come close to not
+				//         fitting inside a u16.
+				length: Buffer::HEADER_SIZE_U16 + payload_len,
+
+				flags: packet_flags,
+				id: self.pid,
+			};
+
+			self.send_packet(&header)?;
+
+			self.pid = self.pid.next();
 		}
-
-		Ok(())
-	}
-
-	/// Prepares a packet with `payload_len` bytes and sends it.
-	/// Caller must write payload to the buffer before calling.
-	#[must_use = "unchecked send result"]
-	fn send_chunk(
-		&mut self,
-		payload_len: usize,
-	) -> Result<(), SendError> {
-		let packet_len = PacketBuf::HEADER_SIZE + payload_len;
-
-		#[allow(clippy::as_conversions)]
-		self.pbuf.set_packet_length(packet_len as u16);
-		self.pbuf.set_id(self.pid);
-		self.pbuf.finalize();
-
-		self.pbuf.clear();
-		self.tx.write_buffer(&mut self.pbuf, packet_len)?;
-		self.pid.next_id();
 
 		#[cfg(feature = "statistics")]
 		self.tx.stats_mut().update_sent_time();
 
 		Ok(())
 	}
+
+	/// Prepares a packet with `header`. and sends it. The caller must
+	/// write payload to the buffer before calling.
+	#[must_use = "unchecked send result"]
+	fn send_packet(
+		&mut self,
+		header: &Header,
+	) -> Result<(), SendError> {
+		self.pbuf.finalize(header);
+		self.pbuf.clear();
+
+		write_buf_to(
+			&mut self.tx,
+			&mut self.pbuf,
+			header.length as usize,
+		)?;
+
+		Ok(())
+	}
+}
+
+/// Continuously call `write` until `buf` reaches position `limit`.
+fn write_buf_to<W, T>(
+	writer: &mut Writer<W>,
+	buf: &mut Cursor<T>,
+	limit: usize,
+) -> io::Result<()>
+where
+	W: Write,
+	T: BytesRef,
+{
+	use io::ErrorKind;
+
+	while buf.position() < limit {
+		let i = match writer
+			.write(&buf.as_slice()[buf.position()..limit])
+		{
+			Ok(v) if v == 0 => {
+				return Err(ErrorKind::UnexpectedEof.into())
+			},
+			Ok(v) => v,
+			Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+			Err(e) => return Err(e),
+		};
+
+		buf.advance(i).unwrap();
+	}
+
+	Ok(())
 }
