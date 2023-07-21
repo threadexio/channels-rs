@@ -1,6 +1,8 @@
 //! Module containing the implementation for [`Sender`].
 
+use core::any::type_name;
 use core::borrow::Borrow;
+use core::fmt;
 use core::marker::PhantomData;
 
 use std::io::{self, Read, Write};
@@ -171,6 +173,17 @@ where
 		)?;
 
 		Ok(())
+	}
+}
+
+impl<T, W, S> fmt::Debug for Sender<T, W, S> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Sender")
+			.field("serializer", &type_name::<S>())
+			.field("tx", &self.tx)
+			.field("pbuf", &self.pbuf.position())
+			.field("pid", &self.pid)
+			.finish()
 	}
 }
 

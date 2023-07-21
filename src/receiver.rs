@@ -1,5 +1,7 @@
 //! Module containing the implementation for [`Receiver`].
 
+use core::any::type_name;
+use core::fmt;
 use core::marker::PhantomData;
 
 use std::io::{self, Read, Write};
@@ -172,6 +174,17 @@ where
 		self.pbuf.clear();
 
 		Ok(header)
+	}
+}
+
+impl<T, R, D> fmt::Debug for Receiver<T, R, D> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Receiver")
+			.field("deserializer", &type_name::<D>())
+			.field("rx", &self.rx)
+			.field("pbuf", &self.pbuf.position())
+			.field("pid", &self.pid)
+			.finish()
 	}
 }
 

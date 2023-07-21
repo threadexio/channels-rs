@@ -1,3 +1,6 @@
+use core::any::type_name;
+use core::fmt;
+
 use std::io::{Read, Result, Write};
 
 mod cursor;
@@ -57,6 +60,18 @@ where
 	}
 }
 
+impl<R> fmt::Debug for Reader<R> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let mut s = f.debug_struct("Reader");
+		s.field("inner", &type_name::<R>());
+
+		#[cfg(feature = "statistics")]
+		s.field("stats", &self.stats);
+
+		s.finish()
+	}
+}
+
 pub struct Writer<W> {
 	inner: W,
 
@@ -109,5 +124,17 @@ where
 
 	fn flush(&mut self) -> Result<()> {
 		self.inner.flush()
+	}
+}
+
+impl<W> fmt::Debug for Writer<W> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let mut s = f.debug_struct("Writer");
+		s.field("inner", &type_name::<W>());
+
+		#[cfg(feature = "statistics")]
+		s.field("stats", &self.stats);
+
+		s.finish()
 	}
 }
