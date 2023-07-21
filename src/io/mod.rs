@@ -6,6 +6,9 @@ use std::io::{Read, Result, Write};
 mod cursor;
 pub use cursor::*;
 
+mod growable;
+pub use growable::*;
+
 #[cfg(feature = "statistics")]
 use crate::stats;
 

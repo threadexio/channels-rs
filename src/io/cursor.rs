@@ -39,6 +39,10 @@ impl<T> Cursor<T> {
 	pub fn position(&self) -> usize {
 		self.pos
 	}
+
+	pub fn set_position(&mut self, position: usize) {
+		self.pos = position;
+	}
 }
 
 impl<T> Cursor<T>

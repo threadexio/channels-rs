@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 use std::io::{self, Read, Write};
 
 use crate::error::RecvError;
-use crate::io::{BytesMut, Cursor, Reader};
+use crate::io::{BytesMut, Cursor, GrowableBuffer, Reader};
 use crate::packet::{Buffer, Flags, Header, Id};
 use crate::serdes::{self, Deserializer};
 
@@ -105,7 +105,7 @@ where
 	/// let number: i32 = rx.recv().unwrap();
 	/// ```
 	pub fn recv(&mut self) -> Result<T, RecvError> {
-		let mut payload = Cursor::new(vec![]);
+		let mut payload = GrowableBuffer::new();
 
 		loop {
 			let header = self.recv_chunk()?;
@@ -113,25 +113,23 @@ where
 			let received_size =
 				(header.length as usize) - Buffer::HEADER_SIZE;
 
-			{
-				let new_size = payload.len() + received_size;
-				payload.get_mut().resize(new_size, 0);
-				payload.write_all(
-					&self.pbuf.payload()[..received_size],
-				)?;
-			}
+			payload
+				.write_all(&self.pbuf.payload()[..received_size])?;
 
 			if !(header.flags & Flags::MORE_DATA) {
 				break;
 			}
 		}
 
+		let mut payload =
+			Cursor::new(payload.into_inner().into_boxed_slice());
+
 		#[cfg(feature = "statistics")]
 		self.rx.stats_mut().update_received_time();
 
 		let data = self
 			.deserializer
-			.deserialize(payload.as_slice())
+			.deserialize(&mut payload)
 			.map_err(|x| RecvError::Serde(Box::new(x)))?;
 
 		Ok(data)

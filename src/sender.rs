@@ -8,7 +8,7 @@ use core::marker::PhantomData;
 use std::io::{self, Read, Write};
 
 use crate::error::SendError;
-use crate::io::{BytesRef, Cursor, Writer};
+use crate::io::{BytesRef, Cursor, GrowableBuffer, Writer};
 use crate::packet::{Buffer, Flags, Header, Id};
 use crate::serdes::{self, Serializer};
 
@@ -82,12 +82,16 @@ where
 		D: Borrow<T>,
 	{
 		let data = data.borrow();
-		let serialized_data = self
-			.serializer
-			.serialize(data)
-			.map_err(|x| SendError::Serde(Box::new(x)))?;
 
-		let mut payload = Cursor::new(serialized_data);
+		let mut payload = match self.serializer.size_hint(data) {
+			Some(size) => GrowableBuffer::with_capacity(size),
+			None => GrowableBuffer::new(),
+		};
+
+		self.serializer
+			.serialize(&mut payload, data)
+			.map_err(|x| SendError::Serde(Box::new(x)))?;
+		payload.set_position(0);
 
 		loop {
 			let dst: &mut [u8] = self.pbuf.payload_mut();

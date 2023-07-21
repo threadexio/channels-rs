@@ -1,4 +1,4 @@
-use super::{Deserializer, Serializer};
+use super::prelude::*;
 
 use bincode::Options;
 macro_rules! bincode {
@@ -21,8 +21,17 @@ where
 {
 	type Error = bincode::Error;
 
-	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
-		bincode!().serialize(t)
+	fn serialize<W: Write>(
+		&mut self,
+		buf: W,
+		t: &T,
+	) -> Result<(), Self::Error> {
+		bincode!().serialize_into(buf, t)
+	}
+
+	fn size_hint(&mut self, t: &T) -> Option<usize> {
+		let size_u64 = bincode!().serialized_size(t).ok()?;
+		Some(size_u64 as usize)
 	}
 }
 
@@ -32,7 +41,10 @@ where
 {
 	type Error = bincode::Error;
 
-	fn deserialize(&mut self, buf: &[u8]) -> Result<T, Self::Error> {
-		bincode!().deserialize(buf)
+	fn deserialize<R: Read>(
+		&mut self,
+		buf: R,
+	) -> Result<T, Self::Error> {
+		bincode!().deserialize_from(buf)
 	}
 }

@@ -2,6 +2,12 @@
 
 use std::error::Error as StdError;
 
+pub(crate) mod prelude {
+	pub use super::{Deserializer, Serializer};
+	pub use std::io::{Read, Write};
+}
+use prelude::*;
+
 /// A trait describing a simple type serializer.
 ///
 /// Types implementing this trait are able to serialize an object of
@@ -12,15 +18,16 @@ use std::error::Error as StdError;
 /// ```rust
 /// use std::fmt;
 /// use std::error::Error;
+/// use std::io::Write;
 ///
 /// use channels::serdes::Serializer;
 ///
 /// #[derive(Debug)]
-/// struct I32SerializeError;
+/// struct I32SerializeError(String);
 ///
 /// impl fmt::Display for I32SerializeError {
 ///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-///         write!(f, "failed to serialize i32")
+///         write!(f, "failed to serialize i32: {}", self.0)
 ///     }
 /// }
 ///
@@ -31,16 +38,29 @@ use std::error::Error as StdError;
 /// impl Serializer<i32> for I32Serializer {
 ///     type Error = I32SerializeError;
 ///
-///     fn serialize(&mut self, t: &i32) -> Result<Vec<u8>, Self::Error> {
-///         let buf = t.to_be_bytes().to_vec();
-///         Ok(buf)
+///     fn serialize<W: Write>(&mut self, mut buf: W, t: &i32) -> Result<(), Self::Error> {
+///         buf.write_all(&t.to_be_bytes())
+///            .map_err(|e| I32SerializeError(e.to_string()))?;
+///
+///         Ok(())
+///     }
+///
+///     fn size_hint(&mut self, _t: &i32) -> Option<usize> {
+///         // We always serialize `i32`s as 4 bytes.
+///         Some(4)
 ///     }
 /// }
 ///
 /// let mut ser = I32Serializer;
 ///
 /// let data = 42_i32;
-/// let buf = ser.serialize(&data).unwrap();
+///
+/// let mut buf = match ser.size_hint(&data) {
+///     Some(size) => Vec::with_capacity(size),
+///     None => Vec::new()
+/// };
+///
+/// ser.serialize(&mut buf, &data).unwrap();
 ///
 /// assert_eq!(&buf, &[0, 0, 0, 42]);
 /// ```
@@ -49,7 +69,16 @@ pub trait Serializer<T> {
 	type Error: StdError + 'static;
 
 	/// Serialize the given object `t` and return the result as a `Vec<u8>`.
-	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error>;
+	fn serialize<W: Write>(
+		&mut self,
+		buf: W,
+		t: &T,
+	) -> Result<(), Self::Error>;
+
+	/// Size approximation for the serialized object `t`.
+	fn size_hint(&mut self, _t: &T) -> Option<usize> {
+		None
+	}
 }
 
 /// A trait describing a simple type deserializer.
@@ -62,6 +91,7 @@ pub trait Serializer<T> {
 /// ```rust
 /// use std::fmt;
 /// use std::error::Error;
+/// use std::io::Read;
 ///
 /// use channels::serdes::Deserializer;
 ///
@@ -70,7 +100,7 @@ pub trait Serializer<T> {
 ///
 /// impl fmt::Display for I32DeserializeError {
 ///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-///         write!(f, "{}", self.0)
+///         write!(f, "failed to deserialize i32: {}", self.0)
 ///     }
 /// }
 ///
@@ -81,18 +111,20 @@ pub trait Serializer<T> {
 /// impl Deserializer<i32> for I32Deserializer {
 ///     type Error = I32DeserializeError;
 ///
-///     fn deserialize(&mut self, buf: &[u8]) -> Result<i32, Self::Error> {
-///         let be_bytes: &[u8; 4] = buf.try_into().map_err(|_| I32DeserializeError("failed to deserialize i32".to_string()))?;
+///     fn deserialize<R: Read>(&mut self, mut buf: R) -> Result<i32, Self::Error> {
+///         let mut be_bytes = [0u8; 4];
+///         buf.read_exact(&mut be_bytes[..])
+///            .map_err(|e| I32DeserializeError(e.to_string()))?;
 ///
-///         let data = i32::from_be_bytes(*be_bytes);
+///         let data = i32::from_be_bytes(be_bytes);
 ///         Ok(data)
 ///     }
 /// }
 ///
 /// let mut de = I32Deserializer;
 ///
-/// let buf = &[0, 0, 0, 42];
-/// let data = de.deserialize(buf).unwrap();
+/// let buf: [u8; 4] = [0, 0, 0, 42];
+/// let data = de.deserialize(&buf[..]).unwrap();
 ///
 /// assert_eq!(data, 42_i32);
 /// ```
@@ -101,7 +133,10 @@ pub trait Deserializer<T> {
 	type Error: StdError + 'static;
 
 	/// Deserializer an object of type `T` from `buf` and return it.
-	fn deserialize(&mut self, buf: &[u8]) -> Result<T, Self::Error>;
+	fn deserialize<R: Read>(
+		&mut self,
+		buf: R,
+	) -> Result<T, Self::Error>;
 }
 
 #[cfg(feature = "serde")]
