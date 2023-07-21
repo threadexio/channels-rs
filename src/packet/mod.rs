@@ -63,12 +63,6 @@ impl Checksum {
 	}
 }
 
-macro_rules! consts {
-	(MAX_PACKET_SIZE) => {
-		0xffff
-	};
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Header {
 	pub length: u16,
@@ -76,27 +70,22 @@ pub struct Header {
 	pub id: Id,
 }
 
-impl Header {
-	pub fn payload_length(&self) -> u16 {
-		// SAFETY:
-		// `packet::Buffer::verify()` guarantees that:
-		// `header.length >= packet::Buffer::HEADER_SIZE`
-		self.length - Buffer::HEADER_SIZE_U16
-	}
-}
-
 pub struct Buffer {
 	inner: Cursor<Box<[u8]>>,
 }
 
 impl Buffer {
-	const MAX_PACKET_SIZE: u16 = consts!(MAX_PACKET_SIZE);
+	// SAFETY:
+	// If there is ever a target with a usize smaller than u16,
+	// then this will fail to compile. We can assume for now that
+	// usize >= u16, so casting from u16 to usize can be done
+	// without any checks.
+	const MAX_PACKET_SIZE: usize = 0xffff;
 
 	pub fn new() -> Self {
 		Self {
 			inner: Cursor::new(
-				vec![0u8; consts!(MAX_PACKET_SIZE)]
-					.into_boxed_slice(),
+				vec![0u8; Self::MAX_PACKET_SIZE].into_boxed_slice(),
 			),
 		}
 	}
@@ -114,15 +103,15 @@ impl Buffer {
 	}
 
 	fn header_slice(&self) -> &[u8] {
-		&self.as_slice()[..Self::HEADER_SIZE_USIZE]
+		&self.as_slice()[..Self::HEADER_SIZE]
 	}
 
 	pub fn payload(&self) -> &[u8] {
-		&self.as_slice()[Self::HEADER_SIZE_USIZE..]
+		&self.as_slice()[Self::HEADER_SIZE..]
 	}
 
 	pub fn payload_mut(&mut self) -> &mut [u8] {
-		&mut self.as_mut_slice()[Self::HEADER_SIZE_USIZE..]
+		&mut self.as_mut_slice()[Self::HEADER_SIZE..]
 	}
 }
 
@@ -153,7 +142,7 @@ impl Buffer {
 
 			let header = self.header();
 
-			if header.length < Self::HEADER_SIZE_U16 {
+			if (header.length as usize) < Self::HEADER_SIZE {
 				return Err(RecvError::InvalidHeader);
 			}
 

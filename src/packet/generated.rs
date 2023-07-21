@@ -51,6 +51,5 @@ impl Buffer {
 
 	pub const HEADER_HASH: u16 = 0xfd3f;
 
-	pub const HEADER_SIZE_USIZE: usize = 8;
-	pub const HEADER_SIZE_U16: u16 = 8;
+	pub const HEADER_SIZE: usize = 8;
 }

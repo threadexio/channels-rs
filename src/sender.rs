@@ -77,8 +77,6 @@ where
 	///
 	/// tx.send(42_i32).unwrap();
 	/// ```
-	#[allow(clippy::missing_panics_doc)]
-	// This method does not actually panic. See the comments bellow.
 	pub fn send<D>(&mut self, data: D) -> Result<(), SendError>
 	where
 		D: Borrow<T>,
@@ -96,7 +94,7 @@ where
 
 			// SAFETY:
 			//
-			// (1) 0 <= payload_len <= dst.len()      , `read()` cannot violate this
+			// (1) 0 <= chunk_payload_len <= dst.len()      , `read()` cannot violate this
 			// (2) dst.len() <= self.pbuf.len()      , see `payload_mut()`
 			// (3) self.pbuf.len() = MAX_PACKET_SIZE , see `Buffer::new()`
 			// (4) MAX_PACKET_SIZE = u16::MAX        , see `Buffer`
@@ -107,14 +105,13 @@ where
 			// (2), (5) <=> dst.len() <= self.pbuf.len()
 			//          <=> dst.len() <= u16::MAX (6)
 			//
-			// (1), (6) <=> 0 <= payload_len <= dst.len()
-			//          <=> 0 <= payload_len <= u16::MAX
+			// (1), (6) <=> 0 <= chunk_payload_len <= dst.len()
+			//          <=> 0 <= chunk_payload_len <= u16::MAX
 			//
-			// So `payload_len` is safe to convert to `u16`. Thus the following
+			// So `chunk_payload_len` is safe to convert to `u16`. Thus the following
 			// cannot panic.
-			let payload_len: u16 =
-				payload.read(dst)?.try_into().unwrap();
-			if payload_len == 0 {
+			let chunk_payload_len = payload.read(dst)? as u16;
+			if chunk_payload_len == 0 {
 				break;
 			}
 
@@ -128,19 +125,19 @@ where
 			//
 			// (7) dst.len() = self.pbuf.len() - HEADER_SIZE , see `payload_mut()`
 			//
-			// (1), (7) <=> 0 <= payload_len <= dst.len()
-			//          <=> 0 <= payload_len <= self.pbuf.len() - HEADER_SIZE
-			//          <=> HEADER_SIZE <= payload_len + HEADER_SIZE <= self.pbuf.len() (8)
+			// (1), (7) <=> 0 <= chunk_payload_len <= dst.len()
+			//          <=> 0 <= chunk_payload_len <= self.pbuf.len() - HEADER_SIZE
+			//          <=> HEADER_SIZE <= chunk_payload_len + HEADER_SIZE <= self.pbuf.len() (8)
 			//
-			// (3), (8) <=> HEADER_SIZE <= payload_len + HEADER_SIZE <= u16::MAX
+			// (3), (8) <=> HEADER_SIZE <= chunk_payload_len + HEADER_SIZE <= u16::MAX
 			//
-			// So `payload_len + HEADER_SIZE` still fits inside a u16, so
+			// So `chunk_payload_len + HEADER_SIZE` still fits inside a u16, so
 			// no overflow can occur.
 			let header = Header {
 				// SAFETY: HEADER_SIZE can't even come close to not
 				//         fitting inside a u16.
-				length: Buffer::HEADER_SIZE_U16 + payload_len,
-
+				length: (Buffer::HEADER_SIZE as u16)
+					+ chunk_payload_len,
 				flags: packet_flags,
 				id: self.pid,
 			};
@@ -158,6 +155,7 @@ where
 
 	/// Prepares a packet with `header`. and sends it. The caller must
 	/// write payload to the buffer before calling.
+	#[inline]
 	#[must_use = "unchecked send result"]
 	fn send_packet(
 		&mut self,
@@ -176,18 +174,8 @@ where
 	}
 }
 
-impl<T, W, S> fmt::Debug for Sender<T, W, S> {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Sender")
-			.field("serializer", &type_name::<S>())
-			.field("tx", &self.tx)
-			.field("pbuf", &self.pbuf.position())
-			.field("pid", &self.pid)
-			.finish()
-	}
-}
-
 /// Continuously call `write` until `buf` reaches position `limit`.
+#[inline]
 fn write_buf_to<W, T>(
 	writer: &mut Writer<W>,
 	buf: &mut Cursor<T>,
@@ -215,4 +203,15 @@ where
 	}
 
 	Ok(())
+}
+
+impl<T, W, S> fmt::Debug for Sender<T, W, S> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Sender")
+			.field("serializer", &type_name::<S>())
+			.field("tx", &self.tx)
+			.field("pbuf", &self.pbuf.position())
+			.field("pid", &self.pid)
+			.finish()
+	}
 }

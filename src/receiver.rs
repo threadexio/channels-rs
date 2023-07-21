@@ -110,7 +110,8 @@ where
 		loop {
 			let header = self.recv_chunk()?;
 
-			let received_size = header.payload_length() as usize;
+			let received_size =
+				(header.length as usize) - Buffer::HEADER_SIZE;
 
 			{
 				let new_size = payload.len() + received_size;
@@ -139,13 +140,14 @@ where
 	/// Receives exactly one packet of data, returning its header. The
 	/// received payload is written into the buffer and must be read
 	/// before any further calls.
+	#[inline]
 	#[must_use = "unused payload size"]
 	fn recv_chunk(&mut self) -> Result<Header, RecvError> {
-		if self.pbuf.position() < Buffer::HEADER_SIZE_USIZE {
+		if self.pbuf.position() < Buffer::HEADER_SIZE {
 			fill_buf_to(
 				&mut self.rx,
 				&mut self.pbuf,
-				Buffer::HEADER_SIZE_USIZE,
+				Buffer::HEADER_SIZE,
 			)?;
 
 			let header = match self.pbuf.verify() {
@@ -175,6 +177,38 @@ where
 
 		Ok(header)
 	}
+}
+
+/// Continuously call `read` until `buf` reaches position `limit`.
+#[inline]
+fn fill_buf_to<R, T>(
+	reader: &mut Reader<R>,
+	buf: &mut Cursor<T>,
+	limit: usize,
+) -> io::Result<()>
+where
+	R: Read,
+	T: BytesMut,
+{
+	use io::ErrorKind;
+
+	while buf.position() < limit {
+		let pos = buf.position();
+
+		let i = match reader.read(&mut buf.as_mut_slice()[pos..limit])
+		{
+			Ok(v) if v == 0 => {
+				return Err(ErrorKind::UnexpectedEof.into())
+			},
+			Ok(v) => v,
+			Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+			Err(e) => return Err(e),
+		};
+
+		buf.advance(i).unwrap();
+	}
+
+	Ok(())
 }
 
 impl<T, R, D> fmt::Debug for Receiver<T, R, D> {
@@ -209,35 +243,4 @@ where
 	fn next(&mut self) -> Option<Self::Item> {
 		self.0.recv().ok()
 	}
-}
-
-/// Continuously call `read` until `buf` reaches position `limit`.
-fn fill_buf_to<R, T>(
-	reader: &mut Reader<R>,
-	buf: &mut Cursor<T>,
-	limit: usize,
-) -> io::Result<()>
-where
-	R: Read,
-	T: BytesMut,
-{
-	use io::ErrorKind;
-
-	while buf.position() < limit {
-		let pos = buf.position();
-
-		let i = match reader.read(&mut buf.as_mut_slice()[pos..limit])
-		{
-			Ok(v) if v == 0 => {
-				return Err(ErrorKind::UnexpectedEof.into())
-			},
-			Ok(v) => v,
-			Err(e) if e.kind() == ErrorKind::Interrupted => continue,
-			Err(e) => return Err(e),
-		};
-
-		buf.advance(i).unwrap();
-	}
-
-	Ok(())
 }
