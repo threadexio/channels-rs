@@ -2,12 +2,16 @@
 [docs-rs]: https://docs.rs/channels/latest/channels
 [github-actions]: https://github.com/threadexio/channels-rs/actions/workflows/ci.yaml
 
+[github-rust]: https://github.com/threadexio/channels-rs
+[github-c]: https://github.com/threadexio/channels-c
+
 [license-badge]: https://img.shields.io/github/license/threadexio/channels-rs?style=flat-square&labelColor=0d1117&color=decd87
 [version-badge]: https://img.shields.io/crates/v/channels?style=flat-square&logo=rust&labelColor=0d1117&color=decd87
 [downloads-badge]: https://img.shields.io/crates/d/channels?style=flat-square&logo=rust&labelColor=0d1117&color=decd87
 
 [tests-badge]: https://img.shields.io/github/actions/workflow/status/threadexio/channels-rs/ci.yaml?style=flat-square&logo=github&label=tests&labelColor=0d1117
 [docs-badge]: https://img.shields.io/docsrs/channels?style=flat-square&logo=docs.rs&labelColor=0d1117
+
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/.github/images/logo.svg" width="200px">
@@ -34,6 +38,13 @@
 # **channels-rs**
 
 **channels** is a crate that allows for easy and fast communication between processes, threads and systems.
+
+## Repos
+
+This library is available in the following languages:
+
+- **[Rust][github-rust]**
+- [C][github-c] (work in progress)
 
 Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`] and [`std::io::Write`].
 
