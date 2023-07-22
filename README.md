@@ -49,7 +49,7 @@ The differences are:
 - Channels **will** block, unless the underlying stream is set as non-blocking.
 - The amount of messages that can be queued up before reading is dependent on the underlying stream.
 
-**:warning: Warning:** This library does not support transparently encryption or authentication of the data. This functionality must be implemented by a [`Serializer`] and [`Deserializer`].
+**:warning: Warning:** This library does not support transparent encryption or authentication of the data. This functionality must be implemented by a [`Serializer`] and [`Deserializer`].
 
 # Features
 
