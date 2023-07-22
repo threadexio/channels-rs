@@ -40,8 +40,9 @@ impl DerefMut for GrowableBuffer {
 
 impl Write for GrowableBuffer {
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		if buf.len() > self.0.after().len() {
-			let extra = buf.len() - self.0.after().len();
+		let rem = self.0.remaining().len();
+		if buf.len() > rem {
+			let extra = buf.len() - rem;
 			self.grow(extra);
 		}
 

@@ -8,7 +8,7 @@ use core::marker::PhantomData;
 use std::io::{self, Read, Write};
 
 use crate::error::SendError;
-use crate::io::{BytesRef, Cursor, GrowableBuffer, Writer};
+use crate::io::{BytesRef, Chain, Cursor, GrowableBuffer, Writer};
 use crate::packet::{Buffer, Flags, Header, Id};
 use crate::serdes::{self, Serializer};
 
@@ -83,96 +83,94 @@ where
 	{
 		let data = data.borrow();
 
-		let mut payload = match self.serializer.size_hint(data) {
-			Some(size) => GrowableBuffer::with_capacity(size),
-			None => GrowableBuffer::new(),
+		// `payload_writer` first writes directly to the payload buffer
+		// of the packet and then uses GrowableBuffer. This way, it
+		// eliminates the first data copy and avoids an extra allocation.
+		// This also means that any payload from the serializer that is
+		// less than the maximum payload size does not require any memory
+		// allocations in order to be sent.
+
+		let mut payload_writer = {
+			let w1 = Cursor::new(self.pbuf.payload_mut());
+
+			match self.serializer.size_hint(data) {
+				// If the size hint from the serializer is larger than
+				// the payload in the packet buffer, then preallocate
+				// the rest to avoid unnecessary allocations and moves
+				// later.
+				Some(size) if size > w1.len() => {
+					let extra_size = size - w1.len();
+					Chain::new(
+						w1,
+						GrowableBuffer::with_capacity(extra_size),
+					)
+				},
+				_ => Chain::new(w1, GrowableBuffer::new()),
+			}
 		};
 
 		self.serializer
-			.serialize(&mut payload, data)
+			.serialize(&mut payload_writer, data)
 			.map_err(|x| SendError::Serde(Box::new(x)))?;
-		payload.set_position(0);
 
-		loop {
-			let dst: &mut [u8] = self.pbuf.payload_mut();
+		let (first, mut extra) = payload_writer.into_inner();
 
-			// SAFETY:
-			//
-			// (1) 0 <= chunk_payload_len <= dst.len()      , `read()` cannot violate this
-			// (2) dst.len() <= self.pbuf.len()      , see `payload_mut()`
-			// (3) self.pbuf.len() = MAX_PACKET_SIZE , see `Buffer::new()`
-			// (4) MAX_PACKET_SIZE = u16::MAX        , see `Buffer`
-			//
-			// (3), (4) <=> self.pbuf.len() = MAX_PACKET_SIZE = u16::MAX
-			//          <=> self.pbuf.len() = u16::MAX (5)
-			//
-			// (2), (5) <=> dst.len() <= self.pbuf.len()
-			//          <=> dst.len() <= u16::MAX (6)
-			//
-			// (1), (6) <=> 0 <= chunk_payload_len <= dst.len()
-			//          <=> 0 <= chunk_payload_len <= u16::MAX
-			//
-			// So `chunk_payload_len` is safe to convert to `u16`. Thus the following
-			// cannot panic.
-			let chunk_payload_len = payload.read(dst)? as u16;
-			if chunk_payload_len == 0 {
-				break;
-			}
-
-			let mut packet_flags = Flags::zero();
-
-			if payload.position() < payload.len() {
-				packet_flags |= Flags::MORE_DATA;
-			}
-
-			// SAFETY:
-			//
-			// (7) dst.len() = self.pbuf.len() - HEADER_SIZE , see `payload_mut()`
-			//
-			// (1), (7) <=> 0 <= chunk_payload_len <= dst.len()
-			//          <=> 0 <= chunk_payload_len <= self.pbuf.len() - HEADER_SIZE
-			//          <=> HEADER_SIZE <= chunk_payload_len + HEADER_SIZE <= self.pbuf.len() (8)
-			//
-			// (3), (8) <=> HEADER_SIZE <= chunk_payload_len + HEADER_SIZE <= u16::MAX
-			//
-			// So `chunk_payload_len + HEADER_SIZE` still fits inside a u16, so
-			// no overflow can occur.
-			let header = Header {
-				// SAFETY: HEADER_SIZE can't even come close to not
-				//         fitting inside a u16.
-				length: (Buffer::HEADER_SIZE as u16)
-					+ chunk_payload_len,
-				flags: packet_flags,
+		{
+			let mut header = Header {
+				length: (Buffer::HEADER_SIZE + first.position())
+					as u16,
+				flags: Flags::zero(),
 				id: self.pid,
 			};
 
-			self.send_packet(&header)?;
+			if extra.len() != 0 {
+				header.flags |= Flags::MORE_DATA;
+			}
 
-			self.pid = self.pid.next();
+			self.send_packet(&header)?;
 		}
 
-		#[cfg(feature = "statistics")]
-		self.tx.stats_mut().update_sent_time();
+		extra.set_position(0);
+		while !extra.remaining().is_empty() {
+			// copy the rest of the payload from `extra` into the packet buffer
+			let payload_len = extra.read(self.pbuf.payload_mut())?;
+
+			let mut header = Header {
+				length: (Buffer::HEADER_SIZE + payload_len) as u16,
+				flags: Flags::zero(),
+				id: self.pid,
+			};
+
+			if !extra.remaining().is_empty() {
+				header.flags |= Flags::MORE_DATA;
+			}
+
+			self.send_packet(&header)?;
+		}
 
 		Ok(())
 	}
 
 	/// Prepares a packet with `header`. and sends it. The caller must
 	/// write payload to the buffer before calling.
-	#[inline]
 	#[must_use = "unchecked send result"]
 	fn send_packet(
 		&mut self,
 		header: &Header,
 	) -> Result<(), SendError> {
 		self.pbuf.finalize(header);
-		self.pbuf.clear();
+		self.pbuf.set_position(0);
 
 		write_buf_to(
 			&mut self.tx,
 			&mut self.pbuf,
 			header.length as usize,
 		)?;
+
+		self.pid = self.pid.next();
+
+		#[cfg(feature = "statistics")]
+		self.tx.stats_mut().update_sent_time();
 
 		Ok(())
 	}

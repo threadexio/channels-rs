@@ -9,6 +9,9 @@ pub use cursor::*;
 mod growable;
 pub use growable::*;
 
+mod chain;
+pub use chain::Chain;
+
 #[cfg(feature = "statistics")]
 use crate::stats;
 

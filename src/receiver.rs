@@ -105,40 +105,67 @@ where
 	/// let number: i32 = rx.recv().unwrap();
 	/// ```
 	pub fn recv(&mut self) -> Result<T, RecvError> {
-		let mut payload = GrowableBuffer::new();
-
-		loop {
-			let header = self.recv_chunk()?;
-
-			let received_size =
-				(header.length as usize) - Buffer::HEADER_SIZE;
-
-			payload
-				.write_all(&self.pbuf.payload()[..received_size])?;
-
-			if !(header.flags & Flags::MORE_DATA) {
-				break;
-			}
+		macro_rules! deserialize_payload {
+			($p:expr) => {
+				self.deserializer
+					.deserialize($p)
+					.map_err(|x| RecvError::Serde(Box::new(x)))
+			};
 		}
 
-		let mut payload =
-			Cursor::new(payload.into_inner().into_boxed_slice());
+		let header = self.recv_chunk()?;
 
-		#[cfg(feature = "statistics")]
-		self.rx.stats_mut().update_received_time();
+		// If the first packet we read has the `MORE_DATA` flag set,
+		// then we must wait for more data, so initialize a buffer to
+		// start writing the payload chunks into.
+		//
+		// Otherwise use directly the payload from the packet buffer,
+		// no need to allocate a GrowableBuffer just to copy data that
+		// already exists in another part of memory.
+		if header.flags & Flags::MORE_DATA {
+			macro_rules! write_payload_to_buf {
+				($h:expr, $p:expr) => {{
+					let payload_len =
+						($h.length as usize) - Buffer::HEADER_SIZE;
 
-		let data = self
-			.deserializer
-			.deserialize(&mut payload)
-			.map_err(|x| RecvError::Serde(Box::new(x)))?;
+					$p.write_all(
+						&self.pbuf.payload()[..payload_len],
+					)?;
+				}};
+			}
 
-		Ok(data)
+			let mut payload = GrowableBuffer::new();
+
+			write_payload_to_buf!(header, payload);
+
+			loop {
+				let header = self.recv_chunk()?;
+				write_payload_to_buf!(header, payload);
+
+				if !(header.flags & Flags::MORE_DATA) {
+					break;
+				}
+			}
+
+			let payload = Cursor::new(payload.into_inner());
+			let data = deserialize_payload!(payload)?;
+
+			Ok(data)
+		} else {
+			let payload_len =
+				(header.length as usize) - Buffer::HEADER_SIZE;
+
+			let payload =
+				Cursor::new(&self.pbuf.payload()[..payload_len]);
+			let data = deserialize_payload!(payload)?;
+
+			Ok(data)
+		}
 	}
 
 	/// Receives exactly one packet of data, returning its header. The
 	/// received payload is written into the buffer and must be read
 	/// before any further calls.
-	#[inline]
 	#[must_use = "unused payload size"]
 	fn recv_chunk(&mut self) -> Result<Header, RecvError> {
 		if self.pbuf.position() < Buffer::HEADER_SIZE {
@@ -151,17 +178,15 @@ where
 			let header = match self.pbuf.verify() {
 				Ok(v) => v,
 				Err(e) => {
-					self.pbuf.clear();
+					self.pbuf.set_position(0);
 					return Err(e);
 				},
 			};
 
 			if header.id != self.pid {
-				self.pbuf.clear();
+				self.pbuf.set_position(0);
 				return Err(RecvError::OutOfOrder);
 			}
-
-			self.pid = self.pid.next();
 		}
 
 		let header = self.pbuf.header();
@@ -171,7 +196,12 @@ where
 			fill_buf_to(&mut self.rx, &mut self.pbuf, packet_len)?;
 		}
 
-		self.pbuf.clear();
+		self.pbuf.set_position(0);
+
+		self.pid = self.pid.next();
+
+		#[cfg(feature = "statistics")]
+		self.rx.stats_mut().update_received_time();
 
 		Ok(header)
 	}

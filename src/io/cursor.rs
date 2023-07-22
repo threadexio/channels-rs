@@ -1,7 +1,7 @@
 use core::cmp;
 use core::fmt;
 
-use std::io::{Read, Result, Write};
+use super::{Read, Result, Write};
 
 pub trait BytesRef: AsRef<[u8]> {}
 impl<T> BytesRef for T where T: AsRef<[u8]> {}
@@ -31,18 +31,6 @@ impl<T> Cursor<T> {
 	pub fn into_inner(self) -> T {
 		self.inner
 	}
-
-	pub fn clear(&mut self) {
-		self.pos = 0;
-	}
-
-	pub fn position(&self) -> usize {
-		self.pos
-	}
-
-	pub fn set_position(&mut self, position: usize) {
-		self.pos = position;
-	}
 }
 
 impl<T> Cursor<T>
@@ -53,13 +41,20 @@ where
 		self.inner.as_ref()
 	}
 
-	pub fn after(&self) -> &[u8] {
+	pub fn remaining(&self) -> &[u8] {
 		&self.inner.as_ref()[self.pos..]
 	}
 
-	/// The length of the buffer.
 	pub fn len(&self) -> usize {
 		self.as_slice().len()
+	}
+
+	pub fn position(&self) -> usize {
+		self.pos
+	}
+
+	pub fn set_position(&mut self, position: usize) {
+		self.pos = position;
 	}
 
 	/// Advance the cursor by `n` bytes.
@@ -87,7 +82,7 @@ where
 		self.inner.as_mut()
 	}
 
-	pub fn after_mut(&mut self) -> &mut [u8] {
+	pub fn remaining_mut(&mut self) -> &mut [u8] {
 		&mut self.inner.as_mut()[self.pos..]
 	}
 }
@@ -109,7 +104,7 @@ where
 	T: BytesRef,
 {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-		let src = self.after();
+		let src = self.remaining();
 		let n = copy_from_slice_min_len(src, buf);
 
 		// SAFETY:
@@ -133,7 +128,7 @@ where
 	T: BytesMut,
 {
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		let dst = self.after_mut();
+		let dst = self.remaining_mut();
 		let n = copy_from_slice_min_len(buf, dst);
 
 		// SAFETY:
