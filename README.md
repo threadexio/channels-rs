@@ -12,9 +12,19 @@
 [tests-badge]: https://img.shields.io/github/actions/workflow/status/threadexio/channels-rs/ci.yaml?style=flat-square&logo=github&label=tests&labelColor=0d1117
 [docs-badge]: https://img.shields.io/docsrs/channels?style=flat-square&logo=docs.rs&labelColor=0d1117
 
-
 <div align="center">
-  <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/.github/images/logo.svg" width="200px">
+  <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/.github/images/logo.svg" width="250px">
+
+  <!--
+  For testing local changes.
+  <img src=".github/images/logo.svg" width="250px">
+  -->
+
+  <h3>channels-rs</h3>
+
+  <p>
+    A crate that allows for easy and fast communication between processes, threads and systems.
+  </p>
 
   [![license-badge]][crates-io]
   [![version-badge]][crates-io]
@@ -34,10 +44,6 @@
 
 [`Serializer`]: crate::serdes::Serializer
 [`Deserializer`]: crate::serdes::Deserializer
-
-# **channels-rs**
-
-**channels** is a crate that allows for easy and fast communication between processes, threads and systems.
 
 ## Repos
 
@@ -72,40 +78,4 @@ The differences are:
 
 # Examples
 
-For more complete and complex examples see: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
-
-## TCP Echo server
-
-```rust no_run
-use std::io;
-use std::net::TcpListener;
-
-let listener = TcpListener::bind("0.0.0.0:1337").unwrap();
-
-loop {
-    let (stream, _) = listener.accept().unwrap();
-    let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
-
-    let client_data: i32 = rx.recv().unwrap();
-
-    println!("Client sent: {}", client_data);
-
-    tx.send(client_data).unwrap();
-}
-```
-
-## TCP Echo client
-
-```rust no_run
-use std::io;
-use std::net::TcpStream;
-
-let stream = TcpStream::connect("127.0.0.1:1337").unwrap();
-let (mut tx, mut rx) = channels::channel(stream.try_clone().unwrap(), stream);
-
-tx.send(1337_i32).unwrap();
-
-let received_data = rx.recv().unwrap();
-
-assert_eq!(received_data, 1337_i32);
-```
+See: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
