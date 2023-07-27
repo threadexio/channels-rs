@@ -29,10 +29,10 @@
             ];
 
             shellHook = ''
-              				virtualenv .python
-              				source .python/bin/activate
-              				python -m pip install -r tools/requirements.txt
-              				'';
+              virtualenv .python
+              source .python/bin/activate
+              python -m pip install -r tools/requirements.txt
+            '';
           };
 
           # For editing the artwork of the repo.
