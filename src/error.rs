@@ -36,19 +36,10 @@ impl From<io::Error> for SendError {
 	}
 }
 
-/// The error type returned by [`Receiver`](crate::Receiver).
+/// The possible errors when verifying a received packet.
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum RecvError {
-	/// The serializer has encountered an error while trying to serialize/deserialize
-	/// the data. This error is usually recoverable and the channel might still be
-	/// able to be used normally.
-	Serde(Box<dyn StdError>),
-	/// The underlying transport has returned an error while the data was
-	/// being sent/received. This error is recoverable and the channel can
-	/// continue to be used normally.
-	Io(io::Error),
-
+pub enum VerifyError {
 	/// The 2 peers are not using the same protocol version. This means
 	/// that each end is not using the same version of the crate.
 	///
@@ -79,11 +70,9 @@ pub enum RecvError {
 	InvalidHeader,
 }
 
-impl fmt::Display for RecvError {
+impl fmt::Display for VerifyError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Serde(e) => write!(f, "{e}"),
-			Self::Io(e) => write!(f, "{e}"),
 			Self::VersionMismatch => write!(f, "version mismatch"),
 			Self::ChecksumError => write!(f, "corrupted data"),
 			Self::OutOfOrder => {
@@ -96,10 +85,45 @@ impl fmt::Display for RecvError {
 	}
 }
 
+impl StdError for VerifyError {}
+
+/// The error type returned by [`Receiver`](crate::Receiver).
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum RecvError {
+	/// The serializer has encountered an error while trying to serialize/deserialize
+	/// the data. This error is usually recoverable and the channel might still be
+	/// able to be used normally.
+	Serde(Box<dyn StdError>),
+	/// The underlying transport has returned an error while the data was
+	/// being sent/received. This error is recoverable and the channel can
+	/// continue to be used normally.
+	Io(io::Error),
+	/// A received packet could not be verified. This error is usually unrecoverable
+	/// and the channel should not be used further.
+	Verify(VerifyError),
+}
+
+impl fmt::Display for RecvError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Serde(e) => write!(f, "{e}"),
+			Self::Io(e) => write!(f, "{e}"),
+			Self::Verify(e) => write!(f, "{e}"),
+		}
+	}
+}
+
 impl StdError for RecvError {}
 
 impl From<io::Error> for RecvError {
 	fn from(value: io::Error) -> Self {
 		Self::Io(value)
+	}
+}
+
+impl From<VerifyError> for RecvError {
+	fn from(value: VerifyError) -> Self {
+		Self::Verify(value)
 	}
 }

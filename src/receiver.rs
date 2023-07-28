@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 
 use std::io::{self, Read, Write};
 
-use crate::error::RecvError;
+use crate::error::{RecvError, VerifyError};
 use crate::io::{BytesMut, Cursor, GrowableBuffer, Reader};
 use crate::packet::{Buffer, Flags, Header, Id};
 use crate::serdes::{self, Deserializer};
@@ -179,13 +179,15 @@ where
 				Ok(v) => v,
 				Err(e) => {
 					self.pbuf.set_position(0);
-					return Err(e);
+					return Err(RecvError::Verify(e));
 				},
 			};
 
 			if header.id != self.pid {
 				self.pbuf.set_position(0);
-				return Err(RecvError::OutOfOrder);
+				return Err(RecvError::Verify(
+					VerifyError::OutOfOrder,
+				));
 			}
 		}
 

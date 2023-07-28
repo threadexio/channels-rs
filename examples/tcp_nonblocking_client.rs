@@ -16,16 +16,16 @@ fn main() {
 
 	let mut i = 0;
 	loop {
-		use channels::error::RecvError;
+		use channels::error::{RecvError, VerifyError};
 		use std::io::ErrorKind;
 		match rx.recv() {
 			Ok(v) => println!("Received: {v}"),
 			Err(e) => match e {
-				RecvError::VersionMismatch => {
+				RecvError::Verify(VerifyError::VersionMismatch) => {
 					eprintln!("client uses wrong version");
 					break;
 				},
-				RecvError::ChecksumError => {
+				RecvError::Verify(VerifyError::ChecksumError) => {
 					eprintln!("packet checksum does not match. discarding...");
 					continue;
 				},

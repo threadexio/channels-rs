@@ -1,6 +1,6 @@
 use core::ops::{Deref, DerefMut};
 
-use crate::error::RecvError;
+use crate::error::VerifyError;
 use crate::io::Cursor;
 use crate::util::flags;
 
@@ -130,20 +130,20 @@ impl Buffer {
 		}
 	}
 
-	pub fn verify(&self) -> Result<Header, RecvError> {
+	pub fn verify(&self) -> Result<Header, VerifyError> {
 		unsafe {
 			if self.unsafe_get_version() != Self::HEADER_HASH {
-				return Err(RecvError::VersionMismatch);
+				return Err(VerifyError::VersionMismatch);
 			}
 
 			if !Checksum::verify(self.header_slice()) {
-				return Err(RecvError::ChecksumError);
+				return Err(VerifyError::ChecksumError);
 			}
 
 			let header = self.header();
 
 			if (header.length as usize) < Self::HEADER_SIZE {
-				return Err(RecvError::InvalidHeader);
+				return Err(VerifyError::InvalidHeader);
 			}
 
 			Ok(header)
