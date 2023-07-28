@@ -104,12 +104,12 @@ where
 	///
 	/// let number: i32 = rx.recv().unwrap();
 	/// ```
-	pub fn recv(&mut self) -> Result<T, RecvError> {
+	pub fn recv(&mut self) -> Result<T, RecvError<D::Error>> {
 		macro_rules! deserialize_payload {
 			($p:expr) => {
 				self.deserializer
 					.deserialize($p)
-					.map_err(|x| RecvError::Serde(Box::new(x)))
+					.map_err(RecvError::Serde)
 			};
 		}
 
@@ -167,7 +167,7 @@ where
 	/// received payload is written into the buffer and must be read
 	/// before any further calls.
 	#[must_use = "unused payload size"]
-	fn recv_chunk(&mut self) -> Result<Header, RecvError> {
+	fn recv_chunk(&mut self) -> Result<Header, RecvError<D::Error>> {
 		if self.pbuf.position() < Buffer::HEADER_SIZE {
 			fill_buf_to(
 				&mut self.rx,

@@ -8,18 +8,24 @@ use std::io;
 /// The error type returned by [`Sender`](crate::Sender).
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum SendError {
+pub enum SendError<SE>
+where
+	SE: StdError,
+{
 	/// The serializer has encountered an error while trying to serialize/deserialize
 	/// the data. This error is usually recoverable and the channel might still be
 	/// able to be used normally.
-	Serde(Box<dyn StdError>),
+	Serde(SE),
 	/// The underlying transport has returned an error while the data was
 	/// being sent/received. This error is recoverable and the channel can
 	/// continue to be used normally.
 	Io(io::Error),
 }
 
-impl fmt::Display for SendError {
+impl<SE> fmt::Display for SendError<SE>
+where
+	SE: StdError,
+{
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::Serde(e) => write!(f, "{e}"),
@@ -28,9 +34,12 @@ impl fmt::Display for SendError {
 	}
 }
 
-impl StdError for SendError {}
+impl<SE> StdError for SendError<SE> where SE: StdError {}
 
-impl From<io::Error> for SendError {
+impl<SE> From<io::Error> for SendError<SE>
+where
+	SE: StdError,
+{
 	fn from(value: io::Error) -> Self {
 		Self::Io(value)
 	}
@@ -90,11 +99,14 @@ impl StdError for VerifyError {}
 /// The error type returned by [`Receiver`](crate::Receiver).
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum RecvError {
+pub enum RecvError<DE>
+where
+	DE: StdError,
+{
 	/// The serializer has encountered an error while trying to serialize/deserialize
 	/// the data. This error is usually recoverable and the channel might still be
 	/// able to be used normally.
-	Serde(Box<dyn StdError>),
+	Serde(DE),
 	/// The underlying transport has returned an error while the data was
 	/// being sent/received. This error is recoverable and the channel can
 	/// continue to be used normally.
@@ -104,7 +116,10 @@ pub enum RecvError {
 	Verify(VerifyError),
 }
 
-impl fmt::Display for RecvError {
+impl<DE> fmt::Display for RecvError<DE>
+where
+	DE: StdError,
+{
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::Serde(e) => write!(f, "{e}"),
@@ -114,15 +129,21 @@ impl fmt::Display for RecvError {
 	}
 }
 
-impl StdError for RecvError {}
+impl<DE> StdError for RecvError<DE> where DE: StdError {}
 
-impl From<io::Error> for RecvError {
+impl<DE> From<io::Error> for RecvError<DE>
+where
+	DE: StdError,
+{
 	fn from(value: io::Error) -> Self {
 		Self::Io(value)
 	}
 }
 
-impl From<VerifyError> for RecvError {
+impl<DE> From<VerifyError> for RecvError<DE>
+where
+	DE: StdError,
+{
 	fn from(value: VerifyError) -> Self {
 		Self::Verify(value)
 	}

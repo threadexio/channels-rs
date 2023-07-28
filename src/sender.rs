@@ -77,7 +77,10 @@ where
 	///
 	/// tx.send(42_i32).unwrap();
 	/// ```
-	pub fn send<D>(&mut self, data: D) -> Result<(), SendError>
+	pub fn send<D>(
+		&mut self,
+		data: D,
+	) -> Result<(), SendError<S::Error>>
 	where
 		D: Borrow<T>,
 	{
@@ -111,7 +114,7 @@ where
 
 		self.serializer
 			.serialize(&mut payload_writer, data)
-			.map_err(|x| SendError::Serde(Box::new(x)))?;
+			.map_err(SendError::Serde)?;
 
 		let (first, mut extra) = payload_writer.into_inner();
 
@@ -157,7 +160,7 @@ where
 	fn send_packet(
 		&mut self,
 		header: &Header,
-	) -> Result<(), SendError> {
+	) -> Result<(), SendError<S::Error>> {
 		self.pbuf.finalize(header);
 		self.pbuf.set_position(0);
 
