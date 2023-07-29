@@ -81,6 +81,25 @@ pub trait Serializer<T> {
 	}
 }
 
+impl<T, U> Serializer<T> for &mut U
+where
+	U: Serializer<T>,
+{
+	type Error = U::Error;
+
+	fn serialize<W: Write>(
+		&mut self,
+		buf: W,
+		t: &T,
+	) -> Result<(), Self::Error> {
+		(**self).serialize(buf, t)
+	}
+
+	fn size_hint(&mut self, t: &T) -> Option<usize> {
+		(**self).size_hint(t)
+	}
+}
+
 /// A trait describing a simple type deserializer.
 ///
 /// Types implementing this trait are able to deserialize an object of
@@ -137,6 +156,20 @@ pub trait Deserializer<T> {
 		&mut self,
 		buf: R,
 	) -> Result<T, Self::Error>;
+}
+
+impl<T, U> Deserializer<T> for &mut U
+where
+	U: Deserializer<T>,
+{
+	type Error = U::Error;
+
+	fn deserialize<R: Read>(
+		&mut self,
+		buf: R,
+	) -> Result<T, Self::Error> {
+		(**self).deserialize(buf)
+	}
 }
 
 #[cfg(feature = "serde")]
