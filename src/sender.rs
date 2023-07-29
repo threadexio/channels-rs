@@ -60,7 +60,7 @@ impl<T, W, S> Sender<T, W, S> {
 	#[cfg(feature = "statistics")]
 	/// Get statistics on this [`Sender`].
 	pub fn stats(&self) -> &crate::stats::SendStats {
-		self.tx.stats()
+		&self.tx.stats
 	}
 }
 
@@ -178,7 +178,7 @@ where
 		self.pid = self.pid.next();
 
 		#[cfg(feature = "statistics")]
-		self.tx.stats_mut().update_sent_time();
+		self.tx.stats.update_sent_time();
 
 		Ok(())
 	}

@@ -60,7 +60,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	#[cfg(feature = "statistics")]
 	/// Get statistics on this [`Receiver`](Self).
 	pub fn stats(&self) -> &crate::stats::RecvStats {
-		self.rx.stats()
+		&self.rx.stats
 	}
 
 	/// Get an iterator over incoming messages. The iterator will
@@ -207,7 +207,7 @@ where
 		self.pid = self.pid.next();
 
 		#[cfg(feature = "statistics")]
-		self.rx.stats_mut().update_received_time();
+		self.rx.stats.update_received_time();
 
 		Ok(header)
 	}

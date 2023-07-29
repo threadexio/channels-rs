@@ -19,7 +19,7 @@ pub struct Reader<R> {
 	inner: R,
 
 	#[cfg(feature = "statistics")]
-	stats: stats::RecvStats,
+	pub stats: stats::RecvStats,
 }
 
 impl<R> Reader<R> {
@@ -38,17 +38,6 @@ impl<R> Reader<R> {
 
 	pub fn get_mut(&mut self) -> &mut R {
 		&mut self.inner
-	}
-}
-
-#[cfg(feature = "statistics")]
-impl<R> Reader<R> {
-	pub fn stats(&self) -> &stats::RecvStats {
-		&self.stats
-	}
-
-	pub fn stats_mut(&mut self) -> &mut stats::RecvStats {
-		&mut self.stats
 	}
 }
 
@@ -82,7 +71,7 @@ pub struct Writer<W> {
 	inner: W,
 
 	#[cfg(feature = "statistics")]
-	stats: stats::SendStats,
+	pub stats: stats::SendStats,
 }
 
 impl<W> Writer<W> {
@@ -101,17 +90,6 @@ impl<W> Writer<W> {
 
 	pub fn get_mut(&mut self) -> &mut W {
 		&mut self.inner
-	}
-}
-
-#[cfg(feature = "statistics")]
-impl<W> Writer<W> {
-	pub fn stats(&self) -> &stats::SendStats {
-		&self.stats
-	}
-
-	pub fn stats_mut(&mut self) -> &mut stats::SendStats {
-		&mut self.stats
 	}
 }
 
