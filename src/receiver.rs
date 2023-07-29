@@ -8,7 +8,7 @@ use std::io::{self, Read, Write};
 
 use crate::error::{RecvError, VerifyError};
 use crate::io::{BytesMut, Cursor, GrowableBuffer, Reader};
-use crate::packet::{Buffer, Flags, Header, Id};
+use crate::packet::{header::*, Packet};
 use crate::serdes::{self, Deserializer};
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
@@ -20,7 +20,7 @@ pub struct Receiver<T, R, D> {
 	deserializer: D,
 
 	rx: Reader<R>,
-	pbuf: Buffer,
+	pbuf: Packet<Box<[u8]>>,
 	pid: Id,
 }
 
@@ -38,7 +38,9 @@ impl<T, R, D> Receiver<T, R, D> {
 		Self {
 			_p: PhantomData,
 			rx: Reader::new(rx),
-			pbuf: Buffer::new(),
+			pbuf: Packet::new(
+				vec![0u8; Packet::<()>::MAX_SIZE].into_boxed_slice(),
+			),
 			pid: Id::default(),
 			deserializer,
 		}
@@ -125,11 +127,11 @@ where
 		if header.flags & Flags::MORE_DATA {
 			macro_rules! write_payload_to_buf {
 				($h:expr, $p:expr) => {{
-					let payload_len =
-						($h.length as usize) - Buffer::HEADER_SIZE;
+					let payload_len = $h.length.to_payload_length();
 
 					$p.write_all(
-						&self.pbuf.payload()[..payload_len],
+						&self.pbuf.payload_slice()
+							[..payload_len.as_usize()],
 					)?;
 				}};
 			}
@@ -152,11 +154,11 @@ where
 
 			Ok(data)
 		} else {
-			let payload_len =
-				(header.length as usize) - Buffer::HEADER_SIZE;
+			let payload_len = header.length.to_payload_length();
 
-			let payload =
-				Cursor::new(&self.pbuf.payload()[..payload_len]);
+			let payload = Cursor::new(
+				&self.pbuf.payload_slice()[..payload_len.as_usize()],
+			);
 			let data = deserialize_payload!(payload)?;
 
 			Ok(data)
@@ -168,14 +170,10 @@ where
 	/// before any further calls.
 	#[must_use = "unused payload size"]
 	fn recv_chunk(&mut self) -> Result<Header, RecvError<D::Error>> {
-		if self.pbuf.position() < Buffer::HEADER_SIZE {
-			fill_buf_to(
-				&mut self.rx,
-				&mut self.pbuf,
-				Buffer::HEADER_SIZE,
-			)?;
+		if self.pbuf.position() < Header::SIZE {
+			fill_buf_to(&mut self.rx, &mut self.pbuf, Header::SIZE)?;
 
-			let header = match self.pbuf.verify() {
+			let header = match self.pbuf.get_header() {
 				Ok(v) => v,
 				Err(e) => {
 					self.pbuf.set_position(0);
@@ -191,11 +189,17 @@ where
 			}
 		}
 
-		let header = self.pbuf.header();
-		let packet_len = header.length as usize;
+		let header = unsafe {
+			// SAFETY: The header has been verified above.
+			self.pbuf.get_header_unchecked()
+		};
 
-		if self.pbuf.position() < packet_len {
-			fill_buf_to(&mut self.rx, &mut self.pbuf, packet_len)?;
+		if self.pbuf.position() < header.length.as_usize() {
+			fill_buf_to(
+				&mut self.rx,
+				&mut self.pbuf,
+				header.length.as_usize(),
+			)?;
 		}
 
 		self.pbuf.set_position(0);

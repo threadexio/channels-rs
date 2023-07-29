@@ -9,7 +9,7 @@ use std::io::{self, Read, Write};
 
 use crate::error::SendError;
 use crate::io::{BytesRef, Chain, Cursor, GrowableBuffer, Writer};
-use crate::packet::{Buffer, Flags, Header, Id};
+use crate::packet::{header::*, Packet};
 use crate::serdes::{self, Serializer};
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
@@ -21,7 +21,7 @@ pub struct Sender<T, W, S> {
 	serializer: S,
 
 	tx: Writer<W>,
-	pbuf: Buffer,
+	pbuf: Packet<Box<[u8]>>,
 	pid: Id,
 }
 
@@ -39,7 +39,9 @@ impl<T, W, S> Sender<T, W, S> {
 		Self {
 			_p: PhantomData,
 			tx: Writer::new(tx),
-			pbuf: Buffer::new(),
+			pbuf: Packet::new(
+				vec![0u8; Packet::<()>::MAX_SIZE].into_boxed_slice(),
+			),
 			pid: Id::default(),
 			serializer,
 		}
@@ -77,6 +79,7 @@ where
 	///
 	/// tx.send(42_i32).unwrap();
 	/// ```
+	#[allow(clippy::missing_panics_doc)]
 	pub fn send<D>(
 		&mut self,
 		data: D,
@@ -94,7 +97,7 @@ where
 		// allocations in order to be sent.
 
 		let mut payload_writer = {
-			let w1 = Cursor::new(self.pbuf.payload_mut());
+			let w1 = Cursor::new(self.pbuf.payload_mut_slice());
 
 			match self.serializer.size_hint(data) {
 				// If the size hint from the serializer is larger than
@@ -119,9 +122,11 @@ where
 		let (first, mut extra) = payload_writer.into_inner();
 
 		{
+			let payload_len =
+				PayloadLength::from_usize(first.position()).unwrap();
+
 			let mut header = Header {
-				length: (Buffer::HEADER_SIZE + first.position())
-					as u16,
+				length: payload_len.to_packet_length(),
 				flags: Flags::zero(),
 				id: self.pid,
 			};
@@ -136,10 +141,13 @@ where
 		extra.set_position(0);
 		while !extra.remaining().is_empty() {
 			// copy the rest of the payload from `extra` into the packet buffer
-			let payload_len = extra.read(self.pbuf.payload_mut())?;
+			let payload_len = PayloadLength::from_usize(
+				extra.read(self.pbuf.payload_mut_slice())?,
+			)
+			.unwrap();
 
 			let mut header = Header {
-				length: (Buffer::HEADER_SIZE + payload_len) as u16,
+				length: payload_len.to_packet_length(),
 				flags: Flags::zero(),
 				id: self.pid,
 			};
@@ -162,12 +170,9 @@ where
 		header: &Header,
 	) -> Result<(), SendError<S::Error>> {
 		self.pbuf.finalize(header);
-		self.pbuf.set_position(0);
 
-		write_buf_to(
-			&mut self.tx,
-			&mut self.pbuf,
-			header.length as usize,
+		self.tx.write_all(
+			&self.pbuf.as_slice()[..header.length.as_usize()],
 		)?;
 
 		self.pid = self.pid.next();

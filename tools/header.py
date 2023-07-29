@@ -20,7 +20,7 @@ def sizeof(t: str) -> int:
 
 def generate_fn(name: str, params: List[str], return_type: str | None, body: str, props: Any) -> str:
     if "vis" not in props:
-        props["vis"] = ""
+        props["vis"] = "pub"
 
     if "unsafe" not in props:
         props["unsafe"] = False
@@ -35,7 +35,6 @@ def generate_header(fields) -> str:
     current_offset = 0
     hdr_hash_input = ""
 
-    result += "impl Buffer {"
     for field in fields:
         hdr_hash_input += field["name"] + field["type"] + f"{current_offset}"
 
@@ -43,8 +42,8 @@ def generate_header(fields) -> str:
             if 'map' in field['get']:
                 hdr_hash_input += field["get"]["map"]
 
-            result += generate_fn(field["get"]["fn"], ["&self"], field["type"], f"""
-let x = read_offset(self.as_slice(), {current_offset});
+            result += generate_fn(field["get"]["fn"], ["buf: &[u8]"], field["type"], f"""
+let x = read_offset(buf, {current_offset});
 {f'{field["get"]["map"]}(x)' if 'map' in field['get'] else 'x'}
 """, field["get"])
 
@@ -52,9 +51,9 @@ let x = read_offset(self.as_slice(), {current_offset});
             if 'map' in field['set']:
                 hdr_hash_input += field["set"]["map"]
 
-            result += generate_fn(field["set"]["fn"], ["&mut self", f"value: {field['type']}"], None,
+            result += generate_fn(field["set"]["fn"], ["buf: &mut [u8]", f"value: {field['type']}"], None,
                                   f"""
-write_offset(self.as_mut_slice(), {current_offset}, {f'{field["set"]["map"]}(value)' if 'map' in field['set'] else 'value'});
+write_offset(buf, {current_offset}, {f'{field["set"]["map"]}(value)' if 'map' in field['set'] else 'value'});
 """, field["set"])
 
         current_offset += sizeof(field["type"])
@@ -68,7 +67,6 @@ pub const HEADER_HASH: u16 = {hex(hdr_hash)};
 
 pub const HEADER_SIZE: usize = {current_offset};
     """
-    result += "}"
     return result
 
 
