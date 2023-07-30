@@ -1,7 +1,7 @@
 use crate::error::VerifyError;
 use crate::util::flags;
 
-use super::Packet;
+use super::consts::*;
 
 #[derive(
 	Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord,
@@ -14,9 +14,9 @@ impl PacketLength {
 	}
 
 	pub fn from_usize(l: usize) -> Option<Self> {
-		if (Header::SIZE..=Packet::<()>::MAX_SIZE).contains(&l) {
-			// SAFETY: Header::SIZE <= l <= Packet::MAX_SIZE
-			//     <=> Header::SIZE <= l <= u16::MAX
+		if (HEADER_SIZE..=MAX_PACKET_SIZE).contains(&l) {
+			// SAFETY: HEADER_SIZE <= l <= MAX_PACKET_SIZE
+			//     <=> HEADER_SIZE <= l <= u16::MAX
 			Some(Self(l as u16))
 		} else {
 			None
@@ -32,10 +32,10 @@ impl PacketLength {
 	}
 
 	pub fn to_payload_length(self) -> PayloadLength {
-		// SAFETY: Header::SIZE <= self.0 <= Packet::MAX_SIZE
-		//     <=> 0 <= self.0 - Header::SIZE <= Packet::MAX_SIZE - Header::SIZE
-		//     <=> 0 <= self.0 - Header::SIZE <= Packet::MAX_PAYLOAD_SIZE
-		PayloadLength(self.0 - (Header::SIZE as u16))
+		// SAFETY: HEADER_SIZE <= self.0 <= MAX_PACKET_SIZE
+		//     <=> 0 <= self.0 - HEADER_SIZE <= MAX_PACKET_SIZE - HEADER_SIZE
+		//     <=> 0 <= self.0 - HEADER_SIZE <= MAX_PAYLOAD_SIZE
+		PayloadLength(self.0 - (HEADER_SIZE as u16))
 	}
 }
 
@@ -50,8 +50,8 @@ impl PayloadLength {
 	}
 
 	pub fn from_usize(l: usize) -> Option<Self> {
-		if l <= Packet::<()>::MAX_PAYLOAD_SIZE {
-			// SAFETY: Packet::MAX_PAYLOAD_SIZE <= u16::MAX
+		if l <= MAX_PAYLOAD_SIZE {
+			// SAFETY: MAX_PAYLOAD_SIZE <= u16::MAX
 			Some(Self(l as u16))
 		} else {
 			None
@@ -67,11 +67,11 @@ impl PayloadLength {
 	}
 
 	pub fn to_packet_length(self) -> PacketLength {
-		// SAFETY: self.0 <= Packet::MAX_PAYLOAD_SIZE
-		//     <=> self.0 <= Packet::MAX_SIZE - Header::SIZE
-		//     <=> Header::SIZE + self.0 <= Packet::MAX_SIZE
-		//     <=> Header::SIZE + self.0 <= u16::MAX
-		PacketLength((Header::SIZE as u16) + self.0)
+		// SAFETY: self.0 <= MAX_PAYLOAD_SIZE
+		//     <=> self.0 <= MAX_PACKET_SIZE - HEADER_SIZE
+		//     <=> HEADER_SIZE + self.0 <= MAX_PACKET_SIZE
+		//     <=> HEADER_SIZE + self.0 <= u16::MAX
+		PacketLength((HEADER_SIZE as u16) + self.0)
 	}
 }
 
@@ -150,7 +150,7 @@ impl Header {
 	///
 	/// # Panics
 	///
-	/// If `buf.len() < Header::SIZE`.
+	/// If `buf.len() < HEADER_SIZE`.
 	pub fn write_to(&self, buf: &mut [u8]) {
 		assert!(
 			buf.len() >= Self::SIZE,
@@ -176,7 +176,7 @@ impl Header {
 	///
 	/// # Panics
 	///
-	/// If `buf.len() < Header::SIZE`.
+	/// If `buf.len() < HEADER_SIZE`.
 	pub unsafe fn read_from_unchecked(buf: &[u8]) -> Self {
 		assert!(
 			buf.len() >= Self::SIZE,
@@ -203,7 +203,7 @@ impl Header {
 	///
 	/// # Panics
 	///
-	/// If `buf.len() < Header::SIZE`.
+	/// If `buf.len() < HEADER_SIZE`.
 	pub fn read_from(buf: &[u8]) -> Result<Header, VerifyError> {
 		assert!(
 			buf.len() >= Self::SIZE,

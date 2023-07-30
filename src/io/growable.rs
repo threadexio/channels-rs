@@ -11,7 +11,7 @@ impl GrowableBuffer {
 	}
 
 	pub fn with_capacity(capacity: usize) -> Self {
-		Self(Cursor::new(Vec::with_capacity(capacity)))
+		Self(Cursor::new(vec![0u8; capacity]))
 	}
 
 	pub fn grow(&mut self, extra: usize) {
@@ -51,6 +51,18 @@ impl Write for GrowableBuffer {
 
 	fn flush(&mut self) -> Result<()> {
 		Ok(())
+	}
+}
+
+impl AsRef<[u8]> for GrowableBuffer {
+	fn as_ref(&self) -> &[u8] {
+		self.as_slice()
+	}
+}
+
+impl AsMut<[u8]> for GrowableBuffer {
+	fn as_mut(&mut self) -> &mut [u8] {
+		self.as_mut_slice()
 	}
 }
 

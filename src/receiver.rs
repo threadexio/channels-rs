@@ -8,7 +8,7 @@ use std::io::{self, Read, Write};
 
 use crate::error::{RecvError, VerifyError};
 use crate::io::{BytesMut, Cursor, GrowableBuffer, Reader};
-use crate::packet::{header::*, Packet};
+use crate::packet::{header::*, packet::Packet};
 use crate::serdes::{self, Deserializer};
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
