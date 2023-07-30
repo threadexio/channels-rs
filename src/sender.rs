@@ -3,8 +3,6 @@
 use core::borrow::Borrow;
 use core::marker::PhantomData;
 
-use std::io::Write;
-
 use crate::error::SendError;
 use crate::io::Writer;
 use crate::packet::{consts::*, LinkedBlocks, Pcb};
@@ -67,39 +65,92 @@ impl<T, W, S> Sender<T, W, S> {
 
 impl<T, W, S> Sender<T, W, S>
 where
-	W: Write,
 	S: Serializer<T>,
 {
-	/// Attempts to send an object through the data stream.
-	///
-	/// # Example
-	/// ```no_run
-	/// use channels::Sender;
-	///
-	/// let mut writer = Sender::new(std::io::sink());
-	///
-	/// writer.send(42_i32).unwrap();
-	/// ```
-	pub fn send<D>(
+	fn serialize_t_to_packet(
 		&mut self,
-		data: D,
-	) -> Result<(), SendError<S::Error>>
-	where
-		D: Borrow<T>,
-	{
-		let data = data.borrow();
-
+		data: &T,
+	) -> Result<(), SendError<S::Error>> {
 		self.packet.clear_all();
+
 		self.serializer
 			.serialize(&mut self.packet, data)
-			.map_err(SendError::Serde)?;
+			.map_err(SendError::Serde)
+	}
+}
 
-		let blocks = self.packet.finalize(&mut self.pcb);
+mod sync_impl {
+	use super::*;
 
-		for block in blocks {
-			self.writer.write_all(block.packet())?;
+	use std::io::Write;
+
+	impl<T, W, S> Sender<T, W, S>
+	where
+		W: Write,
+		S: Serializer<T>,
+	{
+		/// Attempts to send an object through the data stream.
+		///
+		/// # Example
+		/// ```no_run
+		/// use channels::Sender;
+		///
+		/// let mut writer = Sender::new(std::io::sink());
+		///
+		/// writer.send(42_i32).unwrap();
+		/// ```
+		pub fn send<D>(
+			&mut self,
+			data: D,
+		) -> Result<(), SendError<S::Error>>
+		where
+			D: Borrow<T>,
+		{
+			let data = data.borrow();
+
+			self.serialize_t_to_packet(data)?;
+			let blocks = self.packet.finalize(&mut self.pcb);
+
+			for block in blocks {
+				self.writer.write_all(block.packet())?;
+			}
+
+			Ok(())
 		}
+	}
+}
 
-		Ok(())
+#[cfg(feature = "tokio")]
+mod async_tokio_impl {
+	use super::*;
+
+	use core::marker::Unpin;
+
+	use tokio::io::{AsyncWrite, AsyncWriteExt};
+
+	impl<T, W, S> Sender<T, W, S>
+	where
+		W: AsyncWrite + Unpin,
+		S: Serializer<T>,
+	{
+		/// TODO: Docs
+		pub async fn send_async<D>(
+			&mut self,
+			data: D,
+		) -> Result<(), SendError<S::Error>>
+		where
+			D: Borrow<T>,
+		{
+			let data = data.borrow();
+
+			self.serialize_t_to_packet(data)?;
+			let blocks = self.packet.finalize(&mut self.pcb);
+
+			for block in blocks {
+				self.writer.write_all(block.packet()).await?;
+			}
+
+			Ok(())
+		}
 	}
 }
