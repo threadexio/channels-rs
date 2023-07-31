@@ -100,7 +100,7 @@ mod sync_impl {
 		///
 		/// fn main() {
 		///     let writer = std::io::sink();
-		///     let mut tx = Sender::new();
+		///     let mut tx = Sender::new(writer);
 		///
 		///     tx.send_blocking(42_i32).unwrap();
 		/// }

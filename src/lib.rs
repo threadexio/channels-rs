@@ -62,8 +62,8 @@ pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 ///
 /// let (mut tx, mut rx) = channels::channel(conn.try_clone().unwrap(), conn);
 ///
-/// tx.send(42_i32).unwrap();
-/// let received: i32 = rx.recv().unwrap();
+/// tx.send_blocking(42_i32).unwrap();
+/// let received: i32 = rx.recv_blocking().unwrap();
 /// ```
 pub fn channel<T, R, W>(
 	r: R,

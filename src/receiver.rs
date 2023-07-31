@@ -233,7 +233,7 @@ mod async_tokio_impl {
 		///
 		/// #[tokio::main]
 		/// async fn main() {
-		///     let reader = std::io::empty();
+		///     let reader = tokio::io::empty();
 		///     let mut reader = Receiver::new(reader);
 		///
 		///     let number: i32 = reader.recv().await.unwrap();
