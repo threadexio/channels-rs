@@ -224,16 +224,3 @@ fn copy_min_len(src: &[u8], dst: &mut [u8]) -> usize {
 	}
 	n
 }
-
-#[test]
-fn test_block() {
-	use io::Write;
-
-	let mut block = Block::new();
-
-	let data: Vec<u8> = (1..=32).collect();
-
-	let _ = dbg!(block.write(&data[..6]));
-	let _ = dbg!(block.write(&[]));
-	let _ = dbg!(block.write(&data[6..]));
-}

@@ -154,37 +154,3 @@ impl io::Read for &mut LinkedBlocks {
 		Ok(n)
 	}
 }
-
-#[test]
-fn test_list() {
-	use io::Write;
-
-	let mut list = LinkedBlocks::with_payload_capacity(128);
-	//LinkedBlocks::new();
-
-	let data: Vec<u8> = (1..=16).collect();
-
-	let _ = dbg!(list.write(&data));
-	let _ = dbg!(list.write(&data));
-
-	let mut pcb = Pcb::default();
-
-	let blocks_to_send = list.finalize(&mut pcb);
-
-	dbg!(blocks_to_send);
-
-	use std::fs::File;
-
-	let mut writer = File::options()
-		.write(true)
-		.create(true)
-		.truncate(true)
-		.open("/tmp/a")
-		.unwrap();
-
-	blocks_to_send
-		.iter()
-		.for_each(|block| writer.write_all(block.packet()).unwrap());
-
-	list.clear_all();
-}
