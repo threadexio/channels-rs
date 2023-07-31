@@ -6,7 +6,7 @@ fn test_conformance_sender() {
 
 	let mut s = Sender::<(), _, _>::new(&mut buf);
 
-	s.send(()).unwrap();
+	s.send_blocking(()).unwrap();
 	assert_eq!(
 		&s.get()[..],
 		&[
@@ -31,5 +31,5 @@ fn test_conformance_receiver() {
 
 	let mut r = Receiver::<(), _, _>::new(buf);
 
-	r.recv().unwrap();
+	r.recv_blocking().unwrap();
 }

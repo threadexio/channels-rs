@@ -67,12 +67,10 @@ impl<T, W, S> Sender<T, W, S>
 where
 	S: Serializer<T>,
 {
-	fn serialize_t_to_packet(
+	fn serialize_t_to_packets(
 		&mut self,
 		data: &T,
 	) -> Result<(), SendError<S::Error>> {
-		self.packet.clear_all();
-
 		self.serializer
 			.serialize(&mut self.packet, data)
 			.map_err(SendError::Serde)
@@ -89,17 +87,25 @@ mod sync_impl {
 		W: Write,
 		S: Serializer<T>,
 	{
-		/// Attempts to send an object through the data stream.
+		/// Attempts to send an object of type `T` through the writer.
+		///
+		/// This method **will** block until the `data` has been fully
+		/// sent.
+		///
+		/// For the async version of this method, see [`send`].
 		///
 		/// # Example
 		/// ```no_run
 		/// use channels::Sender;
 		///
-		/// let mut writer = Sender::new(std::io::sink());
+		/// fn main() {
+		///     let writer = std::io::sink();
+		///     let mut tx = Sender::new();
 		///
-		/// writer.send(42_i32).unwrap();
+		///     tx.send_blocking(42_i32).unwrap();
+		/// }
 		/// ```
-		pub fn send<D>(
+		pub fn send_blocking<D>(
 			&mut self,
 			data: D,
 		) -> Result<(), SendError<S::Error>>
@@ -107,13 +113,17 @@ mod sync_impl {
 			D: Borrow<T>,
 		{
 			let data = data.borrow();
+			self.packet.clear_all();
 
-			self.serialize_t_to_packet(data)?;
+			self.serialize_t_to_packets(data)?;
 			let blocks = self.packet.finalize(&mut self.pcb);
 
 			for block in blocks {
 				self.writer.write_all(block.packet())?;
 			}
+
+			#[cfg(feature = "statistics")]
+			self.writer.stats.update_sent_time();
 
 			Ok(())
 		}
@@ -133,8 +143,24 @@ mod async_tokio_impl {
 		W: AsyncWrite + Unpin,
 		S: Serializer<T>,
 	{
-		/// TODO: Docs
-		pub async fn send_async<D>(
+		/// Attempts to asynchronously send an object of type `T`
+		/// through the writer.
+		///
+		/// For the blocking version of this method, see [`send_blocking`].
+		///
+		/// # Example
+		/// ```no_run
+		/// use channels::Sender;
+		///
+		/// #[tokio::main]
+		/// async fn main() {
+		///     let writer = tokio::io::sink();
+		///     let mut sender = Sender::<i32, _, _>::new(writer);
+		///
+		///     sender.send(42_i32).await.unwrap();
+		/// }
+		/// ```
+		pub async fn send<D>(
 			&mut self,
 			data: D,
 		) -> Result<(), SendError<S::Error>>
@@ -142,13 +168,17 @@ mod async_tokio_impl {
 			D: Borrow<T>,
 		{
 			let data = data.borrow();
+			self.packet.clear_all();
 
-			self.serialize_t_to_packet(data)?;
+			self.serialize_t_to_packets(data)?;
 			let blocks = self.packet.finalize(&mut self.pcb);
 
 			for block in blocks {
 				self.writer.write_all(block.packet()).await?;
 			}
+
+			#[cfg(feature = "statistics")]
+			self.writer.stats.update_sent_time();
 
 			Ok(())
 		}

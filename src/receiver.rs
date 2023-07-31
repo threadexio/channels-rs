@@ -1,280 +1,286 @@
 //! Module containing the implementation for [`Receiver`].
 
-use core::any::type_name;
-use core::fmt;
 use core::marker::PhantomData;
 
-use std::io::{self, Read, Write};
-
 use crate::error::{RecvError, VerifyError};
-use crate::io::{BytesMut, Cursor, GrowableBuffer, Reader};
-use crate::packet::{header::*, packet::Packet};
+use crate::io::Reader;
+use crate::packet::{consts::*, header::*, Block, LinkedBlocks, Pcb};
 use crate::serdes::{self, Deserializer};
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
+#[derive(Debug)]
 pub struct Receiver<T, R, D> {
-	_p: PhantomData<T>,
-	deserializer: D,
+	_marker: PhantomData<T>,
 
-	rx: Reader<R>,
-	pbuf: Packet<Box<[u8]>>,
-	pid: Id,
+	packet: LinkedBlocks,
+	pcb: Pcb,
+
+	reader: Reader<R>,
+	deserializer: D,
 }
 
 #[cfg(feature = "serde")]
 impl<T, R> Receiver<T, R, serdes::Bincode> {
-	/// Creates a new [`Receiver`] from `rx`.
-	pub fn new(rx: R) -> Self {
-		Self::with_deserializer(rx, serdes::Bincode)
+	/// Creates a new [`Receiver`] from `reader`.
+	pub fn new(reader: R) -> Self {
+		Self::with_deserializer(reader, serdes::Bincode)
 	}
 }
 
 impl<T, R, D> Receiver<T, R, D> {
-	/// Create a mew [`Receiver`] from `rx` that uses `deserializer`.
-	pub fn with_deserializer(rx: R, deserializer: D) -> Self {
+	/// Create a mew [`Receiver`] from `reader` that uses `deserializer`.
+	pub fn with_deserializer(reader: R, deserializer: D) -> Self {
 		Self {
-			_p: PhantomData,
-			rx: Reader::new(rx),
-			pbuf: Packet::new(
-				vec![0u8; Packet::<()>::MAX_SIZE].into_boxed_slice(),
+			_marker: PhantomData,
+			packet: LinkedBlocks::with_payload_capacity(
+				MAX_PACKET_SIZE,
 			),
-			pid: Id::default(),
+			pcb: Pcb::default(),
+
+			reader: Reader::new(reader),
 			deserializer,
 		}
 	}
 
 	/// Get a reference to the underlying reader.
 	pub fn get(&self) -> &R {
-		self.rx.get()
+		self.reader.get()
 	}
 
 	/// Get a mutable reference to the underlying reader. Directly
 	/// reading from the stream is not advised.
 	pub fn get_mut(&mut self) -> &mut R {
-		self.rx.get_mut()
+		self.reader.get_mut()
 	}
 
 	#[cfg(feature = "statistics")]
 	/// Get statistics on this [`Receiver`](Self).
 	pub fn stats(&self) -> &crate::stats::RecvStats {
-		&self.rx.stats
+		&self.reader.stats
+	}
+}
+
+/// Read the header from `block` and verify it.
+///
+/// This function also verifies the `id` field.
+fn get_header(
+	block: &Block,
+	pcb: &mut Pcb,
+) -> Result<Header, VerifyError> {
+	let header = Header::read_from(block.header())?;
+
+	if header.id != pcb.id {
+		return Err(VerifyError::OutOfOrder);
 	}
 
-	/// Get an iterator over incoming messages. The iterator will
-	/// return `None` messages when an error is returned by [`Receiver::recv`].
-	///
-	/// See: [`Incoming`].
-	///
-	/// # Example
-	/// ```no_run
-	/// use channels::Receiver;
-	///
-	/// let mut rx = Receiver::<i32, _, _>::new(std::io::empty());
-	///
-	/// for number in rx.incoming() {
-	///     println!("Received number: {number}");
-	/// }
-	/// ```
-	pub fn incoming(&mut self) -> Incoming<T, R, D> {
-		Incoming(self)
-	}
+	Ok(header)
+}
+
+/// Prepare the receiver to read the next packet.
+fn prepare_for_next_packet<R>(reader: &mut Reader<R>, pcb: &mut Pcb) {
+	pcb.next();
+
+	#[cfg(feature = "statistics")]
+	reader.stats.update_received_time();
 }
 
 impl<T, R, D> Receiver<T, R, D>
 where
-	R: Read,
 	D: Deserializer<T>,
 {
-	/// Attempts to receive an object from the data stream using a
-	/// custom deserialization function.
-	///
-	/// - If the underlying reader is a blocking then `recv()` will
-	/// block until an object is available.
-	///
-	/// - If the underlying reader is non-blocking then `recv()` will
-	/// return an error with a kind of `std::io::ErrorKind::WouldBlock`
-	/// whenever the complete object is not available.
-	///
-	/// # Example
-	/// ```no_run
-	/// use channels::Receiver;
-	///
-	/// let mut rx = Receiver::new(std::io::empty());
-	///
-	/// let number: i32 = rx.recv().unwrap();
-	/// ```
-	pub fn recv(&mut self) -> Result<T, RecvError<D::Error>> {
-		macro_rules! deserialize_payload {
-			($p:expr) => {
-				self.deserializer
-					.deserialize($p)
-					.map_err(RecvError::Serde)
-			};
-		}
-
-		let header = self.recv_chunk()?;
-
-		// If the first packet we read has the `MORE_DATA` flag set,
-		// then we must wait for more data, so initialize a buffer to
-		// start writing the payload chunks into.
-		//
-		// Otherwise use directly the payload from the packet buffer,
-		// no need to allocate a GrowableBuffer just to copy data that
-		// already exists in another part of memory.
-		if header.flags & Flags::MORE_DATA {
-			macro_rules! write_payload_to_buf {
-				($h:expr, $p:expr) => {{
-					let payload_len = $h.length.to_payload_length();
-
-					$p.write_all(
-						&self.pbuf.payload_slice()
-							[..payload_len.as_usize()],
-					)?;
-				}};
-			}
-
-			let mut payload = GrowableBuffer::new();
-
-			write_payload_to_buf!(header, payload);
-
-			loop {
-				let header = self.recv_chunk()?;
-				write_payload_to_buf!(header, payload);
-
-				if !(header.flags & Flags::MORE_DATA) {
-					break;
-				}
-			}
-
-			let payload = Cursor::new(payload.into_inner());
-			let data = deserialize_payload!(payload)?;
-
-			Ok(data)
-		} else {
-			let payload_len = header.length.to_payload_length();
-
-			let payload = Cursor::new(
-				&self.pbuf.payload_slice()[..payload_len.as_usize()],
-			);
-			let data = deserialize_payload!(payload)?;
-
-			Ok(data)
-		}
-	}
-
-	/// Receives exactly one packet of data, returning its header. The
-	/// received payload is written into the buffer and must be read
-	/// before any further calls.
-	#[must_use = "unused payload size"]
-	fn recv_chunk(&mut self) -> Result<Header, RecvError<D::Error>> {
-		if self.pbuf.position() < Header::SIZE {
-			fill_buf_to(&mut self.rx, &mut self.pbuf, Header::SIZE)?;
-
-			let header = match self.pbuf.get_header() {
-				Ok(v) => v,
-				Err(e) => {
-					self.pbuf.set_position(0);
-					return Err(RecvError::Verify(e));
-				},
-			};
-
-			if header.id != self.pid {
-				self.pbuf.set_position(0);
-				return Err(RecvError::Verify(
-					VerifyError::OutOfOrder,
-				));
-			}
-		}
-
-		let header = unsafe {
-			// SAFETY: The header has been verified above.
-			self.pbuf.get_header_unchecked()
-		};
-
-		if self.pbuf.position() < header.length.as_usize() {
-			fill_buf_to(
-				&mut self.rx,
-				&mut self.pbuf,
-				header.length.as_usize(),
-			)?;
-		}
-
-		self.pbuf.set_position(0);
-
-		self.pid = self.pid.next();
-
-		#[cfg(feature = "statistics")]
-		self.rx.stats.update_received_time();
-
-		Ok(header)
+	fn deserialize_packets_to_t(
+		&mut self,
+	) -> Result<T, RecvError<D::Error>> {
+		self.deserializer
+			.deserialize(&mut self.packet)
+			.map_err(RecvError::Serde)
 	}
 }
 
-/// Continuously call `read` until `buf` reaches position `limit`.
-#[inline]
-fn fill_buf_to<R, T>(
-	reader: &mut Reader<R>,
-	buf: &mut Cursor<T>,
-	limit: usize,
-) -> io::Result<()>
-where
-	R: Read,
-	T: BytesMut,
-{
-	use io::ErrorKind;
-
-	while buf.position() < limit {
-		let pos = buf.position();
-
-		let i = match reader.read(&mut buf.as_mut_slice()[pos..limit])
-		{
-			Ok(v) if v == 0 => {
-				return Err(ErrorKind::UnexpectedEof.into())
-			},
-			Ok(v) => v,
-			Err(e) if e.kind() == ErrorKind::Interrupted => continue,
-			Err(e) => return Err(e),
-		};
-
-		buf.advance(i).unwrap();
-	}
-
-	Ok(())
-}
-
-impl<T, R, D> fmt::Debug for Receiver<T, R, D> {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Receiver")
-			.field("deserializer", &type_name::<D>())
-			.field("rx", &self.rx)
-			.field("pbuf", &self.pbuf.position())
-			.field("pid", &self.pid)
-			.finish()
-	}
-}
-
-/// An iterator over incoming messages of a [`Receiver`]. The iterator
-/// will return `None` only when [`Receiver::recv`] returns with an error.
+/// An iterator over incoming messages of a [`Receiver`].
 ///
-/// **NOTE:** If the reader is non-blocking then the iterator will return
-/// `None` even in the case where [`Receiver::recv`] would return `WouldBlock`.
-///
-/// When the iterator returns `None` it does not always mean that further
+/// The iterator will return `None` only when [`Receiver::recv_blocking`]
+/// returns with an error. When the iterator returns `None` it does not always mean that further
 /// calls to `next()` will also return `None`. This behavior depends on the
 /// underlying reader.
 pub struct Incoming<'r, T, R, D>(&'r mut Receiver<T, R, D>);
 
-impl<T, R, D> Iterator for Incoming<'_, T, R, D>
-where
-	R: Read,
-	D: Deserializer<T>,
-{
-	type Item = T;
+mod sync_impl {
+	use super::*;
 
-	fn next(&mut self) -> Option<Self::Item> {
-		self.0.recv().ok()
+	use std::io::Read;
+
+	impl<T, R, D> Receiver<T, R, D>
+	where
+		R: Read,
+		D: Deserializer<T>,
+	{
+		/// Get an iterator over incoming messages. The iterator will
+		/// return `None` messages when an error is returned by [`Receiver::recv_blocking`].
+		///
+		/// See: [`Incoming`].
+		///
+		/// # Example
+		/// ```no_run
+		/// use channels::Receiver;
+		///
+		/// fn main() {
+		///     let reader = std::io::empty();
+		///     let mut rx = Receiver::<i32, _, _>::new(reader);
+		///
+		///     for number in rx.incoming() {
+		///         println!("Received number: {number}");
+		///     }
+		/// }
+		/// ```
+		pub fn incoming(&mut self) -> Incoming<T, R, D> {
+			Incoming(self)
+		}
+
+		/// Attempts to receive an object of type `T` from the reader.
+		///
+		/// This method **will** block until the object has been fully
+		/// read.
+		///
+		/// For the async version of this method, see [`recv`].
+		///
+		/// # Example
+		/// ```no_run
+		/// use channels::Receiver;
+		///
+		/// fn main() {
+		///     let reader = std::io::empty();
+		///     let mut reader = Receiver::new(reader);
+		///
+		///     let number: i32 = reader.recv_blocking().unwrap();
+		/// }
+		/// ```
+		pub fn recv_blocking(
+			&mut self,
+		) -> Result<T, RecvError<D::Error>> {
+			self.packet.clear_all();
+
+			let mut i = 0;
+			loop {
+				if self.packet.blocks.get(i).is_none() {
+					self.packet.blocks.push(Block::new());
+				}
+				let block = &mut self.packet.blocks[i];
+
+				self.reader.read_exact(block.header_mut())?;
+				let header = get_header(block, &mut self.pcb)?;
+
+				let payload_len = header.length.to_payload_length();
+				self.reader.read_exact(
+					&mut block.payload_mut()
+						[..payload_len.as_usize()],
+				)?;
+				block.advance_write(payload_len.as_usize());
+
+				prepare_for_next_packet(
+					&mut self.reader,
+					&mut self.pcb,
+				);
+
+				if !(header.flags & Flags::MORE_DATA) {
+					break;
+				}
+
+				i += 1;
+			}
+
+			self.deserialize_packets_to_t()
+		}
+	}
+
+	impl<T, R, D> Iterator for Incoming<'_, T, R, D>
+	where
+		R: Read,
+		D: Deserializer<T>,
+	{
+		type Item = T;
+
+		fn next(&mut self) -> Option<Self::Item> {
+			self.0.recv_blocking().ok()
+		}
+	}
+}
+
+#[cfg(feature = "tokio")]
+mod async_tokio_impl {
+	use super::*;
+
+	use core::marker::Unpin;
+
+	use tokio::io::{AsyncRead, AsyncReadExt};
+
+	impl<T, R, D> Receiver<T, R, D>
+	where
+		R: AsyncRead + Unpin,
+		D: Deserializer<T>,
+	{
+		/// Attempts to asynchronously receive an object of type `T`
+		/// from the reader.
+		///
+		/// For the blocking version of this method, see [`recv_blocking`].
+		///
+		/// # Example
+		/// ```no_run
+		/// use channels::Receiver;
+		///
+		/// #[tokio::main]
+		/// async fn main() {
+		///     let reader = std::io::empty();
+		///     let mut reader = Receiver::new(reader);
+		///
+		///     let number: i32 = reader.recv().await.unwrap();
+		/// }
+		/// ```
+		pub async fn recv(
+			&mut self,
+		) -> Result<T, RecvError<D::Error>> {
+			self.packet.clear_all();
+
+			let mut i = 0;
+			loop {
+				if self.packet.blocks.get(i).is_none() {
+					self.packet.blocks.push(Block::new());
+				}
+				let block = &mut self.packet.blocks[i];
+
+				self.reader.read_exact(block.header_mut()).await?;
+				let header = get_header(block, &mut self.pcb)?;
+
+				let payload_len = header.length.to_payload_length();
+				self.reader
+					.read_exact(
+						&mut block.payload_mut()
+							[..payload_len.as_usize()],
+					)
+					.await?;
+				block.advance_write(payload_len.as_usize());
+
+				prepare_for_next_packet(
+					&mut self.reader,
+					&mut self.pcb,
+				);
+
+				if !(header.flags & Flags::MORE_DATA) {
+					break;
+				}
+
+				i += 1;
+			}
+
+			let t = self
+				.deserializer
+				.deserialize(&mut self.packet)
+				.map_err(RecvError::Serde)?;
+
+			Ok(t)
+		}
 	}
 }

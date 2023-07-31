@@ -22,6 +22,7 @@ tokio = { version = "1.29", features = ["io-util"], optional = true }
 [dev-dependencies]
 rand = "0.8"
 serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.29", features = ["full"] }
 
 [features]
 default = ["serde"]

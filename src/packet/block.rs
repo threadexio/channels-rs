@@ -6,10 +6,21 @@ use super::header::*;
 /// A buffer that holds a packet.
 ///
 /// The read/write implementations operate on the payload of the packet.
+///
+/// A visualization of the buffer is:
+///
+/// ```not_rust
+/// [  header  |             payload             ]
+/// [  header  |       filled      |  remaining  ]
+/// [  header  |  read  |  unread  |             ]
+///                    /\         /\
+///         payload_read_pos   payload_write_pos
+/// ```
 #[derive(Debug)]
 pub struct Block {
 	packet: Vec<u8>,
-	payload_pos: usize,
+	payload_read_pos: usize,
+	payload_write_pos: usize,
 }
 
 impl Block {
@@ -20,13 +31,15 @@ impl Block {
 	pub fn with_payload_capacity(capacity: usize) -> Self {
 		Self {
 			packet: vec![0u8; HEADER_SIZE + capacity],
-			payload_pos: 0,
+			payload_read_pos: 0,
+			payload_write_pos: 0,
 		}
 	}
 
 	/// Clear the payload from the buffer.
 	pub fn clear(&mut self) {
-		self.payload_pos = 0;
+		self.payload_read_pos = 0;
+		self.payload_write_pos = 0;
 	}
 
 	/// Get the total number of bytes this packet can currently hold.
@@ -38,7 +51,7 @@ impl Block {
 
 	/// Get the length of the current payload inside the packet.
 	pub fn payload_length(&self) -> PayloadLength {
-		PayloadLength::from_usize(self.payload_pos).unwrap()
+		PayloadLength::from_usize(self.payload_write_pos).unwrap()
 	}
 
 	/// Get the length of the current packet.
@@ -48,12 +61,12 @@ impl Block {
 
 	/// Check whether the payload of this block is empty.
 	pub fn is_payload_empty(&self) -> bool {
-		self.payload_pos == 0
+		self.payload_write_pos == 0
 	}
 
 	/// Check whether the payload of this block is full.
 	pub fn is_payload_full(&self) -> bool {
-		self.payload_pos == self.payload().len()
+		self.payload_write_pos == self.payload().len()
 	}
 
 	/// Grow the packet buffer by `extra` bytes.
@@ -64,8 +77,6 @@ impl Block {
 			return;
 		}
 
-		dbg!(extra);
-
 		self.packet.resize(self.capacity() + extra, 0);
 	}
 
@@ -73,6 +84,28 @@ impl Block {
 	pub fn packet(&self) -> &[u8] {
 		let l = self.packet_length().as_usize();
 		&self.packet[..l]
+	}
+
+	/// Advance the write head of this buffer by `n` bytes.
+	///
+	/// # Panics
+	///
+	/// This method will panic if `n` causes the write head to go out
+	/// of bounds. `n` must be `<= block.remaining_payload().len()`.
+	pub fn advance_write(&mut self, n: usize) {
+		assert!(n <= self.remaining_payload().len());
+		self.payload_write_pos += n;
+	}
+
+	/// Advance the read head of this buffer by `n` bytes.
+	///
+	/// # Panics
+	///
+	/// This method will panic if `n` causes the read head to go out
+	/// of bounds. `n` must be `<= block.unread_payload().len()`.
+	pub fn advance_read(&mut self, n: usize) {
+		assert!(n <= self.unread_payload().len());
+		self.payload_read_pos += n;
 	}
 }
 
@@ -97,14 +130,48 @@ impl Block {
 		&mut self.packet[Header::SIZE..]
 	}
 
+	/// Get the slice corresponding to the filled payload.
+	pub fn filled_payload(&self) -> &[u8] {
+		&self.payload()[..self.payload_write_pos]
+	}
+
+	/// Get the mutable slice corresponding to the filled payload.
+	pub fn filled_payload_mut(&mut self) -> &mut [u8] {
+		let end = self.payload_write_pos;
+		&mut self.payload_mut()[..end]
+	}
+
 	/// Get the slice corresponding to the remaining payload.
 	pub fn remaining_payload(&self) -> &[u8] {
-		&self.payload()[self.payload_pos..]
+		&self.payload()[self.payload_write_pos..]
 	}
 	/// Get the mutable slice corresponding to the remaining payload.
 	pub fn remaining_payload_mut(&mut self) -> &mut [u8] {
-		let payload_end = self.payload_pos;
+		let payload_end = self.payload_write_pos;
 		&mut self.payload_mut()[payload_end..]
+	}
+
+	/// Get the slice corresponding to the read payload.
+	pub fn read_payload(&self) -> &[u8] {
+		&self.payload()[..self.payload_read_pos]
+	}
+
+	/// Get the mutable slice corresponding to the read payload.
+	pub fn read_payload_mut(&mut self) -> &[u8] {
+		let end = self.payload_read_pos;
+		&mut self.payload_mut()[..end]
+	}
+
+	/// Get the slice corresponding to the filled payload.
+	pub fn unread_payload(&self) -> &[u8] {
+		&self.payload()[self.payload_read_pos..self.payload_write_pos]
+	}
+
+	/// Get the mutable slice corresponding to the filled payload.
+	pub fn unread_payload_mut(&mut self) -> &mut [u8] {
+		let start = self.payload_read_pos;
+		let end = self.payload_write_pos;
+		&mut self.payload_mut()[start..end]
 	}
 }
 
@@ -127,7 +194,7 @@ impl io::Write for Block {
 		}
 
 		let n = copy_min_len(buf, self.remaining_payload_mut());
-		self.payload_pos += n;
+		self.advance_write(n);
 
 		Ok(n)
 	}
@@ -137,9 +204,24 @@ impl io::Write for Block {
 	}
 }
 
+impl io::Read for Block {
+	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+		if buf.is_empty() {
+			return Ok(0);
+		}
+
+		let n = copy_min_len(self.unread_payload(), buf);
+		self.advance_read(n);
+
+		Ok(n)
+	}
+}
+
 fn copy_min_len(src: &[u8], dst: &mut [u8]) -> usize {
 	let n = cmp::min(src.len(), dst.len());
-	dst[..n].copy_from_slice(&src[..n]);
+	if n != 0 {
+		dst[..n].copy_from_slice(&src[..n]);
+	}
 	n
 }
 

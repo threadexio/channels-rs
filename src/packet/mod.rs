@@ -16,9 +16,14 @@ pub use block::Block;
 mod linked;
 pub use linked::LinkedBlocks;
 
-pub mod packet;
-
 #[derive(Debug, Default)]
 pub struct Pcb {
 	pub id: Id,
+}
+
+impl Pcb {
+	/// Update this pcb to be ready for the next packet.
+	pub fn next(&mut self) {
+		self.id = self.id.next();
+	}
 }

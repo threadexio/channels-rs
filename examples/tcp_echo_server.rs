@@ -13,7 +13,7 @@ fn connection_handler(connection: TcpStream) {
 			thread::current().name().unwrap()
 		);
 
-		tx.send(received).unwrap();
+		tx.send_blocking(received).unwrap();
 	}
 }
 

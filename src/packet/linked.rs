@@ -5,7 +5,7 @@ use super::Pcb;
 
 #[derive(Debug)]
 pub struct LinkedBlocks {
-	blocks: Vec<Block>,
+	pub blocks: Vec<Block>,
 }
 
 impl LinkedBlocks {
@@ -132,6 +132,26 @@ impl io::Write for LinkedBlocks {
 
 	fn flush(&mut self) -> io::Result<()> {
 		Ok(())
+	}
+}
+
+impl io::Read for &mut LinkedBlocks {
+	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+		if buf.is_empty() {
+			return Ok(0);
+		}
+
+		let mut n = 0;
+
+		for block in self.blocks.iter_mut() {
+			n += block.read(&mut buf[n..])?;
+
+			if n >= buf.len() {
+				break;
+			}
+		}
+
+		Ok(n)
 	}
 }
 

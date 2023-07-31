@@ -220,7 +220,7 @@ impl Header {
 				return Err(VerifyError::VersionMismatch);
 			}
 
-			if Checksum::calculate(buf).0 != 0 {
+			if !Checksum::verify(buf) {
 				return Err(VerifyError::VersionMismatch);
 			}
 
@@ -235,7 +235,7 @@ impl Header {
 	}
 }
 
-#[allow(clippy::all)]
+#[allow(dead_code, clippy::all)]
 mod private {
 	use crate::mem::*;
 	include!("generated.rs");

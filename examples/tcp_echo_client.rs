@@ -14,8 +14,8 @@ fn main() {
 
 	let mut rng = rand::thread_rng();
 	loop {
-		tx.send(rng.gen::<i32>()).unwrap();
-		let received = rx.recv().unwrap();
+		tx.send_blocking(rng.gen::<i32>()).unwrap();
+		let received = rx.recv_blocking().unwrap();
 
 		println!("Received: {received}");
 

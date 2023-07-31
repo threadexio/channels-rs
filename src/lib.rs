@@ -1,5 +1,5 @@
 #![doc = include_str!("../README.md")]
-#![allow(unknown_lints, dead_code)]
+#![allow(unknown_lints)]
 #![warn(
 	clippy::all,
 	clippy::style,
@@ -19,6 +19,7 @@
 	rustdoc::all,
 	rustdoc::broken_intra_doc_links
 )]
+#![allow(clippy::new_without_default, clippy::needless_doctest_main)]
 #![deny(missing_docs)]
 
 mod io;
