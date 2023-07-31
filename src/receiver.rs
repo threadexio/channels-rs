@@ -175,6 +175,7 @@ mod sync_impl {
 				let header = get_header(block, &mut self.pcb)?;
 
 				let payload_len = header.length.to_payload_length();
+				block.ensure_payload_capacity(payload_len.as_usize());
 				self.reader.read_exact(
 					&mut block.payload_mut()
 						[..payload_len.as_usize()],
@@ -256,6 +257,7 @@ mod async_tokio_impl {
 				let header = get_header(block, &mut self.pcb)?;
 
 				let payload_len = header.length.to_payload_length();
+				block.ensure_payload_capacity(payload_len.as_usize());
 				self.reader
 					.read_exact(
 						&mut block.payload_mut()
@@ -276,12 +278,7 @@ mod async_tokio_impl {
 				i += 1;
 			}
 
-			let t = self
-				.deserializer
-				.deserialize(&mut self.packet)
-				.map_err(RecvError::Serde)?;
-
-			Ok(t)
+			self.deserialize_packets_to_t()
 		}
 	}
 }

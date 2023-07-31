@@ -80,6 +80,19 @@ impl Block {
 		self.packet.resize(self.capacity() + extra, 0);
 	}
 
+	/// Ensure the payload part of the buffer can fit at least `capacity`
+	/// bytes.
+	///
+	/// This function will allocate if there is not enough capacity.
+	pub fn ensure_payload_capacity(&mut self, capacity: usize) {
+		if self.payload().len() >= capacity {
+			return;
+		}
+
+		let delta = capacity - self.payload().len();
+		self.grow(delta);
+	}
+
 	/// Get the entire packet up to the position of the payload cursor.
 	pub fn packet(&self) -> &[u8] {
 		let l = self.packet_length().as_usize();
