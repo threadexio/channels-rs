@@ -32,89 +32,154 @@
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 
-use std::io::{Read, Result, Write};
-
 /// The read half of `T`. This half can be sent to other threads as it
 /// implements [`Send`] and [`Sync`].
 #[derive(Clone)]
-pub struct ReadHalf<T>(Arc<Mutex<T>>)
-where
-	T: Read;
+pub struct ReadHalf<T>(Arc<Mutex<T>>);
 
-impl<T> ReadHalf<T>
-where
-	T: Read,
-{
+impl<T> ReadHalf<T> {
 	fn inner_mut(&mut self) -> MutexGuard<T> {
 		match self.0.lock() {
 			Ok(v) => v,
 			Err(e) => e.into_inner(),
 		}
 	}
-}
 
-impl<T> Read for ReadHalf<T>
-where
-	T: Read,
-{
-	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-		self.inner_mut().read(buf)
+	/// Check whether `r` is the [`WriteHalf`] for this [`ReadHalf`].
+	pub fn is_other(&self, w: &WriteHalf<T>) -> bool {
+		are_same(self, w)
 	}
 }
 
 /// The write half of `T`. This half can be sent to other threads as it
 /// implements [`Send`] and [`Sync`].
 #[derive(Clone)]
-pub struct WriteHalf<T>(Arc<Mutex<T>>)
-where
-	T: Write;
+pub struct WriteHalf<T>(Arc<Mutex<T>>);
 
-impl<T> WriteHalf<T>
-where
-	T: Write,
-{
+impl<T> WriteHalf<T> {
 	fn inner_mut(&mut self) -> MutexGuard<T> {
 		match self.0.lock() {
 			Ok(v) => v,
 			Err(e) => e.into_inner(),
 		}
 	}
-}
 
-impl<T> Write for WriteHalf<T>
-where
-	T: Write,
-{
-	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		self.inner_mut().write(buf)
-	}
-
-	fn flush(&mut self) -> Result<()> {
-		self.inner_mut().flush()
+	/// Check whether `r` is the [`ReadHalf`] for this [`WriteHalf`].
+	pub fn is_other(&self, r: &ReadHalf<T>) -> bool {
+		are_same(r, self)
 	}
 }
 
-/// Split a [`Read`] and [`Write`] type `t` to its 2 halves.
-pub fn split<T>(rw: T) -> (ReadHalf<T>, WriteHalf<T>)
-where
-	T: Read + Write,
-{
+fn are_same<T>(r: &ReadHalf<T>, w: &WriteHalf<T>) -> bool {
+	Arc::ptr_eq(&r.0, &w.0)
+}
+
+mod sync_impl {
+	use super::*;
+
+	use std::io;
+
+	impl<T> io::Read for ReadHalf<T>
+	where
+		T: io::Read,
+	{
+		fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+			self.inner_mut().read(buf)
+		}
+	}
+
+	impl<T> io::Write for WriteHalf<T>
+	where
+		T: io::Write,
+	{
+		fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+			self.inner_mut().write(buf)
+		}
+
+		fn flush(&mut self) -> io::Result<()> {
+			self.inner_mut().flush()
+		}
+	}
+}
+
+#[cfg(feature = "tokio")]
+mod async_tokio_impl {
+	use super::*;
+
+	use core::marker::Unpin;
+	use core::pin::Pin;
+
+	use std::io::Result;
+	use std::task::{Context, Poll};
+
+	use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+
+	impl<R> AsyncRead for ReadHalf<R>
+	where
+		R: AsyncRead + Unpin,
+	{
+		fn poll_read(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+			buf: &mut ReadBuf<'_>,
+		) -> Poll<Result<()>> {
+			let mut inner = self.inner_mut();
+			Pin::new(&mut *inner).poll_read(cx, buf)
+		}
+	}
+
+	impl<W> AsyncWrite for ReadHalf<W>
+	where
+		W: AsyncWrite + Unpin,
+	{
+		fn poll_write(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+			buf: &[u8],
+		) -> Poll<Result<usize>> {
+			let mut inner = self.inner_mut();
+			Pin::new(&mut *inner).poll_write(cx, buf)
+		}
+
+		fn poll_flush(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+		) -> Poll<Result<()>> {
+			let mut inner = self.inner_mut();
+			Pin::new(&mut *inner).poll_flush(cx)
+		}
+
+		fn poll_shutdown(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+		) -> Poll<Result<()>> {
+			let mut inner = self.inner_mut();
+			Pin::new(&mut *inner).poll_shutdown(cx)
+		}
+	}
+}
+
+/// Split a type `T` to its 2 halves.
+pub fn split<T>(rw: T) -> (ReadHalf<T>, WriteHalf<T>) {
 	let rw = Arc::new(Mutex::new(rw));
 
 	(ReadHalf(Arc::clone(&rw)), WriteHalf(rw))
 }
 
 /// Join back the 2 halves and return the original object passed to
-/// the [`split`] function. Returns `None` if `r` and `w` were not
-/// obtained from the same [`split`] call.
+/// the [`split`] function.
+///
+/// Returns ownership of the 2 halves if they could not be joined.
+/// The only reason for this function returning `Err` is that `r`
+/// and `w` were not made from the same `T`.
 #[allow(clippy::missing_panics_doc)]
 // This is needed because of crate lint level. This function does not actually panic.
-pub fn join<T>(r: ReadHalf<T>, w: WriteHalf<T>) -> Option<T>
-where
-	T: Read + Write,
-{
-	if !Arc::ptr_eq(&r.0, &w.0) {
-		return None;
+pub fn join<T>(
+	r: ReadHalf<T>,
+	w: WriteHalf<T>,
+) -> Result<T, (ReadHalf<T>, WriteHalf<T>)> {
+	if !are_same(&r, &w) {
+		return Err((r, w));
 	}
 
 	// `r` and `w` point to the same object, so we can safely join
@@ -133,7 +198,7 @@ where
 
 	// Destruct the mutex
 	match inner.into_inner() {
-		Ok(v) => Some(v),
-		Err(e) => Some(e.into_inner()),
+		Ok(v) => Ok(v),
+		Err(e) => Ok(e.into_inner()),
 	}
 }

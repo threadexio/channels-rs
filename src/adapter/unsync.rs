@@ -27,77 +27,133 @@
 use core::cell::UnsafeCell;
 use std::rc::Rc;
 
-use std::io::{Read, Result, Write};
-
 use crate::util::PhantomUnsend;
 
 /// The read half of `T`. This half can **NOT** be sent to other
 /// threads as it implements neither [`Send`] nor [`Sync`].
 #[derive(Clone)]
-pub struct ReadHalf<T>
-where
-	T: Read,
-{
+pub struct ReadHalf<T> {
 	inner: Rc<UnsafeCell<T>>,
 	_marker: PhantomUnsend,
 }
 
-impl<T> ReadHalf<T>
-where
-	T: Read,
-{
+impl<T> ReadHalf<T> {
 	fn inner_mut(&self) -> &mut T {
 		unsafe { self.inner.get().as_mut().unwrap() }
 	}
-}
 
-impl<T> Read for ReadHalf<T>
-where
-	T: Read,
-{
-	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-		self.inner_mut().read(buf)
+	/// Check whether `r` is the [`WriteHalf`] for this [`ReadHalf`].
+	pub fn is_other(&self, w: &WriteHalf<T>) -> bool {
+		are_same(self, w)
 	}
 }
 
 /// The write half of `T`. This half can **NOT** be sent to other
 /// threads as it implements neither [`Send`] nor [`Sync`].
 #[derive(Clone)]
-pub struct WriteHalf<T>
-where
-	T: Write,
-{
+pub struct WriteHalf<T> {
 	inner: Rc<UnsafeCell<T>>,
 	_marker: PhantomUnsend,
 }
 
-impl<T> WriteHalf<T>
-where
-	T: Write,
-{
+impl<T> WriteHalf<T> {
 	fn inner_mut(&mut self) -> &mut T {
 		unsafe { self.inner.get().as_mut().unwrap() }
 	}
-}
 
-impl<T> Write for WriteHalf<T>
-where
-	T: Write,
-{
-	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		self.inner_mut().write(buf)
-	}
-
-	fn flush(&mut self) -> Result<()> {
-		self.inner_mut().flush()
+	/// Check whether `r` is the [`ReadHalf`] for this [`WriteHalf`].
+	pub fn is_other(&self, r: &ReadHalf<T>) -> bool {
+		are_same(r, self)
 	}
 }
 
-/// Split a [`Read`] and [`Write`] type `t` to its 2 halves.
-pub fn split<T>(rw: T) -> (ReadHalf<T>, WriteHalf<T>)
-where
-	T: Read + Write,
-{
+fn are_same<T>(r: &ReadHalf<T>, w: &WriteHalf<T>) -> bool {
+	Rc::ptr_eq(&r.inner, &w.inner)
+}
+
+mod sync_impl {
+	use super::*;
+
+	use std::io;
+
+	impl<T> io::Read for ReadHalf<T>
+	where
+		T: io::Read,
+	{
+		fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+			self.inner_mut().read(buf)
+		}
+	}
+
+	impl<T> io::Write for WriteHalf<T>
+	where
+		T: io::Write,
+	{
+		fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+			self.inner_mut().write(buf)
+		}
+
+		fn flush(&mut self) -> io::Result<()> {
+			self.inner_mut().flush()
+		}
+	}
+}
+
+#[cfg(feature = "tokio")]
+mod async_tokio_impl {
+	use super::*;
+
+	use core::marker::Unpin;
+	use core::pin::Pin;
+
+	use std::io::Result;
+	use std::task::{Context, Poll};
+
+	use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+
+	impl<R> AsyncRead for ReadHalf<R>
+	where
+		R: AsyncRead + Unpin,
+	{
+		fn poll_read(
+			self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+			buf: &mut ReadBuf<'_>,
+		) -> Poll<Result<()>> {
+			Pin::new(self.inner_mut()).poll_read(cx, buf)
+		}
+	}
+
+	impl<W> AsyncWrite for ReadHalf<W>
+	where
+		W: AsyncWrite + Unpin,
+	{
+		fn poll_write(
+			self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+			buf: &[u8],
+		) -> Poll<Result<usize>> {
+			Pin::new(self.inner_mut()).poll_write(cx, buf)
+		}
+
+		fn poll_flush(
+			self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+		) -> Poll<Result<()>> {
+			Pin::new(self.inner_mut()).poll_flush(cx)
+		}
+
+		fn poll_shutdown(
+			self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+		) -> Poll<Result<()>> {
+			Pin::new(self.inner_mut()).poll_shutdown(cx)
+		}
+	}
+}
+
+/// Split a type `T` to its 2 halves.
+pub fn split<T>(rw: T) -> (ReadHalf<T>, WriteHalf<T>) {
 	let rw = Rc::new(UnsafeCell::new(rw));
 
 	(
@@ -114,12 +170,12 @@ where
 /// obtained from the same [`split`] call.
 #[allow(clippy::missing_panics_doc)]
 // This is needed because of crate lint level. This function does not actually panic.
-pub fn join<T>(r: ReadHalf<T>, w: WriteHalf<T>) -> Option<T>
-where
-	T: Read + Write,
-{
-	if !Rc::ptr_eq(&r.inner, &w.inner) {
-		return None;
+pub fn join<T>(
+	r: ReadHalf<T>,
+	w: WriteHalf<T>,
+) -> Result<T, (ReadHalf<T>, WriteHalf<T>)> {
+	if !are_same(&r, &w) {
+		return Err((r, w));
 	}
 
 	// `r` and `w` point to the same object, so we can safely join
@@ -139,5 +195,5 @@ where
 	// Destruct the `UnsafeCell`
 	let t = inner.into_inner();
 
-	Some(t)
+	Ok(t)
 }
