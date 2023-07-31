@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 use crate::error::{RecvError, VerifyError};
 use crate::io::Reader;
 use crate::packet::{consts::*, header::*, Block, LinkedBlocks, Pcb};
-use crate::serdes::{self, Deserializer};
+use crate::serdes::*;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
@@ -23,10 +23,10 @@ pub struct Receiver<T, R, D> {
 }
 
 #[cfg(feature = "serde")]
-impl<T, R> Receiver<T, R, serdes::Bincode> {
+impl<T, R> Receiver<T, R, Bincode> {
 	/// Creates a new [`Receiver`] from `reader`.
 	pub fn new(reader: R) -> Self {
-		Self::with_deserializer(reader, serdes::Bincode)
+		Self::with_deserializer(reader, Bincode)
 	}
 }
 
@@ -80,6 +80,7 @@ fn get_header(
 }
 
 /// Prepare the receiver to read the next packet.
+#[allow(unused_variables)]
 fn prepare_for_next_packet<R>(reader: &mut Reader<R>, pcb: &mut Pcb) {
 	pcb.next();
 

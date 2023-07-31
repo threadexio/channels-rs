@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 use crate::error::SendError;
 use crate::io::Writer;
 use crate::packet::{consts::*, LinkedBlocks, Pcb};
-use crate::serdes::{self, Serializer};
+use crate::serdes::*;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -24,10 +24,10 @@ pub struct Sender<T, W, S> {
 }
 
 #[cfg(feature = "serde")]
-impl<T, W> Sender<T, W, serdes::Bincode> {
+impl<T, W> Sender<T, W, Bincode> {
 	/// Creates a new [`Sender`] from `writer`.
 	pub fn new(writer: W) -> Self {
-		Self::with_serializer(writer, serdes::Bincode)
+		Self::with_serializer(writer, Bincode)
 	}
 }
 

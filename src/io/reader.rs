@@ -78,6 +78,7 @@ mod async_tokio_impl {
 	where
 		R: AsyncRead + Unpin,
 	{
+		#[allow(unused_variables)]
 		fn poll_read(
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
