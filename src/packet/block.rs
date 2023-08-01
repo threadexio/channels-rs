@@ -10,6 +10,7 @@ use super::header::*;
 /// A visualization of the buffer is:
 ///
 /// ```not_rust
+/// [                  capacity                  ]
 /// [  header  |             payload             ]
 /// [  header  |       filled      |  remaining  ]
 /// [  header  |  read  |  unread  |             ]
@@ -24,81 +25,91 @@ pub struct Block {
 }
 
 impl Block {
+	/// Create a new block with `0` payload capacity.
 	pub fn new() -> Self {
-		Self::with_payload_capacity(0)
+		Self::with_payload_capacity(
+			PayloadLength::from_usize(0).unwrap(),
+		)
 	}
 
-	pub fn with_payload_capacity(capacity: usize) -> Self {
+	/// Create a new block with `capacity` payload capacity.
+	pub fn with_payload_capacity(capacity: PayloadLength) -> Self {
+		Self::with_packet_capacity(capacity.to_packet_length())
+	}
+
+	/// Create a new block with `capacity` packet capacity.
+	pub fn with_packet_capacity(capacity: PacketLength) -> Self {
 		Self {
-			packet: vec![0u8; HEADER_SIZE + capacity],
+			packet: vec![0u8; capacity.as_usize()],
 			payload_read_pos: 0,
 			payload_write_pos: 0,
 		}
 	}
+}
 
-	/// Clear the payload from the buffer.
-	pub fn clear(&mut self) {
-		self.payload_read_pos = 0;
-		self.payload_write_pos = 0;
+impl Block {
+	/// Get the total number of bytes this block can currently hold.
+	pub fn packet_capacity(&self) -> PacketLength {
+		// SAFETY: `self.packet` is always smaller than `MAX_PACKET_SIZE`.
+		PacketLength::from_usize(self.packet.len()).unwrap()
 	}
 
-	/// Get the total number of bytes this packet can currently hold.
-	///
-	/// Includes the header.
-	pub fn capacity(&self) -> usize {
-		self.packet.len()
+	/// Get the total number of bytes this block's payload buffer can
+	/// currently hold.
+	pub fn payload_capacity(&self) -> PayloadLength {
+		PayloadLength::from_usize(self.payload().len()).unwrap()
 	}
 
-	/// Get the length of the current payload inside the packet.
-	pub fn payload_length(&self) -> PayloadLength {
-		PayloadLength::from_usize(self.payload_write_pos).unwrap()
-	}
-
-	/// Get the length of the current packet.
-	pub fn packet_length(&self) -> PacketLength {
-		self.payload_length().to_packet_length()
-	}
-
-	/// Check whether the payload of this block is empty.
-	pub fn is_payload_empty(&self) -> bool {
-		self.payload_write_pos == 0
-	}
-
-	/// Check whether the payload of this block is full.
-	pub fn is_payload_full(&self) -> bool {
-		self.payload_write_pos == self.payload().len()
-	}
-
-	/// Grow the packet buffer by `extra` bytes.
-	///
-	/// Returns the new size of the packet.
-	pub fn grow(&mut self, extra: usize) {
-		if extra == 0 {
+	/// Grow the payload buffer to fit at least `new_capacity` bytes.
+	pub fn grow_payload_to(&mut self, new_capacity: PayloadLength) {
+		if new_capacity <= self.payload_capacity() {
 			return;
 		}
 
-		self.packet.resize(self.capacity() + extra, 0);
-	}
-
-	/// Ensure the payload part of the buffer can fit at least `capacity`
-	/// bytes.
-	///
-	/// This function will allocate if there is not enough capacity.
-	pub fn ensure_payload_capacity(&mut self, capacity: usize) {
-		if self.payload().len() >= capacity {
-			return;
+		let mut actual_new_capacity =
+			self.payload_capacity().as_usize();
+		if actual_new_capacity == 0 {
+			actual_new_capacity = 1;
 		}
 
-		let delta = capacity - self.payload().len();
-		self.grow(delta);
+		let new_capacity = new_capacity.as_usize();
+		while actual_new_capacity < new_capacity {
+			actual_new_capacity *= 2;
+
+			if actual_new_capacity > MAX_PAYLOAD_SIZE {
+				actual_new_capacity = MAX_PAYLOAD_SIZE;
+				break;
+			}
+		}
+
+		// SAFETY: actual_new_capacity <= MAX_PAYLOAD_SIZE
+		let actual_new_capacity =
+			PayloadLength::from_usize(actual_new_capacity).unwrap();
+
+		self.grow_payload_to_exact(actual_new_capacity);
 	}
 
-	/// Get the entire packet up to the position of the payload cursor.
-	pub fn packet(&self) -> &[u8] {
-		let l = self.packet_length().as_usize();
-		&self.packet[..l]
+	/// Grow the packet to fit `new_capacity` bytes.
+	pub fn grow_packet_to(&mut self, new_capacity: PacketLength) {
+		self.grow_payload_to(new_capacity.to_payload_length())
 	}
 
+	/// Grow the payload buffer to fit exactly `new_capacity` bytes.
+	fn grow_payload_to_exact(&mut self, new_capacity: PayloadLength) {
+		self.grow_packet_to_exact(new_capacity.to_packet_length())
+	}
+
+	/// Grow the packet to fit exactly `new_capacity` bytes.
+	fn grow_packet_to_exact(&mut self, new_capacity: PacketLength) {
+		// SAFETY: `self.packet` will never exceed `MAX_PACKET_SIZE`
+		//         because: `new_capacity <= MAX_PACKET_SIZE`.
+		//
+		//         See: `PacketLength`
+		self.packet.resize(new_capacity.as_usize(), 0);
+	}
+}
+
+impl Block {
 	/// Advance the write head of this buffer by `n` bytes.
 	///
 	/// # Panics
@@ -120,6 +131,40 @@ impl Block {
 		assert!(n <= self.unread_payload().len());
 		self.payload_read_pos += n;
 	}
+
+	/// Clear the payload buffer.
+	///
+	/// This method just resets the cursor positions to `0`.
+	pub fn clear_payload(&mut self) {
+		self.payload_read_pos = 0;
+		self.payload_write_pos = 0;
+	}
+}
+
+impl Block {
+	/// Get the length of the payload inside the buffer.
+	pub fn payload_length(&self) -> PayloadLength {
+		// SAFETY: `self.payload_write_pos` is always guaranteed to be
+		//         less than `MAX_PAYLOAD_SIZE`.
+		PayloadLength::from_usize(self.payload_write_pos).unwrap()
+	}
+
+	/// Get the length of the current packet.
+	///
+	/// Equivalent to: `block.payload_length().to_packet_length()`.
+	pub fn packet_length(&self) -> PacketLength {
+		self.payload_length().to_packet_length()
+	}
+
+	/// Get a slice to the entire packet in the buffer.
+	///
+	/// Only include the `header` and `filled` sections.
+	///
+	/// See: [`Block`]
+	pub fn packet(&self) -> &[u8] {
+		let l = self.packet_length().as_usize();
+		&self.packet[..l]
+	}
 }
 
 impl Block {
@@ -134,53 +179,73 @@ impl Block {
 	}
 
 	/// Get the slice corresponding to the payload.
+	///
+	/// The returned slice's length is `<= MAX_PAYLOAD_SIZE`.
 	pub fn payload(&self) -> &[u8] {
 		&self.packet[Header::SIZE..]
 	}
 
 	/// Get the mutable slice corresponding to the payload.
+	///
+	/// See: [`payload`]
 	pub fn payload_mut(&mut self) -> &mut [u8] {
 		&mut self.packet[Header::SIZE..]
 	}
 
 	/// Get the slice corresponding to the filled payload.
+	///
+	/// The returned slice's length is `<= MAX_PAYLOAD_SIZE`
 	pub fn filled_payload(&self) -> &[u8] {
 		&self.payload()[..self.payload_write_pos]
 	}
 
 	/// Get the mutable slice corresponding to the filled payload.
+	///
+	/// See: [`filled_payload`]
 	pub fn filled_payload_mut(&mut self) -> &mut [u8] {
 		let end = self.payload_write_pos;
 		&mut self.payload_mut()[..end]
 	}
 
 	/// Get the slice corresponding to the remaining payload.
+	///
+	/// The returned slice's length is `<= MAX_PAYLOAD_SIZE`
 	pub fn remaining_payload(&self) -> &[u8] {
 		&self.payload()[self.payload_write_pos..]
 	}
 	/// Get the mutable slice corresponding to the remaining payload.
+	///
+	/// See: [`remaining_payload`]
 	pub fn remaining_payload_mut(&mut self) -> &mut [u8] {
 		let payload_end = self.payload_write_pos;
 		&mut self.payload_mut()[payload_end..]
 	}
 
 	/// Get the slice corresponding to the read payload.
+	///
+	/// The returned slice's length is `<= MAX_PAYLOAD_SIZE`
 	pub fn read_payload(&self) -> &[u8] {
 		&self.payload()[..self.payload_read_pos]
 	}
 
 	/// Get the mutable slice corresponding to the read payload.
+	///
+	/// See: [`read_payload`]
 	pub fn read_payload_mut(&mut self) -> &[u8] {
 		let end = self.payload_read_pos;
 		&mut self.payload_mut()[..end]
 	}
 
 	/// Get the slice corresponding to the filled payload.
+	///
+	/// The returned slice's length is `<= MAX_PAYLOAD_SIZE`
 	pub fn unread_payload(&self) -> &[u8] {
 		&self.payload()[self.payload_read_pos..self.payload_write_pos]
 	}
 
 	/// Get the mutable slice corresponding to the filled payload.
+	///
+	/// See: [`unread_payload`]
 	pub fn unread_payload_mut(&mut self) -> &mut [u8] {
 		let start = self.payload_read_pos;
 		let end = self.payload_write_pos;
@@ -196,15 +261,22 @@ impl io::Write for Block {
 			return Ok(0);
 		}
 
-		if self.remaining_payload().len() < buf.len() {
-			let extra = buf.len() - self.remaining_payload().len();
+		// if the available space in the payload buffer is less than
+		// the length of the buffer we want to write, then calculate
+		// their difference and allocate
 
-			let new_size =
-				cmp::min(self.capacity() + extra, MAX_PACKET_SIZE);
+		let new_capacity = cmp::min(
+			self.filled_payload().len() + buf.len(),
+			MAX_PAYLOAD_SIZE,
+		);
+		let new_capacity =
+			PayloadLength::from_usize(new_capacity).unwrap();
 
-			let delta = new_size - self.capacity();
-			self.grow(delta);
-		}
+		self.grow_payload_to(new_capacity);
+
+		//self.ensure_payload_capacity(
+		//	self.filled_payload().len() + buf.len(),
+		//);
 
 		let n = copy_min_len(buf, self.remaining_payload_mut());
 		self.advance_write(n);

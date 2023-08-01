@@ -36,7 +36,7 @@ fn server() {
 fn client() {
 	let s = TcpStream::connect(ADDR).unwrap();
 	let (mut tx, mut rx) =
-		channels::channel(s.try_clone().unwrap(), s);
+		channels::channel::<Data, _, _>(s.try_clone().unwrap(), s);
 
 	for i in 0..ITER {
 		let data = Data {
@@ -45,7 +45,7 @@ fn client() {
 				.collect(),
 		};
 
-		tx.send_blocking(data.clone()).unwrap();
+		tx.send_blocking(&data).unwrap();
 
 		assert_eq!(rx.recv_blocking().unwrap(), data);
 	}

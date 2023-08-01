@@ -48,7 +48,7 @@ function proto.dissector(buf, pinfo, tree)
 
 	local length_tree = subtree:add_packet_field(proto.fields.length, length, ENC_BIG_ENDIAN)
 	length_tree:add("[Header length]: "  .. header_length)
-	length_tree:add("[Payload length]: " .. (buf:len() - header_length))
+	length_tree:add("[Payload length]: " .. (length:uint() - header_length))
 
 	subtree:add_packet_field(proto.fields.checksum, checksum, ENC_BIG_ENDIAN)
 

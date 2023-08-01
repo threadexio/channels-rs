@@ -9,32 +9,49 @@ pub struct LinkedBlocks {
 }
 
 impl LinkedBlocks {
+	/// Create a new empty list.
+	///
+	/// This method does not allocate.
 	pub fn new() -> Self {
 		Self { blocks: Vec::new() }
 	}
 
-	pub fn with_payload_capacity(capacity: usize) -> Self {
-		let mut list = Self { blocks: Vec::new() };
-
-		list.ensure_capacity(capacity);
-
+	/// Create a new list with `capacity` bytes of total payload capacity.
+	pub fn with_total_payload_capacity(capacity: usize) -> Self {
+		let mut list = Self::new();
+		list.reserve_payload(capacity);
 		list
 	}
+}
 
-	/// Calculate the current capacity of the list.
-	pub fn total_capacity(&self) -> usize {
-		self.blocks.iter().map(|block| block.capacity()).sum()
+impl LinkedBlocks {
+	/// Calculate the total capacity of the list.
+	pub fn total_packet_capacity(&self) -> usize {
+		self.blocks
+			.iter()
+			.map(|block| block.packet_capacity().as_usize())
+			.sum()
 	}
 
-	/// Ensure the list has enough capacity to hold `capacity` bytes
-	/// reallocating if necessary.
-	pub fn ensure_capacity(&mut self, capacity: usize) {
-		let cur_capacity = self.total_capacity();
-		if cur_capacity >= capacity {
+	/// Calculate the total payload capacity of the list.
+	pub fn total_payload_capacity(&self) -> usize {
+		self.blocks
+			.iter()
+			.map(|block| block.payload_capacity().as_usize())
+			.sum()
+	}
+}
+
+impl LinkedBlocks {
+	/* /// Ensure the list has enough capacity to hold `capacity` bytes.
+	pub fn reserve_packet(&mut self, new_capacity: usize) {
+		let capacity = self.total_packet_capacity();
+
+		if new_capacity <= capacity {
 			return;
 		}
 
-		let delta_capacity = capacity - cur_capacity;
+		let delta_capacity = new_capacity - capacity;
 
 		let n_full_blocks = delta_capacity / MAX_PACKET_SIZE;
 		let extra_bytes = delta_capacity % MAX_PACKET_SIZE;
@@ -50,20 +67,70 @@ impl LinkedBlocks {
 		self.blocks.reserve(n_blocks);
 
 		for _ in 0..n_full_blocks {
-			self.blocks
-				.push(Block::with_payload_capacity(MAX_PAYLOAD_SIZE));
+			self.blocks.push(Block::with_payload_capacity(
+				PayloadLength::from_usize(MAX_PAYLOAD_SIZE).unwrap(),
+			));
 		}
 
 		if extra_bytes != 0 {
 			self.blocks
 				.push(Block::with_payload_capacity(extra_bytes));
 		}
-	}
+	} */
 
-	pub fn clear_all(&mut self) {
-		self.blocks.iter_mut().for_each(|block| block.clear());
-	}
+	/// Reserve enough space for the list to be able to hold a total
+	/// of `new_capacity` bytes worth of payload.
+	pub fn reserve_payload(&mut self, new_capacity: usize) {
+		let capacity = self.total_payload_capacity();
 
+		if new_capacity <= capacity {
+			return;
+		}
+		let delta = new_capacity - capacity;
+		let n_full_blocks = delta / MAX_PAYLOAD_SIZE;
+		let extra_bytes = delta % MAX_PAYLOAD_SIZE;
+
+		let n_blocks = {
+			if extra_bytes != 0 {
+				n_full_blocks + 1
+			} else {
+				n_full_blocks
+			}
+		};
+
+		self.blocks.reserve(n_blocks);
+
+		// allocate the blocks
+		let max_payload_size =
+			PayloadLength::from_usize(MAX_PAYLOAD_SIZE).unwrap();
+		for _ in 0..n_full_blocks {
+			let block =
+				Block::with_payload_capacity(max_payload_size);
+			self.blocks.push(block);
+		}
+
+		// allocate the extras
+		if extra_bytes != 0 {
+			// SAFETY: extra_bytes = delta % MAX_PAYLOAD_SIZE
+			//     <=> extra_bytes < MAX_PAYLOAD_SIZE
+			let l = PayloadLength::from_usize(extra_bytes).unwrap();
+
+			let block = Block::with_payload_capacity(l);
+			self.blocks.push(block);
+		}
+	}
+}
+
+impl LinkedBlocks {
+	/// Clear the payload buffer of every block in the lists.
+	pub fn clear_payload(&mut self) {
+		self.blocks
+			.iter_mut()
+			.for_each(|block| block.clear_payload());
+	}
+}
+
+impl LinkedBlocks {
 	/// Finalize the blocks and prepare them to be sent.
 	///
 	/// Returns the blocks that need to be sent.
@@ -81,9 +148,9 @@ impl LinkedBlocks {
 
 			pcb.id = pcb.id.next();
 
-			if block.is_payload_full() {
+			if block.remaining_payload().is_empty() {
 				if let Some(next_block) = block_iter.peek() {
-					if !next_block.is_payload_empty() {
+					if !next_block.filled_payload().is_empty() {
 						header.flags |= Flags::MORE_DATA;
 						end_block_idx += 1;
 					}

@@ -36,8 +36,8 @@ impl<T, W, S> Sender<T, W, S> {
 	pub fn with_serializer(writer: W, serializer: S) -> Self {
 		Self {
 			_marker: PhantomData,
-			packet: LinkedBlocks::with_payload_capacity(
-				MAX_PACKET_SIZE,
+			packet: LinkedBlocks::with_total_payload_capacity(
+				MAX_PAYLOAD_SIZE,
 			),
 			pcb: Pcb::default(),
 
@@ -113,7 +113,7 @@ mod sync_impl {
 			D: Borrow<T>,
 		{
 			let data = data.borrow();
-			self.packet.clear_all();
+			self.packet.clear_payload();
 
 			self.serialize_t_to_packets(data)?;
 			let blocks = self.packet.finalize(&mut self.pcb);
@@ -168,7 +168,7 @@ mod async_tokio_impl {
 			D: Borrow<T>,
 		{
 			let data = data.borrow();
-			self.packet.clear_all();
+			self.packet.clear_payload();
 
 			self.serialize_t_to_packets(data)?;
 			let blocks = self.packet.finalize(&mut self.pcb);

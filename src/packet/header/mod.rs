@@ -3,16 +3,25 @@ use crate::util::flags;
 
 use super::consts::*;
 
+/// The length of one packet.
+///
+/// The following holds true for this type:
+///
+/// - `HEADER_SIZE <= l <= MAX_PACKET_SIZE`
 #[derive(
 	Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord,
 )]
 pub struct PacketLength(u16);
 
 impl PacketLength {
+	/// Create a new payload length from `l`.
 	pub fn from_u16(l: u16) -> Option<Self> {
 		Self::from_usize(usize::from(l))
 	}
 
+	/// Create a new payload length from `l`.
+	///
+	/// `l` must be in the range `HEADER_SIZE..=MAX_PACKET_SIZE`.
 	pub fn from_usize(l: usize) -> Option<Self> {
 		if (HEADER_SIZE..=MAX_PACKET_SIZE).contains(&l) {
 			// SAFETY: HEADER_SIZE <= l <= MAX_PACKET_SIZE
@@ -39,16 +48,27 @@ impl PacketLength {
 	}
 }
 
+/// The length of the payload inside one packet.
+///
+/// The following holds true for this type:
+///
+/// - `0 <= l <= MAX_PAYLOAD_SIZE`
 #[derive(
 	Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord,
 )]
 pub struct PayloadLength(u16);
 
 impl PayloadLength {
+	/// Create a new payload length from `l`.
+	///
+	/// `l` must be `<= MAX_PAYLOAD_SIZE`.
 	pub fn from_u16(l: u16) -> Option<Self> {
 		Self::from_usize(usize::from(l))
 	}
 
+	/// Create a new payload length from `l`.
+	///
+	/// `l` must be `<= MAX_PAYLOAD_SIZE`.
 	pub fn from_usize(l: usize) -> Option<Self> {
 		if l <= MAX_PAYLOAD_SIZE {
 			// SAFETY: MAX_PAYLOAD_SIZE <= u16::MAX

@@ -30,8 +30,6 @@ fn server() {
 
 		tx.send_blocking(data).unwrap();
 	}
-
-	dbg!(tx.stats(), rx.stats());
 }
 
 fn client() {

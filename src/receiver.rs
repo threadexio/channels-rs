@@ -35,8 +35,8 @@ impl<T, R, D> Receiver<T, R, D> {
 	pub fn with_deserializer(reader: R, deserializer: D) -> Self {
 		Self {
 			_marker: PhantomData,
-			packet: LinkedBlocks::with_payload_capacity(
-				MAX_PACKET_SIZE,
+			packet: LinkedBlocks::with_total_payload_capacity(
+				MAX_PAYLOAD_SIZE,
 			),
 			pcb: Pcb::default(),
 
@@ -162,7 +162,7 @@ mod sync_impl {
 		pub fn recv_blocking(
 			&mut self,
 		) -> Result<T, RecvError<D::Error>> {
-			self.packet.clear_all();
+			self.packet.clear_payload();
 
 			let mut i = 0;
 			loop {
@@ -175,7 +175,7 @@ mod sync_impl {
 				let header = get_header(block, &mut self.pcb)?;
 
 				let payload_len = header.length.to_payload_length();
-				block.ensure_payload_capacity(payload_len.as_usize());
+				block.grow_payload_to(payload_len);
 				self.reader.read_exact(
 					&mut block.payload_mut()
 						[..payload_len.as_usize()],
@@ -244,7 +244,7 @@ mod async_tokio_impl {
 		pub async fn recv(
 			&mut self,
 		) -> Result<T, RecvError<D::Error>> {
-			self.packet.clear_all();
+			self.packet.clear_payload();
 
 			let mut i = 0;
 			loop {
@@ -257,7 +257,7 @@ mod async_tokio_impl {
 				let header = get_header(block, &mut self.pcb)?;
 
 				let payload_len = header.length.to_payload_length();
-				block.ensure_payload_capacity(payload_len.as_usize());
+				block.grow_payload_to(payload_len);
 				self.reader
 					.read_exact(
 						&mut block.payload_mut()
