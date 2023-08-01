@@ -1,8 +1,11 @@
 use core::any::type_name;
 use core::fmt;
 
-#[cfg(feature = "statistics")]
-use crate::stats;
+use crate::macros::*;
+
+cfg_statistics! {
+	use crate::stats;
+}
 
 pub struct Reader<R> {
 	inner: R,
@@ -35,41 +38,35 @@ impl<R> fmt::Debug for Reader<R> {
 		let mut s = f.debug_struct("Reader");
 		s.field("inner", &type_name::<R>());
 
-		#[cfg(feature = "statistics")]
-		s.field("stats", &self.stats);
+		cfg_statistics! {{
+			s.field("stats", &self.stats);
+		}}
 
 		s.finish()
 	}
 }
 
-mod sync_impl {
-	use super::*;
+use std::io::{Read, Result};
 
-	use std::io::{Read, Result};
+impl<R> Read for Reader<R>
+where
+	R: Read,
+{
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+		let i = self.inner.read(buf)?;
 
-	impl<R> Read for Reader<R>
-	where
-		R: Read,
-	{
-		fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-			let i = self.inner.read(buf)?;
-
-			#[cfg(feature = "statistics")]
+		cfg_statistics! {{
 			self.stats.add_received(i);
+		}}
 
-			Ok(i)
-		}
+		Ok(i)
 	}
 }
 
-#[cfg(feature = "tokio")]
-mod async_tokio_impl {
-	use super::*;
-
+cfg_tokio! {
 	use core::marker::Unpin;
 	use core::pin::Pin;
 
-	use std::io::Result;
 	use std::task::{ready, Context, Poll};
 
 	use tokio::io::{AsyncRead, ReadBuf};
@@ -96,8 +93,9 @@ mod async_tokio_impl {
 			// calculate the delta to find out how many bytes it read.
 			let delta_bytes = end - start;
 
-			#[cfg(feature = "statistics")]
-			self.stats.add_received(delta_bytes);
+			cfg_statistics! {{
+				self.stats.add_received(delta_bytes);
+			}}
 
 			Poll::Ready(result)
 		}

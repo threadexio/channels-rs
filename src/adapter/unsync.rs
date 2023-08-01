@@ -27,6 +27,7 @@
 use core::cell::UnsafeCell;
 use std::rc::Rc;
 
+use crate::macros::*;
 use crate::util::PhantomUnsend;
 
 /// The read half of `T`. This half can **NOT** be sent to other
@@ -71,42 +72,34 @@ fn are_same<T>(r: &ReadHalf<T>, w: &WriteHalf<T>) -> bool {
 	Rc::ptr_eq(&r.inner, &w.inner)
 }
 
-mod sync_impl {
-	use super::*;
+use std::io;
 
-	use std::io;
-
-	impl<T> io::Read for ReadHalf<T>
-	where
-		T: io::Read,
-	{
-		fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-			self.inner_mut().read(buf)
-		}
-	}
-
-	impl<T> io::Write for WriteHalf<T>
-	where
-		T: io::Write,
-	{
-		fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-			self.inner_mut().write(buf)
-		}
-
-		fn flush(&mut self) -> io::Result<()> {
-			self.inner_mut().flush()
-		}
+impl<T> io::Read for ReadHalf<T>
+where
+	T: io::Read,
+{
+	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+		self.inner_mut().read(buf)
 	}
 }
 
-#[cfg(feature = "tokio")]
-mod async_tokio_impl {
-	use super::*;
+impl<T> io::Write for WriteHalf<T>
+where
+	T: io::Write,
+{
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		self.inner_mut().write(buf)
+	}
 
+	fn flush(&mut self) -> io::Result<()> {
+		self.inner_mut().flush()
+	}
+}
+
+cfg_tokio! {
 	use core::marker::Unpin;
 	use core::pin::Pin;
 
-	use std::io::Result;
 	use std::task::{Context, Poll};
 
 	use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -119,7 +112,7 @@ mod async_tokio_impl {
 			self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
 			buf: &mut ReadBuf<'_>,
-		) -> Poll<Result<()>> {
+		) -> Poll<io::Result<()>> {
 			Pin::new(self.inner_mut()).poll_read(cx, buf)
 		}
 	}
@@ -132,21 +125,21 @@ mod async_tokio_impl {
 			self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
 			buf: &[u8],
-		) -> Poll<Result<usize>> {
+		) -> Poll<io::Result<usize>> {
 			Pin::new(self.inner_mut()).poll_write(cx, buf)
 		}
 
 		fn poll_flush(
 			self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
-		) -> Poll<Result<()>> {
+		) -> Poll<io::Result<()>> {
 			Pin::new(self.inner_mut()).poll_flush(cx)
 		}
 
 		fn poll_shutdown(
 			self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
-		) -> Poll<Result<()>> {
+		) -> Poll<io::Result<()>> {
 			Pin::new(self.inner_mut()).poll_shutdown(cx)
 		}
 	}

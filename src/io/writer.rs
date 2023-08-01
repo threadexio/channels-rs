@@ -1,8 +1,11 @@
 use core::any::type_name;
 use core::fmt;
 
-#[cfg(feature = "statistics")]
-use crate::stats;
+use crate::macros::*;
+
+cfg_statistics! {
+	use crate::stats;
+}
 
 pub struct Writer<W> {
 	inner: W,
@@ -35,8 +38,9 @@ impl<W> fmt::Debug for Writer<W> {
 		let mut s = f.debug_struct("Writer");
 		s.field("inner", &type_name::<W>());
 
-		#[cfg(feature = "statistics")]
-		s.field("stats", &self.stats);
+		cfg_statistics! {{
+			s.field("stats", &self.stats);
+		}}
 
 		s.finish()
 	}
@@ -54,8 +58,9 @@ mod sync_impl {
 		fn write(&mut self, buf: &[u8]) -> Result<usize> {
 			let i = self.inner.write(buf)?;
 
-			#[cfg(feature = "statistics")]
-			self.stats.add_sent(i);
+			cfg_statistics! {{
+				self.stats.add_sent(i);
+			}}
 
 			Ok(i)
 		}
@@ -66,10 +71,7 @@ mod sync_impl {
 	}
 }
 
-#[cfg(feature = "tokio")]
-mod async_tokio_impl {
-	use super::*;
-
+cfg_tokio! {
 	use std::io::Result;
 	use std::marker::Unpin;
 	use std::pin::Pin;
@@ -88,8 +90,9 @@ mod async_tokio_impl {
 		) -> Poll<Result<usize>> {
 			match Pin::new(&mut self.inner).poll_write(cx, buf) {
 				Poll::Ready(Ok(i)) => {
-					#[cfg(feature = "statistics")]
-					self.stats.add_sent(i);
+					cfg_statistics! {{
+						self.stats.add_sent(i);
+					}}
 
 					Poll::Ready(Ok(i))
 				},

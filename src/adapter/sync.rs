@@ -32,6 +32,8 @@
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 
+use crate::macros::*;
+
 /// The read half of `T`. This half can be sent to other threads as it
 /// implements [`Send`] and [`Sync`].
 #[derive(Clone)]
@@ -74,42 +76,34 @@ fn are_same<T>(r: &ReadHalf<T>, w: &WriteHalf<T>) -> bool {
 	Arc::ptr_eq(&r.0, &w.0)
 }
 
-mod sync_impl {
-	use super::*;
+use std::io;
 
-	use std::io;
-
-	impl<T> io::Read for ReadHalf<T>
-	where
-		T: io::Read,
-	{
-		fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-			self.inner_mut().read(buf)
-		}
-	}
-
-	impl<T> io::Write for WriteHalf<T>
-	where
-		T: io::Write,
-	{
-		fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-			self.inner_mut().write(buf)
-		}
-
-		fn flush(&mut self) -> io::Result<()> {
-			self.inner_mut().flush()
-		}
+impl<T> io::Read for ReadHalf<T>
+where
+	T: io::Read,
+{
+	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+		self.inner_mut().read(buf)
 	}
 }
 
-#[cfg(feature = "tokio")]
-mod async_tokio_impl {
-	use super::*;
+impl<T> io::Write for WriteHalf<T>
+where
+	T: io::Write,
+{
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		self.inner_mut().write(buf)
+	}
 
+	fn flush(&mut self) -> io::Result<()> {
+		self.inner_mut().flush()
+	}
+}
+
+cfg_tokio! {
 	use core::marker::Unpin;
 	use core::pin::Pin;
 
-	use std::io::Result;
 	use std::task::{Context, Poll};
 
 	use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -122,7 +116,7 @@ mod async_tokio_impl {
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
 			buf: &mut ReadBuf<'_>,
-		) -> Poll<Result<()>> {
+		) -> Poll<io::Result<()>> {
 			let mut inner = self.inner_mut();
 			Pin::new(&mut *inner).poll_read(cx, buf)
 		}
@@ -136,7 +130,7 @@ mod async_tokio_impl {
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
 			buf: &[u8],
-		) -> Poll<Result<usize>> {
+		) -> Poll<io::Result<usize>> {
 			let mut inner = self.inner_mut();
 			Pin::new(&mut *inner).poll_write(cx, buf)
 		}
@@ -144,7 +138,7 @@ mod async_tokio_impl {
 		fn poll_flush(
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
-		) -> Poll<Result<()>> {
+		) -> Poll<io::Result<()>> {
 			let mut inner = self.inner_mut();
 			Pin::new(&mut *inner).poll_flush(cx)
 		}
@@ -152,7 +146,7 @@ mod async_tokio_impl {
 		fn poll_shutdown(
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
-		) -> Poll<Result<()>> {
+		) -> Poll<io::Result<()>> {
 			let mut inner = self.inner_mut();
 			Pin::new(&mut *inner).poll_shutdown(cx)
 		}

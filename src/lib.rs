@@ -22,6 +22,9 @@
 #![allow(clippy::new_without_default, clippy::needless_doctest_main)]
 #![deny(missing_docs)]
 
+mod macros;
+use macros::*;
+
 mod io;
 mod mem;
 mod packet;
@@ -31,8 +34,9 @@ pub mod adapter;
 pub mod error;
 pub mod serdes;
 
-#[cfg(feature = "statistics")]
+cfg_statistics! {
 pub mod stats;
+}
 
 pub mod sender;
 pub use sender::Sender;
@@ -43,7 +47,8 @@ pub use receiver::Receiver;
 /// A tuple containing a [`Sender`] and a [`Receiver`].
 pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 
-#[cfg(feature = "serde")]
+cfg_serde! {
+
 /// Create a new channel.
 ///
 /// If your reader and writer are one type that does not support splitting
@@ -70,4 +75,6 @@ pub fn channel<T, R, W>(
 	w: W,
 ) -> Pair<T, R, W, serdes::Bincode, serdes::Bincode> {
 	(Sender::new(w), Receiver::new(r))
+}
+
 }

@@ -4,6 +4,7 @@ use core::marker::PhantomData;
 
 use crate::error::{RecvError, VerifyError};
 use crate::io::Reader;
+use crate::macros::*;
 use crate::packet::{consts::*, header::*, Block, LinkedBlocks, Pcb};
 use crate::serdes::*;
 
@@ -22,11 +23,12 @@ pub struct Receiver<T, R, D> {
 	deserializer: D,
 }
 
-#[cfg(feature = "serde")]
-impl<T, R> Receiver<T, R, Bincode> {
-	/// Creates a new [`Receiver`] from `reader`.
-	pub fn new(reader: R) -> Self {
-		Self::with_deserializer(reader, Bincode)
+cfg_serde! {
+	impl<T, R> Receiver<T, R, Bincode> {
+		/// Creates a new [`Receiver`] from `reader`.
+		pub fn new(reader: R) -> Self {
+			Self::with_deserializer(reader, Bincode)
+		}
 	}
 }
 
@@ -55,11 +57,14 @@ impl<T, R, D> Receiver<T, R, D> {
 	pub fn get_mut(&mut self) -> &mut R {
 		self.reader.get_mut()
 	}
+}
 
-	#[cfg(feature = "statistics")]
-	/// Get statistics on this [`Receiver`](Self).
-	pub fn stats(&self) -> &crate::stats::RecvStats {
-		&self.reader.stats
+cfg_statistics! {
+	impl<T, R, D> Receiver<T, R, D> {
+		/// Get statistics on this [`Receiver`](Self).
+		pub fn stats(&self) -> &crate::stats::RecvStats {
+			&self.reader.stats
+		}
 	}
 }
 
@@ -84,8 +89,9 @@ fn get_header(
 fn prepare_for_next_packet<R>(reader: &mut Reader<R>, pcb: &mut Pcb) {
 	pcb.next();
 
-	#[cfg(feature = "statistics")]
-	reader.stats.update_received_time();
+	cfg_statistics! {{
+		reader.stats.update_received_time();
+	}}
 }
 
 impl<T, R, D> Receiver<T, R, D>
@@ -146,7 +152,10 @@ mod sync_impl {
 		/// This method **will** block until the object has been fully
 		/// read.
 		///
-		/// For the async version of this method, see [`recv`].
+		#[cfg_attr(
+			feature = "tokio",
+			doc = "For the async version of this method, see [`Receiver::recv`]."
+		)]
 		///
 		/// # Example
 		/// ```no_run
@@ -211,10 +220,7 @@ mod sync_impl {
 	}
 }
 
-#[cfg(feature = "tokio")]
-mod async_tokio_impl {
-	use super::*;
-
+cfg_tokio! {
 	use core::marker::Unpin;
 
 	use tokio::io::{AsyncRead, AsyncReadExt};
@@ -227,7 +233,7 @@ mod async_tokio_impl {
 		/// Attempts to asynchronously receive an object of type `T`
 		/// from the reader.
 		///
-		/// For the blocking version of this method, see [`recv_blocking`].
+		/// For the blocking version of this method, see [`Receiver::recv_blocking`].
 		///
 		/// # Example
 		/// ```no_run

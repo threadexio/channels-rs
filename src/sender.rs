@@ -5,6 +5,7 @@ use core::marker::PhantomData;
 
 use crate::error::SendError;
 use crate::io::Writer;
+use crate::macros::*;
 use crate::packet::{consts::*, LinkedBlocks, Pcb};
 use crate::serdes::*;
 
@@ -23,11 +24,12 @@ pub struct Sender<T, W, S> {
 	serializer: S,
 }
 
-#[cfg(feature = "serde")]
-impl<T, W> Sender<T, W, Bincode> {
-	/// Creates a new [`Sender`] from `writer`.
-	pub fn new(writer: W) -> Self {
-		Self::with_serializer(writer, Bincode)
+cfg_serde! {
+	impl<T, W> Sender<T, W, Bincode> {
+		/// Creates a new [`Sender`] from `writer`.
+		pub fn new(writer: W) -> Self {
+			Self::with_serializer(writer, Bincode)
+		}
 	}
 }
 
@@ -55,11 +57,14 @@ impl<T, W, S> Sender<T, W, S> {
 	pub fn get_mut(&mut self) -> &mut W {
 		self.writer.get_mut()
 	}
+}
 
-	#[cfg(feature = "statistics")]
-	/// Get statistics on this [`Sender`].
-	pub fn stats(&self) -> &crate::stats::SendStats {
-		&self.writer.stats
+cfg_statistics! {
+	impl<T, W,S> Sender<T,W,S> {
+		/// Get statistics on this [`Sender`].
+		pub fn stats(&self) -> &crate::stats::SendStats {
+			&self.writer.stats
+		}
 	}
 }
 
@@ -77,63 +82,60 @@ where
 	}
 }
 
-mod sync_impl {
-	use super::*;
+use std::io::Write;
 
-	use std::io::Write;
-
-	impl<T, W, S> Sender<T, W, S>
+impl<T, W, S> Sender<T, W, S>
+where
+	W: Write,
+	S: Serializer<T>,
+{
+	/// Attempts to send an object of type `T` through the writer.
+	///
+	/// This method **will** block until the `data` has been fully
+	/// sent.
+	///
+	#[cfg_attr(
+		feature = "tokio",
+		doc = "For the async version of this method, see [`Sender::send`]."
+	)]
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Sender;
+	///
+	/// fn main() {
+	///     let writer = std::io::sink();
+	///     let mut tx = Sender::new(writer);
+	///
+	///     tx.send_blocking(42_i32).unwrap();
+	/// }
+	/// ```
+	pub fn send_blocking<D>(
+		&mut self,
+		data: D,
+	) -> Result<(), SendError<S::Error>>
 	where
-		W: Write,
-		S: Serializer<T>,
+		D: Borrow<T>,
 	{
-		/// Attempts to send an object of type `T` through the writer.
-		///
-		/// This method **will** block until the `data` has been fully
-		/// sent.
-		///
-		/// For the async version of this method, see [`send`].
-		///
-		/// # Example
-		/// ```no_run
-		/// use channels::Sender;
-		///
-		/// fn main() {
-		///     let writer = std::io::sink();
-		///     let mut tx = Sender::new(writer);
-		///
-		///     tx.send_blocking(42_i32).unwrap();
-		/// }
-		/// ```
-		pub fn send_blocking<D>(
-			&mut self,
-			data: D,
-		) -> Result<(), SendError<S::Error>>
-		where
-			D: Borrow<T>,
-		{
-			let data = data.borrow();
-			self.packet.clear_payload();
+		let data = data.borrow();
+		self.packet.clear_payload();
 
-			self.serialize_t_to_packets(data)?;
-			let blocks = self.packet.finalize(&mut self.pcb);
+		self.serialize_t_to_packets(data)?;
+		let blocks = self.packet.finalize(&mut self.pcb);
 
-			for block in blocks {
-				self.writer.write_all(block.packet())?;
-			}
-
-			#[cfg(feature = "statistics")]
-			self.writer.stats.update_sent_time();
-
-			Ok(())
+		for block in blocks {
+			self.writer.write_all(block.packet())?;
 		}
+
+		cfg_statistics! {{
+			self.writer.stats.update_sent_time();
+		}}
+
+		Ok(())
 	}
 }
 
-#[cfg(feature = "tokio")]
-mod async_tokio_impl {
-	use super::*;
-
+cfg_tokio! {
 	use core::marker::Unpin;
 
 	use tokio::io::{AsyncWrite, AsyncWriteExt};
@@ -146,7 +148,7 @@ mod async_tokio_impl {
 		/// Attempts to asynchronously send an object of type `T`
 		/// through the writer.
 		///
-		/// For the blocking version of this method, see [`send_blocking`].
+		/// For the blocking version of this method, see [`Sender::send_blocking`].
 		///
 		/// # Example
 		/// ```no_run
@@ -177,8 +179,9 @@ mod async_tokio_impl {
 				self.writer.write_all(block.packet()).await?;
 			}
 
-			#[cfg(feature = "statistics")]
-			self.writer.stats.update_sent_time();
+			cfg_statistics!{{
+				self.writer.stats.update_sent_time();
+			}}
 
 			Ok(())
 		}

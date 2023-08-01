@@ -2,6 +2,8 @@
 
 use std::error::Error as StdError;
 
+use crate::macros::*;
+
 pub(crate) mod prelude {
 	pub use super::{Deserializer, Serializer};
 	pub use std::io::{Read, Write};
@@ -172,7 +174,7 @@ where
 	}
 }
 
-#[cfg(feature = "serde")]
-mod bincode;
-#[cfg(feature = "serde")]
-pub use self::bincode::Bincode;
+cfg_serde! {
+	mod bincode;
+	pub use self::bincode::Bincode;
+}
