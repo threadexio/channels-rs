@@ -38,9 +38,8 @@ impl<R> fmt::Debug for Reader<R> {
 		let mut s = f.debug_struct("Reader");
 		s.field("inner", &type_name::<R>());
 
-		cfg_statistics! {{
-			s.field("stats", &self.stats);
-		}}
+		#[cfg(feature = "statistics")]
+		s.field("stats", &self.stats);
 
 		s.finish()
 	}
@@ -55,9 +54,8 @@ where
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 		let i = self.inner.read(buf)?;
 
-		cfg_statistics! {{
-			self.stats.add_received(i);
-		}}
+		#[cfg(feature = "statistics")]
+		self.stats.add_received(i);
 
 		Ok(i)
 	}
@@ -93,9 +91,8 @@ cfg_tokio! {
 			// calculate the delta to find out how many bytes it read.
 			let delta_bytes = end - start;
 
-			cfg_statistics! {{
-				self.stats.add_received(delta_bytes);
-			}}
+			#[cfg(feature = "statistics")]
+			self.stats.add_received(delta_bytes);
 
 			Poll::Ready(result)
 		}

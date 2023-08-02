@@ -89,9 +89,8 @@ fn get_header(
 fn prepare_for_next_packet<R>(reader: &mut Reader<R>, pcb: &mut Pcb) {
 	pcb.next();
 
-	cfg_statistics! {{
-		reader.stats.update_received_time();
-	}}
+	#[cfg(feature = "statistics")]
+	reader.stats.update_received_time();
 }
 
 impl<T, R, D> Receiver<T, R, D>

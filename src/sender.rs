@@ -127,9 +127,8 @@ where
 			self.writer.write_all(block.packet())?;
 		}
 
-		cfg_statistics! {{
-			self.writer.stats.update_sent_time();
-		}}
+		#[cfg(feature = "statistics")]
+		self.writer.stats.update_sent_time();
 
 		Ok(())
 	}
@@ -179,9 +178,8 @@ cfg_tokio! {
 				self.writer.write_all(block.packet()).await?;
 			}
 
-			cfg_statistics!{{
-				self.writer.stats.update_sent_time();
-			}}
+			#[cfg(feature="statistics")]
+			self.writer.stats.update_sent_time();
 
 			Ok(())
 		}

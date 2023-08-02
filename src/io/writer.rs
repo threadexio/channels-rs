@@ -38,43 +38,37 @@ impl<W> fmt::Debug for Writer<W> {
 		let mut s = f.debug_struct("Writer");
 		s.field("inner", &type_name::<W>());
 
-		cfg_statistics! {{
-			s.field("stats", &self.stats);
-		}}
+		#[cfg(feature = "statistics")]
+		s.field("stats", &self.stats);
 
 		s.finish()
 	}
 }
 
-mod sync_impl {
-	use super::*;
+use std::io;
 
-	use std::io::{Result, Write};
+impl<W> io::Write for Writer<W>
+where
+	W: io::Write,
+{
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		let i = self.inner.write(buf)?;
 
-	impl<W> Write for Writer<W>
-	where
-		W: Write,
-	{
-		fn write(&mut self, buf: &[u8]) -> Result<usize> {
-			let i = self.inner.write(buf)?;
+		#[cfg(feature = "statistics")]
+		self.stats.add_sent(i);
 
-			cfg_statistics! {{
-				self.stats.add_sent(i);
-			}}
+		Ok(i)
+	}
 
-			Ok(i)
-		}
-
-		fn flush(&mut self) -> Result<()> {
-			self.inner.flush()
-		}
+	fn flush(&mut self) -> io::Result<()> {
+		self.inner.flush()
 	}
 }
 
 cfg_tokio! {
-	use std::io::Result;
-	use std::marker::Unpin;
-	use std::pin::Pin;
+	use core::pin::Pin;
+	use core::marker::Unpin;
+
 	use std::task::{Context, Poll};
 
 	use tokio::io::AsyncWrite;
@@ -87,12 +81,11 @@ cfg_tokio! {
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
 			buf: &[u8],
-		) -> Poll<Result<usize>> {
+		) -> Poll<io::Result<usize>> {
 			match Pin::new(&mut self.inner).poll_write(cx, buf) {
 				Poll::Ready(Ok(i)) => {
-					cfg_statistics! {{
-						self.stats.add_sent(i);
-					}}
+					#[cfg(feature = "statistics")]
+					self.stats.add_sent(i);
 
 					Poll::Ready(Ok(i))
 				},
@@ -103,14 +96,14 @@ cfg_tokio! {
 		fn poll_flush(
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
-		) -> Poll<Result<()>> {
+		) -> Poll<io::Result<()>> {
 			Pin::new(&mut self.inner).poll_flush(cx)
 		}
 
 		fn poll_shutdown(
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
-		) -> Poll<Result<()>> {
+		) -> Poll<io::Result<()>> {
 			Pin::new(&mut self.inner).poll_shutdown(cx)
 		}
 	}
