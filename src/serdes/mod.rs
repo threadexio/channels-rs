@@ -68,7 +68,7 @@ use prelude::*;
 /// ```
 pub trait Serializer<T> {
 	/// The error type returned by [`Self::serialize`].
-	type Error: StdError + 'static;
+	type Error: StdError;
 
 	/// Serialize the given object `t` and return the result as a `Vec<u8>`.
 	fn serialize<W: Write>(
@@ -151,7 +151,7 @@ where
 /// ```
 pub trait Deserializer<T> {
 	/// The error type returned by [`Self::deserialize`].
-	type Error: StdError + 'static;
+	type Error: StdError;
 
 	/// Deserializer an object of type `T` from `buf` and return it.
 	fn deserialize<R: Read>(
