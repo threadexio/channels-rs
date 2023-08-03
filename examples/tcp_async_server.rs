@@ -15,7 +15,6 @@ async fn accept_client(
 	channels::channel::<i32, _, _>(r, w)
 }
 
-#[cfg(feature = "tokio")]
 #[tokio::main]
 async fn main() {
 	let listener =
