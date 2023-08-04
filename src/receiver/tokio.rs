@@ -46,11 +46,10 @@ where
 			block.grow_payload_to(payload_len);
 			self.reader
 				.read_exact(
-					&mut block.payload_mut()
-						[..payload_len.as_usize()],
+					&mut block.payload_mut()[..payload_len.into()],
 				)
 				.await?;
-			block.advance_write(payload_len.as_usize());
+			block.advance_write(payload_len.into());
 
 			prepare_for_next_packet(&mut self.reader, &mut self.pcb);
 

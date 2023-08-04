@@ -1,95 +1,101 @@
 use super::consts::*;
 use crate::util::flags;
 
-/// The length of one packet.
-///
-/// The following holds true for this type:
-///
-/// - `HEADER_SIZE <= l <= MAX_PACKET_SIZE`
-#[derive(
-	Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord,
-)]
-pub struct PacketLength(u16);
-
-impl PacketLength {
-	/// Create a new payload length from `l`.
-	pub fn from_u16(l: u16) -> Option<Self> {
-		Self::from_usize(usize::from(l))
-	}
-
-	/// Create a new payload length from `l`.
-	///
-	/// `l` must be in the range `HEADER_SIZE..=MAX_PACKET_SIZE`.
-	pub fn from_usize(l: usize) -> Option<Self> {
-		if (HEADER_SIZE..=MAX_PACKET_SIZE).contains(&l) {
-			// SAFETY: HEADER_SIZE <= l <= MAX_PACKET_SIZE
-			//     <=> HEADER_SIZE <= l <= u16::MAX
-			Some(Self(l as u16))
-		} else {
-			None
+macro_rules! impl_num {
+	(
+		$(#[$attr:meta])*
+		$name:ident {
+			type: $t:ty,
+			min: $min:expr,
+			max: $max:expr,
+			from: [ $($from_t:ty),* ],
+			try_from: [ $($try_from_t:ty),* ],
+			into: [ $($into_t:ty),* ],
 		}
-	}
+	) => {
+		$(#[$attr])*
+		#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+		pub struct $name($t);
 
-	pub fn as_u16(&self) -> u16 {
-		self.0
-	}
+		impl $name {
+			pub const MIN: Self = Self($min);
+			pub const MAX: Self = Self($max);
+		}
 
-	pub fn as_usize(&self) -> usize {
-		usize::from(self.0)
-	}
+		$(
+			impl From<$from_t> for $name {
+				fn from(value: $from_t) -> Self {
+					Self(value as $t)
+				}
+			}
+		)*
 
-	pub fn to_payload_length(self) -> PayloadLength {
-		// SAFETY: HEADER_SIZE <= self.0 <= MAX_PACKET_SIZE
-		//     <=> 0 <= self.0 - HEADER_SIZE <= MAX_PACKET_SIZE - HEADER_SIZE
-		//     <=> 0 <= self.0 - HEADER_SIZE <= MAX_PAYLOAD_SIZE
-		PayloadLength(self.0 - (HEADER_SIZE as u16))
+		$(
+			impl TryFrom<$try_from_t> for $name {
+				type Error = ();
+
+				fn try_from(value: $try_from_t) -> Result<Self, Self::Error> {
+					let valid = (Self::MIN.0 as $try_from_t)..(Self::MAX.0 as $try_from_t);
+					if valid.contains(&value) {
+						Ok(Self(value as $t))
+					} else {
+						Err(())
+					}
+				}
+			}
+		)*
+
+		$(
+			impl From<$name> for $into_t {
+				fn from(value: $name) -> Self {
+					value.0 as $into_t
+				}
+			}
+		)*
+	};
+}
+
+impl_num! {
+	/// The length of the payload inside one packet.
+	///
+	/// The following holds true for this type:
+	///
+	/// - `0 <= l <= MAX_PAYLOAD_SIZE`
+	PayloadLength {
+		type: u16,
+		min: 0,
+		max: MAX_PAYLOAD_SIZE as u16,
+		from: [ u8 ],
+		try_from: [ u16, u32, u64, usize ],
+		into: [ u16, u32, u64, usize ],
 	}
 }
 
-/// The length of the payload inside one packet.
-///
-/// The following holds true for this type:
-///
-/// - `0 <= l <= MAX_PAYLOAD_SIZE`
-#[derive(
-	Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord,
-)]
-pub struct PayloadLength(u16);
+impl_num! {
+	/// The length of one packet.
+	///
+	/// The following holds true for this type:
+	///
+	/// - `HEADER_SIZE <= l <= MAX_PACKET_SIZE`
+	PacketLength {
+		type: u16,
+		min: HEADER_SIZE as u16,
+		max: MAX_PACKET_SIZE as u16,
+		from: [ ],
+		try_from: [ u16, u32, u64, usize ],
+		into: [ u16, u32, u64, usize ],
+	}
+}
 
 impl PayloadLength {
-	/// Create a new payload length from `l`.
-	///
-	/// `l` must be `<= MAX_PAYLOAD_SIZE`.
-	pub fn from_u16(l: u16) -> Option<Self> {
-		Self::from_usize(usize::from(l))
-	}
-
-	/// Create a new payload length from `l`.
-	///
-	/// `l` must be `<= MAX_PAYLOAD_SIZE`.
-	pub fn from_usize(l: usize) -> Option<Self> {
-		if l <= MAX_PAYLOAD_SIZE {
-			// SAFETY: MAX_PAYLOAD_SIZE <= u16::MAX
-			Some(Self(l as u16))
-		} else {
-			None
-		}
-	}
-
-	pub fn as_u16(&self) -> u16 {
-		self.0
-	}
-
-	pub fn as_usize(&self) -> usize {
-		usize::from(self.0)
-	}
-
 	pub fn to_packet_length(self) -> PacketLength {
-		// SAFETY: self.0 <= MAX_PAYLOAD_SIZE
-		//     <=> self.0 <= MAX_PACKET_SIZE - HEADER_SIZE
-		//     <=> HEADER_SIZE + self.0 <= MAX_PACKET_SIZE
-		//     <=> HEADER_SIZE + self.0 <= u16::MAX
-		PacketLength((HEADER_SIZE as u16) + self.0)
+		PacketLength(self.0 + PacketLength::MIN.0)
+	}
+}
+
+impl PacketLength {
+	pub fn to_payload_length(self) -> PayloadLength {
+		PayloadLength(self.0 - Self::MIN.0)
 	}
 }
 

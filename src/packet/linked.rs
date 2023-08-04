@@ -30,7 +30,10 @@ impl LinkedBlocks {
 	pub fn total_packet_capacity(&self) -> usize {
 		self.blocks
 			.iter()
-			.map(|block| block.packet_capacity().as_usize())
+			.map(|block| {
+				let x: usize = block.packet_capacity().into();
+				x
+			})
 			.sum()
 	}
 
@@ -38,7 +41,10 @@ impl LinkedBlocks {
 	pub fn total_payload_capacity(&self) -> usize {
 		self.blocks
 			.iter()
-			.map(|block| block.payload_capacity().as_usize())
+			.map(|block| {
+				let x: usize = block.payload_capacity().into();
+				x
+			})
 			.sum()
 	}
 }
@@ -67,11 +73,9 @@ impl LinkedBlocks {
 		self.blocks.reserve(n_blocks);
 
 		// allocate the blocks
-		let max_payload_size =
-			PayloadLength::from_usize(MAX_PAYLOAD_SIZE).unwrap();
 		for _ in 0..n_full_blocks {
 			let block =
-				Block::with_payload_capacity(max_payload_size);
+				Block::with_payload_capacity(PayloadLength::MAX);
 			self.blocks.push(block);
 		}
 
@@ -79,7 +83,7 @@ impl LinkedBlocks {
 		if extra_bytes != 0 {
 			// SAFETY: extra_bytes = delta % MAX_PAYLOAD_SIZE
 			//     <=> extra_bytes < MAX_PAYLOAD_SIZE
-			let l = PayloadLength::from_usize(extra_bytes).unwrap();
+			let l = PayloadLength::try_from(extra_bytes).unwrap();
 
 			let block = Block::with_payload_capacity(l);
 			self.blocks.push(block);

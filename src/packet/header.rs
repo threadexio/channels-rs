@@ -20,7 +20,7 @@ impl Header {
 			private::unsafe_set_version(buf, private::HEADER_HASH);
 			private::unsafe_set_packet_length(
 				buf,
-				self.length.as_u16(),
+				self.length.into(),
 			);
 			private::unsafe_set_flags(buf, self.flags.0);
 			private::unsafe_set_packet_id(buf, self.id.0);
@@ -35,7 +35,7 @@ impl Header {
 	pub unsafe fn read_from_unchecked(buf: &HeaderRaw) -> Self {
 		unsafe {
 			Self {
-				length: PacketLength::from_u16(
+				length: PacketLength::try_from(
 					private::unsafe_get_packet_length(buf),
 				)
 				.unwrap(),

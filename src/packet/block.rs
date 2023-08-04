@@ -28,9 +28,7 @@ pub struct Block {
 impl Block {
 	/// Create a new block with `0` payload capacity.
 	pub fn new() -> Self {
-		Self::with_payload_capacity(
-			PayloadLength::from_usize(0).unwrap(),
-		)
+		Self::with_payload_capacity(PayloadLength::from(0))
 	}
 
 	/// Create a new block with `capacity` payload capacity.
@@ -41,7 +39,7 @@ impl Block {
 	/// Create a new block with `capacity` packet capacity.
 	pub fn with_packet_capacity(capacity: PacketLength) -> Self {
 		Self {
-			packet: vec![0u8; capacity.as_usize()],
+			packet: vec![0u8; capacity.into()],
 			payload_read_pos: 0,
 			payload_write_pos: 0,
 		}
@@ -52,13 +50,13 @@ impl Block {
 	/// Get the total number of bytes this block can currently hold.
 	pub fn packet_capacity(&self) -> PacketLength {
 		// SAFETY: `self.packet` is always smaller than `MAX_PACKET_SIZE`.
-		PacketLength::from_usize(self.packet.len()).unwrap()
+		PacketLength::try_from(self.packet.len()).unwrap()
 	}
 
 	/// Get the total number of bytes this block's payload buffer can
 	/// currently hold.
 	pub fn payload_capacity(&self) -> PayloadLength {
-		PayloadLength::from_usize(self.payload().len()).unwrap()
+		PayloadLength::try_from(self.payload().len()).unwrap()
 	}
 
 	/// Grow the payload buffer to fit at least `new_capacity` bytes.
@@ -67,13 +65,12 @@ impl Block {
 			return;
 		}
 
-		let mut actual_new_capacity =
-			self.payload_capacity().as_usize();
+		let mut actual_new_capacity = self.payload_capacity().into();
 		if actual_new_capacity == 0 {
 			actual_new_capacity = 1;
 		}
 
-		let new_capacity = new_capacity.as_usize();
+		let new_capacity = new_capacity.into();
 		while actual_new_capacity < new_capacity {
 			actual_new_capacity *= 2;
 
@@ -85,7 +82,7 @@ impl Block {
 
 		// SAFETY: actual_new_capacity <= MAX_PAYLOAD_SIZE
 		let actual_new_capacity =
-			PayloadLength::from_usize(actual_new_capacity).unwrap();
+			PayloadLength::try_from(actual_new_capacity).unwrap();
 
 		self.grow_payload_to_exact(actual_new_capacity);
 	}
@@ -106,7 +103,7 @@ impl Block {
 		//         because: `new_capacity <= MAX_PACKET_SIZE`.
 		//
 		//         See: `PacketLength`
-		self.packet.resize(new_capacity.as_usize(), 0);
+		self.packet.resize(new_capacity.into(), 0);
 	}
 }
 
@@ -147,7 +144,7 @@ impl Block {
 	pub fn payload_length(&self) -> PayloadLength {
 		// SAFETY: `self.payload_write_pos` is always guaranteed to be
 		//         less than `MAX_PAYLOAD_SIZE`.
-		PayloadLength::from_usize(self.payload_write_pos).unwrap()
+		PayloadLength::try_from(self.payload_write_pos).unwrap()
 	}
 
 	/// Get the length of the current packet.
@@ -163,7 +160,7 @@ impl Block {
 	///
 	/// See: [`Block`]
 	pub fn packet(&self) -> &[u8] {
-		let l = self.packet_length().as_usize();
+		let l = self.packet_length().into();
 		&self.packet[..l]
 	}
 }
@@ -273,7 +270,7 @@ impl io::Write for Block {
 			MAX_PAYLOAD_SIZE,
 		);
 		let new_capacity =
-			PayloadLength::from_usize(new_capacity).unwrap();
+			PayloadLength::try_from(new_capacity).unwrap();
 
 		self.grow_payload_to(new_capacity);
 
