@@ -11,7 +11,7 @@ pub struct Packet<T>(Cursor<T>);
 
 impl<T> Packet<T> {
 	pub const MAX_SIZE: usize = 0xffff;
-	pub const MAX_PAYLOAD_SIZE: usize = Self::MAX_SIZE - Header::SIZE;
+	pub const MAX_PAYLOAD_SIZE: usize = Self::MAX_SIZE - HEADER_SIZE;
 }
 
 impl<T> Packet<T>
@@ -22,12 +22,12 @@ where
 	///
 	/// # Panics
 	///
-	/// If `inner.len() < Header::SIZE`.
+	/// If `inner.len() < HEADER_SIZE`.
 	pub fn new(inner: T) -> Self {
 		assert!(
-			inner.as_ref().len() >= Header::SIZE,
+			inner.as_ref().len() >= HEADER_SIZE,
 			"channels packet buffer requires inner.len() >= {}",
-			Header::SIZE
+			HEADER_SIZE
 		);
 
 		Self(Cursor::new(inner))
@@ -54,7 +54,7 @@ where
 	/// Get a slice to the header.
 	pub fn header_slice(&self) -> &[u8] {
 		// SAFETY: The `new` constructor guarantees `self.0.len() >= HEADER_SIZE`
-		&self.as_slice()[..Header::SIZE]
+		&self.as_slice()[..HEADER_SIZE]
 	}
 
 	/// Get a cursor to the header.
@@ -65,7 +65,7 @@ where
 	/// Get a slice to the payload.
 	pub fn payload_slice(&self) -> &[u8] {
 		// SAFETY: The `new` constructor guarantees `self.0.len() >= HEADER_SIZE`
-		&self.as_slice()[Header::SIZE..]
+		&self.as_slice()[HEADER_SIZE..]
 	}
 
 	/// Get a cursor to the payload.
@@ -89,7 +89,7 @@ where
 	/// Get a mutable slice to the header.
 	pub fn header_mut_slice(&mut self) -> &mut [u8] {
 		// SAFETY: See `header_slice`.
-		&mut self.as_mut_slice()[..Header::SIZE]
+		&mut self.as_mut_slice()[..HEADER_SIZE]
 	}
 
 	/// Get a cursor to the mutable header.
@@ -100,7 +100,7 @@ where
 	/// Get a mutable slice to the payload.
 	pub fn payload_mut_slice(&mut self) -> &mut [u8] {
 		// SAFETY: See `payload_slice`.
-		&mut self.as_mut_slice()[Header::SIZE..]
+		&mut self.as_mut_slice()[HEADER_SIZE..]
 	}
 
 	/// Get a cursor to the mutable payload.
@@ -122,7 +122,7 @@ where
 	///
 	/// **NOTE:** This method does not verify the `id` field.
 	pub fn get_header(&self) -> Result<Header, VerifyError> {
-		// SAFETY: `new()` guarantees length >= HEADER::SIZE
+		// SAFETY: `new()` guarantees length >= HEADER_SIZE
 		Header::read_from(self.header_slice())
 	}
 }
@@ -136,7 +136,7 @@ where
 	/// No modification to the payload or the header slice after this
 	/// point should occur.
 	pub fn finalize(&mut self, header: &Header) {
-		// SAFETY: `new()` guarantees length >= Header::SIZE
+		// SAFETY: `new()` guarantees length >= HEADER_SIZE
 		header.write_to(self.header_mut_slice());
 	}
 }

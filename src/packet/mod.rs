@@ -1,20 +1,20 @@
 pub mod consts {
-	use super::*;
-
 	pub const MAX_PACKET_SIZE: usize = 0xffff;
-	pub const HEADER_SIZE: usize = Header::SIZE;
 
+	pub const HEADER_SIZE: usize =
+		super::header::private::HEADER_SIZE;
 	pub const MAX_PAYLOAD_SIZE: usize = MAX_PACKET_SIZE - HEADER_SIZE;
 }
 
-pub mod header;
-use header::*;
-
 mod block;
-pub use block::Block;
-
+mod header;
 mod linked;
+mod types;
+
+pub use block::Block;
+pub use header::Header;
 pub use linked::LinkedBlocks;
+pub use types::*;
 
 #[derive(Debug, Default)]
 pub struct Pcb {

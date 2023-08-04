@@ -1,7 +1,8 @@
 use core::cmp;
 
 use super::consts::*;
-use super::header::*;
+use super::header::HeaderRaw;
+use super::types::*;
 
 /// A buffer that holds a packet.
 ///
@@ -169,27 +170,29 @@ impl Block {
 
 impl Block {
 	/// Get the slice corresponding to the header.
-	pub fn header(&self) -> &[u8] {
-		&self.packet[..Header::SIZE]
+	pub fn header(&self) -> &HeaderRaw {
+		// SAFETY: HeaderRaw is always of length `HEADER_SIZE`.
+		(&self.packet[..HEADER_SIZE]).try_into().unwrap()
 	}
 
 	/// Get the mutable slice corresponding to the header.
-	pub fn header_mut(&mut self) -> &mut [u8] {
-		&mut self.packet[..Header::SIZE]
+	pub fn header_mut(&mut self) -> &mut HeaderRaw {
+		// SAFETY: HeaderRaw is always of length `HEADER_SIZE`.
+		(&mut self.packet[..HEADER_SIZE]).try_into().unwrap()
 	}
 
 	/// Get the slice corresponding to the payload.
 	///
 	/// The returned slice's length is `<= MAX_PAYLOAD_SIZE`.
 	pub fn payload(&self) -> &[u8] {
-		&self.packet[Header::SIZE..]
+		&self.packet[HEADER_SIZE..]
 	}
 
 	/// Get the mutable slice corresponding to the payload.
 	///
 	/// See: [`payload`]
 	pub fn payload_mut(&mut self) -> &mut [u8] {
-		&mut self.packet[Header::SIZE..]
+		&mut self.packet[HEADER_SIZE..]
 	}
 
 	/// Get the slice corresponding to the filled payload.

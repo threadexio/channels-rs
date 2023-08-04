@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 use crate::error::{RecvError, VerifyError};
 use crate::io::Reader;
 use crate::macros::*;
-use crate::packet::{consts::*, header::*, Block, LinkedBlocks, Pcb};
+use crate::packet::*;
 use crate::serdes::*;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
@@ -38,7 +38,7 @@ impl<T, R, D> Receiver<T, R, D> {
 		Self {
 			_marker: PhantomData,
 			packet: LinkedBlocks::with_total_payload_capacity(
-				MAX_PAYLOAD_SIZE,
+				consts::MAX_PAYLOAD_SIZE,
 			),
 			pcb: Pcb::default(),
 

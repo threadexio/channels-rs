@@ -1,6 +1,7 @@
 use super::block::Block;
 use super::consts::*;
-use super::header::*;
+use super::types::*;
+use super::Header;
 use super::Pcb;
 
 #[derive(Debug)]

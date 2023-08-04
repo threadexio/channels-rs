@@ -3,7 +3,7 @@ use std::io::Read;
 use super::Receiver;
 use super::{get_header, prepare_for_next_packet};
 use crate::error::RecvError;
-use crate::packet::{header::*, Block};
+use crate::packet::*;
 use crate::serdes::Deserializer;
 
 impl<T, R, D> Receiver<T, R, D>
