@@ -44,41 +44,6 @@ impl LinkedBlocks {
 }
 
 impl LinkedBlocks {
-	/* /// Ensure the list has enough capacity to hold `capacity` bytes.
-	pub fn reserve_packet(&mut self, new_capacity: usize) {
-		let capacity = self.total_packet_capacity();
-
-		if new_capacity <= capacity {
-			return;
-		}
-
-		let delta_capacity = new_capacity - capacity;
-
-		let n_full_blocks = delta_capacity / MAX_PACKET_SIZE;
-		let extra_bytes = delta_capacity % MAX_PACKET_SIZE;
-
-		let n_blocks = {
-			if extra_bytes != 0 {
-				n_full_blocks + 1
-			} else {
-				n_full_blocks
-			}
-		};
-
-		self.blocks.reserve(n_blocks);
-
-		for _ in 0..n_full_blocks {
-			self.blocks.push(Block::with_payload_capacity(
-				PayloadLength::from_usize(MAX_PAYLOAD_SIZE).unwrap(),
-			));
-		}
-
-		if extra_bytes != 0 {
-			self.blocks
-				.push(Block::with_payload_capacity(extra_bytes));
-		}
-	} */
-
 	/// Reserve enough space for the list to be able to hold a total
 	/// of `new_capacity` bytes worth of payload.
 	pub fn reserve_payload(&mut self, new_capacity: usize) {
