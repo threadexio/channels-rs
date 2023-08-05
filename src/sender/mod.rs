@@ -26,10 +26,12 @@ pub struct Sender<T, W, S> {
 }
 
 cfg_serde! {
-	impl<T, W> Sender<T, W, Bincode> {
-		/// Creates a new [`Sender`] from `writer`.
-		pub fn new(writer: W) -> Self {
-			Self::with_serializer(writer, Bincode)
+	cfg_bincode! {
+		impl<T, W> Sender<T, W, Bincode> {
+			/// Creates a new [`Sender`] from `writer`.
+			pub fn new(writer: W) -> Self {
+				Self::with_serializer(writer, Bincode)
+			}
 		}
 	}
 }

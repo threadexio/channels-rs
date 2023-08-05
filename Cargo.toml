@@ -29,10 +29,12 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.29", features = ["full"] }
 
 [features]
-default = ["serde"]
+default = ["serde", "bincode"]
 
 statistics = []
-serde = ["dep:serde", "dep:bincode"]
+
+serde = ["dep:serde"]
+bincode = ["dep:bincode"]
 
 tokio = ["dep:tokio"]
 

@@ -39,7 +39,8 @@
 [`std::io::Write`]: std::io::Write
 [`std::sync::mpsc`]: std::sync::mpsc
 
-[`serde`]: mod@serde
+[`serde::Serialize`]: serde::Serialize
+[`serde::Deserialize`]: serde::Deserialize
 [`bincode`]: mod@bincode
 
 [`Serializer`]: crate::serdes::Serializer
@@ -71,10 +72,12 @@ The differences are:
 # Features
 
 - `statistics`: Capture statistic data like: total bytes sent/received, timestamp of last packet, etc
+- `tokio`: Adds support for sending/receiving types asynchronously.
 
 ## Default features
 
-- `serde`: Adds support for sending/receiving any type with [`serde`] and [`bincode`]
+- `serde`: Adds support for sending/receiving any type which implements [`serde::Serialize`] and [`serde::Deserialize`].
+- `bincode`: Adds support for sending/receiving any type with [`bincode`].
 
 # Examples
 

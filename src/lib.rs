@@ -48,31 +48,33 @@ pub use receiver::Receiver;
 pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 
 cfg_serde! {
-	/// Create a new channel.
-	///
-	/// If your reader and writer are one type that does not support splitting
-	/// its 2 halves, use the `split` function from [`adapter::unsync`]
-	/// or [`adapter::sync`].
-	///
-	/// **NOTE:** If you need a [`Sender`] and a [`Receiver`] that use
-	/// different types, the `new` or the [`Sender::with_serializer`] and
-	/// [`Receiver::with_deserializer`] methods.
-	///
-	/// # Usage
-	/// ```no_run
-	/// use std::net::TcpStream;
-	///
-	/// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
-	///
-	/// let (mut tx, mut rx) = channels::channel(conn.try_clone().unwrap(), conn);
-	///
-	/// tx.send_blocking(42_i32).unwrap();
-	/// let received: i32 = rx.recv_blocking().unwrap();
-	/// ```
-	pub fn channel<T, R, W>(
-		r: R,
-		w: W,
-	) -> Pair<T, R, W, serdes::Bincode, serdes::Bincode> {
-		(Sender::new(w), Receiver::new(r))
+	cfg_bincode! {
+		/// Create a new channel.
+		///
+		/// If your reader and writer are one type that does not support splitting
+		/// its 2 halves, use the `split` function from [`adapter::unsync`]
+		/// or [`adapter::sync`].
+		///
+		/// **NOTE:** If you need a [`Sender`] and a [`Receiver`] that use
+		/// different types, the `new` or the [`Sender::with_serializer`] and
+		/// [`Receiver::with_deserializer`] methods.
+		///
+		/// # Usage
+		/// ```no_run
+		/// use std::net::TcpStream;
+		///
+		/// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
+		///
+		/// let (mut tx, mut rx) = channels::channel(conn.try_clone().unwrap(), conn);
+		///
+		/// tx.send_blocking(42_i32).unwrap();
+		/// let received: i32 = rx.recv_blocking().unwrap();
+		/// ```
+		pub fn channel<T, R, W>(
+			r: R,
+			w: W,
+		) -> Pair<T, R, W, serdes::Bincode, serdes::Bincode> {
+			(Sender::new(w), Receiver::new(r))
+		}
 	}
 }

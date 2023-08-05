@@ -173,6 +173,8 @@ where
 }
 
 cfg_serde! {
-	mod bincode;
-	pub use self::bincode::Bincode;
+	cfg_bincode! {
+		mod bincode;
+		pub use self::bincode::Bincode;
+	}
 }
