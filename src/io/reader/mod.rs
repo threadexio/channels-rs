@@ -1,8 +1,6 @@
 use core::any::type_name;
 use core::fmt;
 
-use crate::macros::*;
-
 pub struct Reader<R> {
 	inner: R,
 

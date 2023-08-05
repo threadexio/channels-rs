@@ -4,7 +4,6 @@ use core::marker::PhantomData;
 
 use crate::error::SendError;
 use crate::io::Writer;
-use crate::macros::*;
 use crate::packet::header::Header;
 use crate::packet::list::{List, Packet};
 use crate::packet::types::*;

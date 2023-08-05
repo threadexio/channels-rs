@@ -32,8 +32,6 @@
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 
-use crate::macros::*;
-
 /// The read half of `T`. This half can be sent to other threads as it
 /// implements [`Send`] and [`Sync`].
 #[derive(Clone)]

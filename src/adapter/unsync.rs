@@ -27,7 +27,6 @@
 use core::cell::UnsafeCell;
 use std::rc::Rc;
 
-use crate::macros::*;
 use crate::util::PhantomUnsend;
 
 /// The read half of `T`. This half can **NOT** be sent to other

@@ -4,7 +4,6 @@ use core::marker::PhantomData;
 
 use crate::error::{RecvError, VerifyError};
 use crate::io::Reader;
-use crate::macros::*;
 use crate::packet::header::Header;
 use crate::packet::list::{List, Packet};
 use crate::packet::types::*;
