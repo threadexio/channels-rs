@@ -6,16 +6,11 @@ pub mod consts {
 	pub const MAX_PAYLOAD_SIZE: usize = MAX_PACKET_SIZE - HEADER_SIZE;
 }
 
-mod block;
-mod header;
-mod linked;
-mod list;
-mod types;
+pub mod header;
+pub mod list;
+pub mod types;
 
-pub use block::Block;
-pub use header::Header;
-pub use linked::LinkedBlocks;
-pub use types::*;
+use types::Id;
 
 #[derive(Debug, Default)]
 pub struct Pcb {

@@ -5,7 +5,10 @@ use core::marker::PhantomData;
 use crate::error::SendError;
 use crate::io::Writer;
 use crate::macros::*;
-use crate::packet::{consts::*, LinkedBlocks, Pcb};
+use crate::packet::header::Header;
+use crate::packet::list::{List, Packet};
+use crate::packet::types::*;
+use crate::packet::Pcb;
 use crate::serdes::*;
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
@@ -16,7 +19,7 @@ use crate::serdes::*;
 pub struct Sender<T, W, S> {
 	_marker: PhantomData<T>,
 
-	packet: LinkedBlocks,
+	packets: List,
 	pcb: Pcb,
 
 	writer: Writer<W>,
@@ -37,9 +40,8 @@ impl<T, W, S> Sender<T, W, S> {
 	pub fn with_serializer(writer: W, serializer: S) -> Self {
 		Self {
 			_marker: PhantomData,
-			packet: LinkedBlocks::with_total_payload_capacity(
-				MAX_PAYLOAD_SIZE,
-			),
+
+			packets: List::new(),
 			pcb: Pcb::default(),
 
 			writer: Writer::new(writer),
@@ -67,6 +69,41 @@ cfg_statistics! {
 	}
 }
 
+fn finalize_packets<'list>(
+	list: &'list mut List,
+	pcb: &mut Pcb,
+) -> &'list [Packet] {
+	let mut last_packet_idx = 0;
+
+	let mut packet_iter = list.iter_mut().peekable();
+	while let Some(packet) = packet_iter.next() {
+		let mut header = Header {
+			length: packet.write_pos().to_packet_length(),
+			flags: Flags::zero(),
+			id: pcb.id,
+		};
+
+		pcb.next();
+
+		if packet.is_full() {
+			if let Some(next_packet) = packet_iter.peek() {
+				if !next_packet.filled_payload().is_empty() {
+					header.flags |= Flags::MORE_DATA;
+					last_packet_idx += 1;
+				}
+			}
+		}
+
+		header.write_to(packet.header_mut());
+
+		if !(header.flags & Flags::MORE_DATA) {
+			break;
+		}
+	}
+
+	&list[..=last_packet_idx]
+}
+
 impl<T, W, S> Sender<T, W, S>
 where
 	S: Serializer<T>,
@@ -76,7 +113,7 @@ where
 		data: &T,
 	) -> Result<(), SendError<S::Error>> {
 		self.serializer
-			.serialize(&mut self.packet, data)
+			.serialize(&mut self.packets, data)
 			.map_err(SendError::Serde)
 	}
 }

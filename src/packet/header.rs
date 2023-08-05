@@ -48,10 +48,6 @@ impl Header {
 	/// Read the header from `buf`.
 	///
 	/// **NOTE:** This method does not verify the `id` field.
-	///
-	/// # Panics
-	///
-	/// If `buf.len() < HEADER_SIZE`.
 	pub fn read_from(buf: &HeaderRaw) -> Result<Header, VerifyError> {
 		unsafe {
 			if private::unsafe_get_version(buf)

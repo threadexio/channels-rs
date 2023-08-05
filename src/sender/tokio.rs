@@ -1,11 +1,9 @@
 use core::borrow::Borrow;
 use core::marker::Unpin;
 
-use tokio::io::{AsyncWrite, AsyncWriteExt};
+use ::tokio::io::{AsyncWrite, AsyncWriteExt};
 
-use super::Sender;
-use crate::error::SendError;
-use crate::serdes::Serializer;
+use super::*;
 
 impl<T, W, S> Sender<T, W, S>
 where
@@ -37,13 +35,13 @@ where
 		D: Borrow<T>,
 	{
 		let data = data.borrow();
-		self.packet.clear_payload();
+		self.packets.clear();
 
 		self.serialize_t_to_packets(data)?;
-		let blocks = self.packet.finalize(&mut self.pcb);
-
-		for block in blocks {
-			self.writer.write_all(block.packet()).await?;
+		let packets =
+			finalize_packets(&mut self.packets, &mut self.pcb);
+		for packet in packets {
+			self.writer.write_all(packet.initialized()).await?;
 		}
 
 		#[cfg(feature = "statistics")]

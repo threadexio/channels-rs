@@ -1,11 +1,8 @@
 use core::marker::Unpin;
 
-use tokio::io::{AsyncRead, AsyncReadExt};
+use ::tokio::io::{AsyncRead, AsyncReadExt};
 
-use super::{get_header, prepare_for_next_packet, Receiver};
-use crate::error::RecvError;
-use crate::packet::*;
-use crate::serdes::Deserializer;
+use super::*;
 
 impl<T, R, D> Receiver<T, R, D>
 where
@@ -30,26 +27,26 @@ where
 	/// }
 	/// ```
 	pub async fn recv(&mut self) -> Result<T, RecvError<D::Error>> {
-		self.packet.clear_payload();
+		self.packets.clear();
 
 		let mut i = 0;
 		loop {
-			if self.packet.blocks.get(i).is_none() {
-				self.packet.blocks.push(Block::new());
+			if self.packets.get(i).is_none() {
+				self.packets.push(Packet::empty());
 			}
-			let block = &mut self.packet.blocks[i];
+			let packet = &mut self.packets[i];
 
-			self.reader.read_exact(block.header_mut()).await?;
-			let header = get_header(block, &mut self.pcb)?;
+			self.reader.read_exact(packet.header_mut()).await?;
+			let header = get_header(packet, &mut self.pcb)?;
 
 			let payload_len = header.length.to_payload_length();
-			block.grow_payload_to(payload_len);
+			packet.grow_to(payload_len);
 			self.reader
 				.read_exact(
-					&mut block.payload_mut()[..payload_len.into()],
+					&mut packet.payload_mut()[..payload_len.into()],
 				)
 				.await?;
-			block.advance_write(payload_len.into());
+			packet.set_write_pos(payload_len);
 
 			prepare_for_next_packet(&mut self.reader, &mut self.pcb);
 

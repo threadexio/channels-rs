@@ -78,8 +78,12 @@ function proto.dissector(buf, pinfo, tree)
 end
 
 tcp_table = DissectorTable.get("tcp.port")
-tcp_table:add(10000, proto)
-tcp_table:add(10001, proto)
+
+ports = { 10000, 10001, 10110 }
+
+for _, port in pairs(ports) do
+	tcp_table:add(port, proto)
+end
 
 function add_flag_to_subtree(tree, name, bit, is_set)
 	local result = ""

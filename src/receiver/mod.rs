@@ -5,7 +5,10 @@ use core::marker::PhantomData;
 use crate::error::{RecvError, VerifyError};
 use crate::io::Reader;
 use crate::macros::*;
-use crate::packet::*;
+use crate::packet::header::Header;
+use crate::packet::list::{List, Packet};
+use crate::packet::types::*;
+use crate::packet::Pcb;
 use crate::serdes::*;
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
@@ -16,7 +19,7 @@ use crate::serdes::*;
 pub struct Receiver<T, R, D> {
 	_marker: PhantomData<T>,
 
-	packet: LinkedBlocks,
+	packets: List,
 	pcb: Pcb,
 
 	reader: Reader<R>,
@@ -37,9 +40,8 @@ impl<T, R, D> Receiver<T, R, D> {
 	pub fn with_deserializer(reader: R, deserializer: D) -> Self {
 		Self {
 			_marker: PhantomData,
-			packet: LinkedBlocks::with_total_payload_capacity(
-				consts::MAX_PAYLOAD_SIZE,
-			),
+
+			packets: List::new(),
 			pcb: Pcb::default(),
 
 			reader: Reader::new(reader),
@@ -72,10 +74,10 @@ cfg_statistics! {
 ///
 /// This function also verifies the `id` field.
 fn get_header(
-	block: &Block,
+	packet: &Packet,
 	pcb: &mut Pcb,
 ) -> Result<Header, VerifyError> {
-	let header = Header::read_from(block.header())?;
+	let header = Header::read_from(packet.header())?;
 
 	if header.id != pcb.id {
 		return Err(VerifyError::OutOfOrder);
@@ -101,7 +103,7 @@ where
 		&mut self,
 	) -> Result<T, RecvError<D::Error>> {
 		self.deserializer
-			.deserialize(&mut self.packet)
+			.deserialize(&mut self.packets)
 			.map_err(RecvError::Serde)
 	}
 }

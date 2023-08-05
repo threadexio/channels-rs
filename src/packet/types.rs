@@ -35,7 +35,7 @@ macro_rules! impl_num {
 				type Error = ();
 
 				fn try_from(value: $try_from_t) -> Result<Self, Self::Error> {
-					let valid = (Self::MIN.0 as $try_from_t)..(Self::MAX.0 as $try_from_t);
+					let valid = (Self::MIN.0 as $try_from_t)..=(Self::MAX.0 as $try_from_t);
 					if valid.contains(&value) {
 						Ok(Self(value as $t))
 					} else {
