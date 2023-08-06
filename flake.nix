@@ -23,6 +23,11 @@
             buildInputs = with pkgs; [
               rustup
 
+              gdb
+              lldb
+              valgrind
+              linuxPackages.perf
+
               # For tools/header.py
               python312
               virtualenv
