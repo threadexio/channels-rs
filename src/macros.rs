@@ -28,6 +28,16 @@ cfg_serde! {
 			)*
 		}
 	}
+
+	macro_rules! cfg_cbor {
+		($($item:item)*) => {
+			$(
+				#[cfg(feature = "cbor")]
+				#[cfg_attr(docsrs, doc(cfg(feature = "cbor")))]
+				$item
+			)*
+		}
+	}
 }
 
 macro_rules! cfg_tokio {

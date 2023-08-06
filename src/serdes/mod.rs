@@ -177,4 +177,9 @@ cfg_serde! {
 		mod bincode;
 		pub use self::bincode::Bincode;
 	}
+
+	cfg_cbor! {
+		mod cbor;
+		pub use self::cbor::Cbor;
+	}
 }

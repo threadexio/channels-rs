@@ -42,6 +42,7 @@
 [`serde::Serialize`]: serde::Serialize
 [`serde::Deserialize`]: serde::Deserialize
 [`bincode`]: mod@bincode
+[`ciborium`]: mod@ciborium
 
 [`Serializer`]: crate::serdes::Serializer
 [`Deserializer`]: crate::serdes::Deserializer
@@ -73,6 +74,7 @@ The differences are:
 
 - `statistics`: Capture statistic data like: total bytes sent/received, timestamp of last packet, etc
 - `tokio`: Adds support for sending/receiving types asynchronously.
+- `cbor`: Adds support for sending/receiving any type with [`ciborium`].
 
 ## Default features
 
