@@ -4,7 +4,7 @@ use core::fmt;
 use std::io;
 
 pub struct Reader<R> {
-	inner: R,
+	pub(super) inner: R,
 
 	#[cfg(feature = "statistics")]
 	pub stats: crate::stats::RecvStats,
@@ -28,7 +28,7 @@ impl<R> Reader<R> {
 		&mut self.inner
 	}
 
-	fn on_read(
+	pub(super) fn on_read(
 		&mut self,
 		_buf: &mut [u8],
 		n: usize,
@@ -50,10 +50,4 @@ impl<R> fmt::Debug for Reader<R> {
 
 		s.finish()
 	}
-}
-
-mod blocking;
-
-cfg_tokio! {
-	mod tokio;
 }

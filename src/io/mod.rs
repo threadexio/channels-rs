@@ -1,5 +1,6 @@
+mod impls;
 mod reader;
-pub use reader::Reader;
-
 mod writer;
+
+pub use reader::Reader;
 pub use writer::Writer;

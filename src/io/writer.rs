@@ -4,7 +4,7 @@ use core::fmt;
 use std::io;
 
 pub struct Writer<W> {
-	inner: W,
+	pub(super) inner: W,
 
 	#[cfg(feature = "statistics")]
 	pub stats: crate::stats::SendStats,
@@ -28,7 +28,11 @@ impl<W> Writer<W> {
 		&mut self.inner
 	}
 
-	fn on_write(&mut self, _buf: &[u8], n: usize) -> io::Result<()> {
+	pub(super) fn on_write(
+		&mut self,
+		_buf: &[u8],
+		n: usize,
+	) -> io::Result<()> {
 		#[cfg(feature = "statistics")]
 		self.stats.add_sent(n);
 
@@ -46,10 +50,4 @@ impl<W> fmt::Debug for Writer<W> {
 
 		s.finish()
 	}
-}
-
-mod blocking;
-
-cfg_tokio! {
-	mod tokio;
 }
