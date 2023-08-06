@@ -65,8 +65,7 @@ where
 	/// the reader with a timeout.
 	///
 	/// If the object could not be read in the duration specified by
-	/// `timeout`, all data is cleared and this method returns
-	/// [`RecvError::Timeout`].
+	/// `timeout`, all data is cleared and this method returns [`RecvError::Timeout`].
 	///
 	/// # Example
 	/// ```no_run
@@ -85,11 +84,44 @@ where
 		&mut self,
 		timeout: Duration,
 	) -> Result<T, RecvError<D::Error>> {
-		let r = ::tokio::time::timeout(timeout, self.recv()).await;
+		let fut = async { self.recv().await };
+		let r = ::tokio::time::timeout(timeout, fut).await;
 
 		match r {
 			Ok(v) => v,
 			Err(_) => Err(RecvError::Timeout),
 		}
+	}
+
+	/// Attempts to receive an object of type `T` from the underlying
+	/// asynchronous reader.
+	///
+	/// It is not to be confused with [`Receiver::recv_blocking`].
+	/// This method is only available for asynchronous readers and its
+	/// only purpose is to serve a bridge between asynchronous and
+	/// synchronous code. That said, it is almost always preferable to
+	/// use directly the async API and `.await` where necessary.
+	///
+	/// You can call this method from inside an asynchronous runtime,
+	/// but please note that it **will** block the entire runtime. In
+	/// other words, any other tasks will not run until this completes.
+	/// For this reason, it is not advised to use this in an asynchronous
+	/// context.
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Receiver;
+	///
+	/// fn main() {
+	///     let reader = tokio::io::empty();
+	///     let mut reader = Receiver::new(reader);
+	///
+	///     let number: i32 = reader.blocking_recv().unwrap();
+	/// }
+	/// ```
+	pub fn blocking_recv(
+		&mut self,
+	) -> Result<T, RecvError<D::Error>> {
+		crate::util::block_on(async { self.recv().await })?
 	}
 }

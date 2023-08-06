@@ -20,6 +20,13 @@ where
 	/// being sent/received. This error is recoverable and the channel can
 	/// continue to be used normally.
 	Io(io::Error),
+
+	/// The error variant returned by [`Sender::send_timeout`]. This
+	/// error is only returned by the above method, thus it is safe to
+	/// ignore in cases were that method is not being used.
+	///
+	/// [`Sender::send_timeout`]: crate::Sender::send_timeout
+	Timeout,
 }
 
 impl<SE> fmt::Display for SendError<SE>
@@ -30,6 +37,7 @@ where
 		match self {
 			Self::Serde(e) => write!(f, "{e}"),
 			Self::Io(e) => write!(f, "{e}"),
+			Self::Timeout => write!(f, "timed out"),
 		}
 	}
 }
@@ -117,8 +125,6 @@ where
 	/// The error variant returned by [`Receiver::recv_timeout`]. This
 	/// error is only returned by the above method, thus it is safe to
 	/// ignore in cases were that method is not being used.
-	///
-	/// **NOTE:** [`Receiver::recv_timeout`]
 	///
 	/// [`Receiver::recv_timeout`]: crate::Receiver::recv_timeout
 	Timeout,
