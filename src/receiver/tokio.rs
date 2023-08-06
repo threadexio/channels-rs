@@ -1,6 +1,7 @@
 use core::marker::Unpin;
 
 use ::tokio::io::{AsyncRead, AsyncReadExt};
+use ::tokio::time::Duration;
 
 use super::*;
 
@@ -58,5 +59,37 @@ where
 		}
 
 		self.deserialize_packets_to_t()
+	}
+
+	/// Attempts to asynchronously receive an object of type `T` from
+	/// the reader with a timeout.
+	///
+	/// If the object could not be read in the duration specified by
+	/// `timeout`, all data is cleared and this method returns
+	/// [`RecvError::Timeout`].
+	///
+	/// # Example
+	/// ```no_run
+	/// use channels::Receiver;
+	/// use std::time::Duration;
+	///
+	/// #[tokio::main]
+	/// async fn main() {
+	///     let reader = tokio::io::empty();
+	///     let mut reader = Receiver::new(reader);
+	///
+	///     let number: i32 = reader.recv_timeout(Duration::from_secs(1)).await.unwrap();
+	/// }
+	/// ```
+	pub async fn recv_timeout(
+		&mut self,
+		timeout: Duration,
+	) -> Result<T, RecvError<D::Error>> {
+		let r = ::tokio::time::timeout(timeout, self.recv()).await;
+
+		match r {
+			Ok(v) => v,
+			Err(_) => Err(RecvError::Timeout),
+		}
 	}
 }
