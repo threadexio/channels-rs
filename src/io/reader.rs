@@ -28,6 +28,7 @@ impl<R> Reader<R> {
 		&mut self.inner
 	}
 
+	#[allow(unused_variables)]
 	pub(super) fn on_read(
 		&mut self,
 		_buf: &mut [u8],

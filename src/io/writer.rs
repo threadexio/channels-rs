@@ -28,6 +28,7 @@ impl<W> Writer<W> {
 		&mut self.inner
 	}
 
+	#[allow(unused_variables)]
 	pub(super) fn on_write(
 		&mut self,
 		_buf: &[u8],

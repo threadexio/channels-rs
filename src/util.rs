@@ -1,7 +1,5 @@
 use core::marker::PhantomData;
 
-use std::io;
-
 /// Marker type that implements `!Send` and `!Sync`.
 /// Workaround for unimplemented negative trait impls.
 pub type PhantomUnsend = PhantomData<*const ()>;
@@ -69,16 +67,20 @@ pub(crate) use flags;
 
 cfg_tokio! {
 	use std::future::Future;
+	use std::io;
 
 	pub fn block_on<F>(future: F) -> io::Result<F::Output>
 	where
 		F: Future,
 	{
-		use ::tokio::runtime::{Handle, Runtime};
+		use ::tokio::runtime::{Builder, Handle};
 
 		match Handle::try_current() {
 			Ok(rt) => Ok(rt.block_on(future)),
-			Err(_) => Ok(Runtime::new()?.block_on(future)),
+			Err(_) => Ok(Builder::new_current_thread()
+				.enable_all()
+				.build()?
+				.block_on(future)),
 		}
 	}
 }
