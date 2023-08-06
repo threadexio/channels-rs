@@ -30,9 +30,8 @@ where
 		// calculate the delta to find out how many bytes it read.
 		let delta_bytes = end - start;
 
-		#[cfg(feature = "statistics")]
-		self.stats.add_received(delta_bytes);
-
+		let result = self
+			.on_read(&mut buf.filled_mut()[start..end], delta_bytes);
 		Poll::Ready(result)
 	}
 }

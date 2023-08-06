@@ -1,6 +1,8 @@
 use core::any::type_name;
 use core::fmt;
 
+use std::io;
+
 pub struct Reader<R> {
 	inner: R,
 
@@ -24,6 +26,17 @@ impl<R> Reader<R> {
 
 	pub fn get_mut(&mut self) -> &mut R {
 		&mut self.inner
+	}
+
+	fn on_read(
+		&mut self,
+		_buf: &mut [u8],
+		n: usize,
+	) -> io::Result<()> {
+		#[cfg(feature = "statistics")]
+		self.stats.add_received(n);
+
+		Ok(())
 	}
 }
 

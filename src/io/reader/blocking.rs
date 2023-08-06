@@ -7,11 +7,9 @@ where
 	R: Read,
 {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-		let i = self.inner.read(buf)?;
+		let n = self.inner.read(buf)?;
 
-		#[cfg(feature = "statistics")]
-		self.stats.add_received(i);
-
-		Ok(i)
+		self.on_read(buf, n)?;
+		Ok(n)
 	}
 }

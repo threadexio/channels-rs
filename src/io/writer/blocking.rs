@@ -7,12 +7,10 @@ where
 	W: Write,
 {
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		let i = self.inner.write(buf)?;
+		let n = self.inner.write(buf)?;
 
-		#[cfg(feature = "statistics")]
-		self.stats.add_sent(i);
-
-		Ok(i)
+		self.on_write(buf, n)?;
+		Ok(n)
 	}
 
 	fn flush(&mut self) -> Result<()> {

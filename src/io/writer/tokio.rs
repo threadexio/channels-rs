@@ -18,11 +18,8 @@ where
 		buf: &[u8],
 	) -> Poll<Result<usize>> {
 		match Pin::new(&mut self.inner).poll_write(cx, buf) {
-			Poll::Ready(Ok(i)) => {
-				#[cfg(feature = "statistics")]
-				self.stats.add_sent(i);
-
-				Poll::Ready(Ok(i))
+			Poll::Ready(Ok(n)) => {
+				Poll::Ready(self.on_write(buf, n).map(|_| n))
 			},
 			r => r,
 		}

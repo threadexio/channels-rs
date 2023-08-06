@@ -1,6 +1,8 @@
 use core::any::type_name;
 use core::fmt;
 
+use std::io;
+
 pub struct Writer<W> {
 	inner: W,
 
@@ -24,6 +26,13 @@ impl<W> Writer<W> {
 
 	pub fn get_mut(&mut self) -> &mut W {
 		&mut self.inner
+	}
+
+	fn on_write(&mut self, _buf: &[u8], n: usize) -> io::Result<()> {
+		#[cfg(feature = "statistics")]
+		self.stats.add_sent(n);
+
+		Ok(())
 	}
 }
 
