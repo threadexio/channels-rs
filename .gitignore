@@ -1,4 +1,5 @@
 /.vscode
 /.python
-/target
-/Cargo.lock
+
+target
+Cargo.lock

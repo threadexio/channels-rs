@@ -11,7 +11,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  outputs = { nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let pkgs = import nixpkgs { inherit system; }; in {
         formatter = pkgs.nixpkgs-fmt;
@@ -20,7 +20,7 @@
           # For writing code.
           # $ nix develop
           dev = pkgs.mkShell {
-            buildInputs = with pkgs; [
+            packages = with pkgs; [
               rustup
 
               gdb
@@ -29,12 +29,13 @@
               linuxPackages.perf
 
               # For tools/header.py
-              python312
-              virtualenv
+              python311Packages.virtualenv
             ];
 
             shellHook = ''
-              virtualenv .python
+              export PATH="$PWD/bin:$PATH"
+
+              python3 -m venv .python
               source .python/bin/activate
               python -m pip install -r tools/requirements.txt
             '';
