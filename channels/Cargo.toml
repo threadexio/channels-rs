@@ -11,7 +11,7 @@ readme = "README.md"
 keywords = ["client", "networking", "server", "stream", "channel"]
 categories = ["network-programming"]
 
-include = ["/src", "/examples", "LICENSE"]
+include = ["/src", "LICENSE"]
 
 [package.metadata.docs.rs]
 all-features = true
