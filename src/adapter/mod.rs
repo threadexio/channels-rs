@@ -12,7 +12,7 @@
 //! The difference between the two is the synchronization primitive used.
 //! The [`unsync`], unlike the [`sync`], variant does not implement [`Send`]
 //! or [`Sync`] for any of its types, and as such cannot be shared or sent to
-//! other thread.
+//! other threads.
 //!
 //! # Example
 //! ```no_run
@@ -21,9 +21,7 @@
 //!
 //! use std::io::{Read, Write, Cursor};
 //!
-//! // An example of a type that implements both `Read` and `Write`.
 //! let rw = Cursor::new(vec![0u8; 32]);
-//!
 //! let (mut r, mut w) = split(rw);
 //!
 //! let mut buf = vec![0u8; 16];

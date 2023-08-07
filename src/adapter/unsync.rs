@@ -8,10 +8,9 @@
 //! use std::io::{Read, Write, Cursor};
 //! use std::thread;
 //!
-//! // `Cursor` implements both Read and Write
 //! let rw = Cursor::new(vec![0u8; 32]);
-//!
 //! let (mut r, mut w) = split(rw);
+//!
 //! thread::scope(|s| {
 //!     s.spawn(|| {
 //!         let _ = r.read(&mut []).unwrap();
@@ -158,8 +157,11 @@ pub fn split<T>(rw: T) -> (ReadHalf<T>, WriteHalf<T>) {
 }
 
 /// Join back the 2 halves and return the original object passed to
-/// the [`split`] function. Returns `None` if `r` and `w` were not
-/// obtained from the same [`split`] call.
+/// the [`split`] function.
+///
+/// Returns ownership of the 2 halves if they could not be joined.
+/// The only reason for this function returning `Err` is that `r`
+/// and `w` were not made from the same `T`.
 #[allow(clippy::missing_panics_doc)]
 // This is needed because of crate lint level. This function does not actually panic.
 pub fn join<T>(

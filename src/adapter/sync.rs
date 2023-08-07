@@ -13,7 +13,6 @@
 //! use std::thread;
 //!
 //! let rw = Cursor::new(vec![0u8; 32]);
-//!
 //! let (mut r, mut w) = split(rw);
 //!
 //! thread::scope(|s| {
