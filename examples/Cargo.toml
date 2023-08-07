@@ -1,0 +1,32 @@
+[package]
+name = "examples"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[example]]
+name = "tcp_async_client"
+path = "tcp_async_client.rs"
+required-features = ["tokio"]
+
+[[example]]
+name = "tcp_async_server"
+path = "tcp_async_server.rs"
+required-features = ["tokio"]
+
+[[example]]
+name = "tcp_echo_client"
+path = "tcp_echo_client.rs"
+
+[[example]]
+name = "tcp_echo_server"
+path = "tcp_echo_server.rs"
+
+[features]
+tokio = ["channels/tokio", "dep:tokio"]
+
+[dependencies]
+channels = { workspace = true }
+
+rand = "0.8"
+tokio = { version = "1.29", features = ["full"], optional = true }

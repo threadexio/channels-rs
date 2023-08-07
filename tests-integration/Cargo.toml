@@ -1,0 +1,27 @@
+[package]
+name = "tests-integration"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[test]]
+name = "test_transport_async"
+required-features = ["tokio"]
+
+[[test]]
+name = "test_big_data_async"
+required-features = ["tokio"]
+
+[[test]]
+name = "test_async_with_sync"
+required-features = ["tokio"]
+
+[features]
+tokio = ["channels/tokio", "dep:tokio"]
+
+[dependencies]
+channels = { workspace = true }
+
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.29", features = ["full"], optional = true }
