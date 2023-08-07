@@ -42,14 +42,17 @@ tokio = ["dep:tokio"]
 
 [[test]]
 name = "test_transport_async"
+path = "tests/test_transport_async.rs"
 required-features = ["tokio"]
 
 [[test]]
 name = "test_big_data_async"
+path = "tests/test_big_data_async.rs"
 required-features = ["tokio"]
 
 [[test]]
 name = "test_async_with_sync"
+path = "tests/test_async_with_sync.rs"
 required-features = ["tokio"]
 
 [[example]]
