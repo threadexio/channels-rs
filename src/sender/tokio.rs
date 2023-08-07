@@ -2,7 +2,6 @@ use core::borrow::Borrow;
 use core::marker::Unpin;
 
 use ::tokio::io::{AsyncWrite, AsyncWriteExt};
-use ::tokio::time::Duration;
 
 use super::*;
 
@@ -52,42 +51,6 @@ where
 	}
 
 	/// Attempts to asynchronously send an object of type `T` through
-	/// the reader with a timeout.
-	///
-	/// If the object could not be sent in the duration specified by
-	/// `timeout`, all data is cleared and this method returns [`SendError::Timeout`].
-	///
-	/// # Example
-	/// ```no_run
-	/// use channels::Sender;
-	/// use std::time::Duration;
-	///
-	/// #[tokio::main]
-	/// async fn main() {
-	///     let writer = tokio::io::sink();
-	///     let mut sender = Sender::<i32, _, _>::new(writer);
-	///
-	///     sender.send_timeout(42_i32, Duration::from_secs(1)).await.unwrap();
-	/// }
-	/// ```
-	pub async fn send_timeout<D>(
-		&mut self,
-		data: D,
-		timeout: Duration,
-	) -> Result<(), SendError<S::Error>>
-	where
-		D: Borrow<T>,
-	{
-		let fut = async { self.send(data).await };
-		let r = ::tokio::time::timeout(timeout, fut).await;
-
-		match r {
-			Ok(v) => v,
-			Err(_) => Err(SendError::Timeout),
-		}
-	}
-
-	/// Attempts to asynchronously send an object of type `T` through
 	/// the underlying asynchronous writer.
 	///
 	/// It is not to be confused with [`Sender::send_blocking`]. This
@@ -99,7 +62,7 @@ where
 	/// You can call this method from inside an asynchronous runtime,
 	/// but please note that it **will** block the entire runtime. In
 	/// other words, any other tasks will not run until this completes.
-	/// For this reason, it is not advices to use this in an synchronous
+	/// For this reason, it is not advised to use this in an synchronous
 	/// context.
 	///
 	/// # Example

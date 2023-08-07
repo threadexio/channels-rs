@@ -20,13 +20,6 @@ where
 	/// being sent/received. This error is recoverable and the channel can
 	/// continue to be used normally.
 	Io(io::Error),
-
-	/// The error variant returned by [`Sender::send_timeout`]. This
-	/// error is only returned by the above method, thus it is safe to
-	/// ignore in cases were that method is not being used.
-	///
-	/// [`Sender::send_timeout`]: crate::Sender::send_timeout
-	Timeout,
 }
 
 impl<SE> fmt::Display for SendError<SE>
@@ -37,7 +30,6 @@ where
 		match self {
 			Self::Serde(e) => write!(f, "{e}"),
 			Self::Io(e) => write!(f, "{e}"),
-			Self::Timeout => write!(f, "timed out"),
 		}
 	}
 }
@@ -122,12 +114,6 @@ where
 	/// A received packet could not be verified. This error is usually unrecoverable
 	/// and the channel should not be used further.
 	Verify(VerifyError),
-	/// The error variant returned by [`Receiver::recv_timeout`]. This
-	/// error is only returned by the above method, thus it is safe to
-	/// ignore in cases were that method is not being used.
-	///
-	/// [`Receiver::recv_timeout`]: crate::Receiver::recv_timeout
-	Timeout,
 }
 
 impl<DE> fmt::Display for RecvError<DE>
@@ -139,7 +125,6 @@ where
 			Self::Serde(e) => write!(f, "{e}"),
 			Self::Io(e) => write!(f, "{e}"),
 			Self::Verify(e) => write!(f, "{e}"),
-			Self::Timeout => write!(f, "timed out"),
 		}
 	}
 }
