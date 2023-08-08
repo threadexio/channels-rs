@@ -46,6 +46,7 @@ where
 		for packet in packets {
 			self.writer.write_all(packet.initialized())?;
 		}
+		self.writer.flush()?;
 
 		#[cfg(feature = "statistics")]
 		self.writer.stats.update_sent_time();
