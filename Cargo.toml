@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["channels", "tests-integration", "examples"]
+members = ["channels", "examples", "tests-integration", "stress-tests"]
 
 [workspace.dependencies]
 channels = { path = "./channels" }

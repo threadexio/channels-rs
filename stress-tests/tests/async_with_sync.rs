@@ -1,6 +1,3 @@
-use std::thread;
-use std::time::Duration;
-
 use tokio::runtime::Runtime;
 
 #[derive(
@@ -53,20 +50,7 @@ async fn client() {
 
 #[test]
 fn test_transport() {
-	let s = thread::Builder::new()
-		.name("server".into())
-		.spawn(server)
-		.unwrap();
-
-	thread::sleep(Duration::from_secs(1));
-
-	let c = thread::Builder::new()
-		.name("client".into())
-		.spawn(|| {
-			Runtime::new().unwrap().block_on(async { client().await })
-		})
-		.unwrap();
-
-	s.join().unwrap();
-	c.join().unwrap();
+	stress_tests::spawn_server_client(server, || {
+		Runtime::new().unwrap().block_on(async { client().await })
+	})
 }

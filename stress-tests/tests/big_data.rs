@@ -1,6 +1,4 @@
 use std::net::{TcpListener, TcpStream};
-use std::thread;
-use std::time::Duration;
 
 #[derive(
 	Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize,
@@ -52,19 +50,6 @@ fn client() {
 }
 
 #[test]
-fn test_big_data() {
-	let s = thread::Builder::new()
-		.name("server".into())
-		.spawn(server)
-		.unwrap();
-
-	thread::sleep(Duration::from_secs(1));
-
-	let c = thread::Builder::new()
-		.name("client".into())
-		.spawn(client)
-		.unwrap();
-
-	s.join().unwrap();
-	c.join().unwrap();
+fn big_data() {
+	stress_tests::spawn_server_client(server, client)
 }
