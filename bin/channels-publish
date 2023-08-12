@@ -25,10 +25,12 @@ def error(*args):
     __log(prompt, *args)
 
 def warn(*args):
-    print(colored("warning:", color=colorama.Fore.YELLOW, style=colorama.Style.BRIGHT), *args)
+    prompt = colored("warning", color=colorama.Fore.YELLOW, style=colorama.Style.BRIGHT)
+    __log(prompt, *args)
 
 def info(msg: str, *args):
-    print(colored(f"{msg:>12}", color=colorama.Fore.GREEN, style=colorama.Style.BRIGHT), *args)
+    prompt = colored(f"{msg:>12}", color=colorama.Fore.GREEN, style=colorama.Style.BRIGHT)
+    __log(prompt, *args)
 
 def run_command(*args: str, log: bool = False, exit_on_error: bool = True):
     cmd_str = colored(" ".join(args), color=colorama.Fore.BLUE)
