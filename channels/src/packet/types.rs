@@ -10,7 +10,9 @@ macro_rules! impl_num {
 			max: $max:expr,
 			from: [ $($from_t:ty),* ],
 			try_from: [ $($try_from_t:ty),* ],
-			into: [ $($into_t:ty),* ],
+			into: [ $(
+				$into_t:ty $(: $into_t_alt_fn:ident)?
+			),* ],
 		}
 	) => {
 		$(#[$attr])*
@@ -20,6 +22,14 @@ macro_rules! impl_num {
 		impl $name {
 			pub const MIN: Self = Self($min);
 			pub const MAX: Self = Self($max);
+
+			$(
+				$(
+					pub fn $into_t_alt_fn(self) -> $into_t {
+						self.into()
+					}
+				)?
+			)*
 		}
 
 		$(
@@ -67,7 +77,12 @@ impl_num! {
 		max: MAX_PAYLOAD_SIZE as u16,
 		from: [ u8 ],
 		try_from: [ u16, u32, u64, usize ],
-		into: [ u16, u32, u64, usize ],
+		into: [
+			u16: as_u16,
+			u32: as_u32,
+			u64: as_u64,
+			usize: as_usize
+		],
 	}
 }
 
@@ -83,7 +98,12 @@ impl_num! {
 		max: MAX_PACKET_SIZE as u16,
 		from: [ ],
 		try_from: [ u16, u32, u64, usize ],
-		into: [ u16, u32, u64, usize ],
+		into: [
+			u16: as_u16,
+			u32: as_u32,
+			u64: as_u64,
+			usize: as_usize
+		],
 	}
 }
 
