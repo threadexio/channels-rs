@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-channels = { workspace = true, features = ["tokio"] }
+channels = { workspace = true }
 
 tokio = { version = "1.29", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

@@ -25,7 +25,7 @@ name = "tcp_compressed_deflate"
 path = "tcp_compressed_deflate.rs"
 
 [dependencies]
-channels = { workspace = true, features = ["tokio", "flate2"] }
+channels = { workspace = true, features = ["full"] }
 
 rand = "0.8"
 tokio = { version = "1.29", features = ["full"] }

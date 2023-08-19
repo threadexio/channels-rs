@@ -27,13 +27,12 @@ tokio = { version = "1.29", features = ["io-util", "rt"], optional = true }
 
 [features]
 default = ["serde", "bincode"]
+full = ["statistics", "serde", "bincode", "cbor", "flate2", "json", "tokio"]
 
-statistics = []
-
-serde = ["dep:serde"]
 bincode = ["dep:bincode"]
 cbor = ["dep:ciborium"]
 flate2 = ["dep:flate2"]
 json = ["dep:serde_json"]
-
+serde = ["dep:serde"]
+statistics = []
 tokio = ["dep:tokio"]

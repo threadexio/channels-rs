@@ -9,4 +9,4 @@ members = [
 ]
 
 [workspace.dependencies]
-channels = { path = "./channels" }
+channels = { path = "./channels", features = ["full"] }
