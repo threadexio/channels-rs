@@ -10,7 +10,11 @@ pub mod header;
 pub mod list;
 pub mod types;
 
-use types::Id;
+use core::iter::Peekable;
+
+use header::Header;
+use list::Packet;
+use types::{Flags, Id};
 
 #[derive(Debug, Default)]
 pub struct Pcb {
@@ -18,8 +22,48 @@ pub struct Pcb {
 }
 
 impl Pcb {
-	/// Update this pcb to be ready for the next packet.
-	pub fn next(&mut self) {
-		self.id = self.id.next();
+	pub fn finalize<'a, I>(
+		&'a mut self,
+		packets: I,
+	) -> Finalize<'a, I>
+	where
+		I: Iterator<Item = &'a mut Packet>,
+	{
+		Finalize { iter: packets.peekable(), pcb: self }
+	}
+}
+
+pub struct Finalize<'a, I>
+where
+	I: Iterator<Item = &'a mut Packet>,
+{
+	iter: Peekable<I>,
+	pcb: &'a mut Pcb,
+}
+
+impl<'a, I> Iterator for Finalize<'a, I>
+where
+	I: Iterator<Item = &'a mut Packet>,
+{
+	type Item = &'a [u8];
+
+	fn next(&mut self) -> Option<Self::Item> {
+		let packet = self.iter.next()?;
+
+		let mut header = Header {
+			length: packet.write_pos().to_packet_length(),
+			flags: Flags::zero(),
+			id: self.pcb.id.next(),
+		};
+
+		if let Some(next_packet) = self.iter.peek() {
+			if !next_packet.filled_payload().is_empty() {
+				header.flags |= Flags::MORE_DATA;
+			}
+		}
+
+		header.write_to(packet.header_mut());
+
+		return Some(packet.initialized());
 	}
 }

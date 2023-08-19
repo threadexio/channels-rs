@@ -6,7 +6,6 @@ use crate::error::{RecvError, VerifyError};
 use crate::io::Reader;
 use crate::packet::header::Header;
 use crate::packet::list::{List, Packet};
-use crate::packet::types::*;
 use crate::packet::Pcb;
 use crate::serdes::*;
 
@@ -80,20 +79,11 @@ fn get_header(
 ) -> Result<Header, VerifyError> {
 	let header = Header::read_from(packet.header())?;
 
-	if header.id != pcb.id {
+	if header.id != pcb.id.next() {
 		return Err(VerifyError::OutOfOrder);
 	}
 
 	Ok(header)
-}
-
-/// Prepare the receiver to read the next packet.
-#[allow(unused_variables)]
-fn prepare_for_next_packet<R>(reader: &mut Reader<R>, pcb: &mut Pcb) {
-	pcb.next();
-
-	#[cfg(feature = "statistics")]
-	reader.stats.update_received_time();
 }
 
 impl<T, R, D> Receiver<T, R, D>

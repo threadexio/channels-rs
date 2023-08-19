@@ -2,7 +2,11 @@ use core::marker::Unpin;
 
 use ::tokio::io::{AsyncRead, AsyncReadExt};
 
-use super::*;
+use super::{get_header, Receiver};
+use crate::error::RecvError;
+use crate::packet::list::Packet;
+use crate::packet::types::Flags;
+use crate::serdes::Deserializer;
 
 impl<T, R, D> Receiver<T, R, D>
 where
@@ -48,14 +52,15 @@ where
 				.await?;
 			packet.set_write_pos(payload_len);
 
-			prepare_for_next_packet(&mut self.reader, &mut self.pcb);
-
 			if !(header.flags & Flags::MORE_DATA) {
 				break;
 			}
 
 			i += 1;
 		}
+
+		#[cfg(feature = "statistics")]
+		self.reader.stats.update_received_time();
 
 		self.deserialize_packets_to_t()
 	}

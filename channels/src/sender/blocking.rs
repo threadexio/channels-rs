@@ -2,7 +2,9 @@ use core::borrow::Borrow;
 
 use std::io::Write;
 
-use super::*;
+use super::Sender;
+use crate::error::SendError;
+use crate::serdes::Serializer;
 
 impl<T, W, S> Sender<T, W, S>
 where
@@ -41,11 +43,10 @@ where
 		self.packets.clear();
 
 		self.serialize_t_to_packets(data)?;
-		let packets =
-			finalize_packets(&mut self.packets, &mut self.pcb);
-		for packet in packets {
-			self.writer.write_all(packet.initialized())?;
-		}
+
+		self.pcb
+			.finalize(self.packets.iter_mut())
+			.try_for_each(|slice| self.writer.write_all(slice))?;
 		self.writer.flush()?;
 
 		#[cfg(feature = "statistics")]

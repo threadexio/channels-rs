@@ -132,8 +132,10 @@ flags! {
 pub struct Id(pub u8);
 
 impl Id {
-	pub fn next(self) -> Self {
-		Self(self.0.wrapping_add(1))
+	pub fn next(&mut self) -> Self {
+		let old = *self;
+		self.0 = self.0.wrapping_add(1);
+		old
 	}
 }
 

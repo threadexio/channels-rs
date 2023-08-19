@@ -4,9 +4,7 @@ use core::marker::PhantomData;
 
 use crate::error::SendError;
 use crate::io::Writer;
-use crate::packet::header::Header;
-use crate::packet::list::{List, Packet};
-use crate::packet::types::*;
+use crate::packet::list::List;
 use crate::packet::Pcb;
 use crate::serdes::*;
 
@@ -68,41 +66,6 @@ cfg_statistics! {
 			&self.writer.stats
 		}
 	}
-}
-
-fn finalize_packets<'list>(
-	list: &'list mut List,
-	pcb: &mut Pcb,
-) -> &'list [Packet] {
-	let mut last_packet_idx = 0;
-
-	let mut packet_iter = list.iter_mut().peekable();
-	while let Some(packet) = packet_iter.next() {
-		let mut header = Header {
-			length: packet.write_pos().to_packet_length(),
-			flags: Flags::zero(),
-			id: pcb.id,
-		};
-
-		pcb.next();
-
-		if packet.is_full() {
-			if let Some(next_packet) = packet_iter.peek() {
-				if !next_packet.filled_payload().is_empty() {
-					header.flags |= Flags::MORE_DATA;
-					last_packet_idx += 1;
-				}
-			}
-		}
-
-		header.write_to(packet.header_mut());
-
-		if !(header.flags & Flags::MORE_DATA) {
-			break;
-		}
-	}
-
-	&list[..=last_packet_idx]
 }
 
 impl<T, W, S> Sender<T, W, S>

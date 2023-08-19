@@ -3,7 +3,9 @@ use core::marker::Unpin;
 
 use ::tokio::io::{AsyncWrite, AsyncWriteExt};
 
-use super::*;
+use super::Sender;
+use crate::error::SendError;
+use crate::serdes::Serializer;
 
 impl<T, W, S> Sender<T, W, S>
 where
@@ -38,10 +40,10 @@ where
 		self.packets.clear();
 
 		self.serialize_t_to_packets(data)?;
-		let packets =
-			finalize_packets(&mut self.packets, &mut self.pcb);
-		for packet in packets {
-			self.writer.write_all(packet.initialized()).await?;
+
+		let bufs = self.pcb.finalize(self.packets.iter_mut());
+		for buf in bufs {
+			self.writer.write_all(buf).await?;
 		}
 		self.writer.flush().await?;
 
