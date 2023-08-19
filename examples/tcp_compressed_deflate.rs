@@ -4,17 +4,17 @@ use tokio::time::{sleep, Duration};
 
 const ADDR: &str = "127.0.0.1:10001";
 
-type Sd<T> =
-	channels::serdes::deflate::Deflate<T, channels::serdes::Bincode>;
+type Sd =
+	channels::serdes::deflate::Deflate<channels::serdes::Bincode>;
 
-type Tx<T, W> = channels::Sender<T, W, Sd<T>>;
-type Rx<T, W> = channels::Receiver<T, W, Sd<T>>;
+type Tx<T, W> = channels::Sender<T, W, Sd>;
+type Rx<T, W> = channels::Receiver<T, W, Sd>;
 type Pair<T> = channels::Pair<
 	T,
 	tokio::net::tcp::OwnedReadHalf,
 	tokio::net::tcp::OwnedWriteHalf,
-	Sd<T>,
-	Sd<T>,
+	Sd,
+	Sd,
 >;
 
 fn channel(stream: TcpStream) -> Pair<i32> {

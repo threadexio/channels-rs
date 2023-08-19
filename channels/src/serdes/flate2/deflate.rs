@@ -13,18 +13,18 @@ pub use flate2::Compression;
 
 /// [`Deflate`] builder.
 #[derive(Debug, Clone)]
-pub struct Builder<T, U> {
-	_marker: PhantomData<Deflate<T, U>>,
+pub struct Builder<U> {
+	_marker: PhantomData<Deflate<U>>,
 	level: Compression,
 }
 
-impl<T, U> Default for Builder<T, U> {
+impl<U> Default for Builder<U> {
 	fn default() -> Self {
 		Self { _marker: PhantomData, level: Default::default() }
 	}
 }
 
-impl<T, U> Builder<T, U> {
+impl<U> Builder<U> {
 	/// Set the compression level.
 	pub fn level(mut self, level: Compression) -> Self {
 		self.level = level;
@@ -32,41 +32,36 @@ impl<T, U> Builder<T, U> {
 	}
 
 	/// Build a [`Deflate`] structure.
-	pub fn build(self, next: U) -> Deflate<T, U> {
-		Deflate { _marker: PhantomData, next, level: self.level }
+	pub fn build(self, next: U) -> Deflate<U> {
+		Deflate { next, level: self.level }
 	}
 }
 
 /// A middleware type which compresses/decompresses all data with deflate
 /// using the [`mod@flate2`] crate.
 #[derive(Debug)]
-pub struct Deflate<T, U> {
-	_marker: PhantomData<T>,
+pub struct Deflate<U> {
 	next: U,
 	level: Compression,
 }
 
-impl<T, U> Deflate<T, U> {
+impl<U> Deflate<U> {
 	/// Get a [`Builder`].
-	pub fn builder() -> Builder<T, U> {
+	pub fn builder() -> Builder<U> {
 		Builder::default()
 	}
 }
 
-impl<T, U> Clone for Deflate<T, U>
+impl<U> Clone for Deflate<U>
 where
 	U: Clone,
 {
 	fn clone(&self) -> Self {
-		Self {
-			_marker: self._marker,
-			next: self.next.clone(),
-			level: self.level,
-		}
+		Self { next: self.next.clone(), level: self.level }
 	}
 }
 
-impl<T, U> Serializer<T> for Deflate<T, U>
+impl<T, U> Serializer<T> for Deflate<U>
 where
 	U: Serializer<T>,
 {
@@ -86,7 +81,7 @@ where
 	}
 }
 
-impl<T, U> Deserializer<T> for Deflate<T, U>
+impl<T, U> Deserializer<T> for Deflate<U>
 where
 	U: Deserializer<T>,
 {
