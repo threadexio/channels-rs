@@ -183,6 +183,11 @@ cfg_serde! {
 		mod cbor;
 		pub use self::cbor::Cbor;
 	}
+
+	cfg_json! {
+		mod json;
+		pub use self::json::Json;
+	}
 }
 
 cfg_flate2! {

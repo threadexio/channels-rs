@@ -34,6 +34,15 @@ cfg_serde! {
 			)*
 		}
 	}
+
+	macro_rules! cfg_json {
+		($($item:item)*) => {
+			$(
+				#[cfg(feature = "json")]
+				$item
+			)*
+		}
+	}
 }
 
 macro_rules! cfg_flate2 {
