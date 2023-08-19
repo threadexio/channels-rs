@@ -197,3 +197,7 @@ cfg_flate2! {
 	#[path = "flate2/deflate.rs"]
 	pub mod deflate;
 }
+
+cfg_crc! {
+	pub mod crc;
+}

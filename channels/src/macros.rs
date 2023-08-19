@@ -54,6 +54,15 @@ macro_rules! cfg_flate2 {
 	}
 }
 
+macro_rules! cfg_crc {
+	($($item:item)*) => {
+		$(
+			#[cfg(feature = "crc")]
+			$item
+		)*
+	}
+}
+
 macro_rules! cfg_tokio {
 	($($item:item)*) => {
 		$(
