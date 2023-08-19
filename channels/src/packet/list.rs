@@ -262,13 +262,13 @@ impl Packet {
 
 	#[inline]
 	pub fn unread_payload(&self) -> &[u8] {
-		let r = self.read_pos.into()..;
+		let r = self.read_pos.into()..self.write_pos.into();
 		&self.payload()[r]
 	}
 
 	#[inline]
 	pub fn unread_payload_mut(&mut self) -> &mut [u8] {
-		let r = self.read_pos.into()..;
+		let r = self.read_pos.into()..self.write_pos.into();
 		&mut self.payload_mut()[r]
 	}
 }
