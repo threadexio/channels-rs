@@ -4,7 +4,8 @@ use std::io;
 
 /// The [`mod@ciborium`] serializer which automatically works with all
 /// types that implement [`serde::Serialize`] and [`serde::Deserialize`].
-pub struct Cbor;
+#[derive(Debug, Default, Clone)]
+pub struct Cbor();
 
 impl<T> Serializer<T> for Cbor
 where

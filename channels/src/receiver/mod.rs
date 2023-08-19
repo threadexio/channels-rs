@@ -29,7 +29,7 @@ cfg_serde! {
 		impl<T, R> Receiver<T, R, Bincode> {
 			/// Creates a new [`Receiver`] from `reader`.
 			pub fn new(reader: R) -> Self {
-				Self::with_deserializer(reader, Bincode)
+				Self::with_deserializer(reader, Bincode::default())
 			}
 		}
 	}

@@ -13,7 +13,8 @@ macro_rules! bincode {
 
 /// The [`mod@bincode`] serializer which automatically works with all
 /// types that implement [`serde::Serialize`] and [`serde::Deserialize`].
-pub struct Bincode;
+#[derive(Debug, Default, Clone)]
+pub struct Bincode();
 
 impl<T> Serializer<T> for Bincode
 where

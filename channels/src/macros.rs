@@ -36,6 +36,15 @@ cfg_serde! {
 	}
 }
 
+macro_rules! cfg_flate2 {
+	($($item:item)*) => {
+		$(
+			#[cfg(feature = "flate2")]
+			$item
+		)*
+	}
+}
+
 macro_rules! cfg_tokio {
 	($($item:item)*) => {
 		$(

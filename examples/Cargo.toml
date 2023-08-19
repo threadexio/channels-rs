@@ -7,12 +7,10 @@ publish = false
 [[example]]
 name = "tcp_async_client"
 path = "tcp_async_client.rs"
-required-features = ["tokio"]
 
 [[example]]
 name = "tcp_async_server"
 path = "tcp_async_server.rs"
-required-features = ["tokio"]
 
 [[example]]
 name = "tcp_echo_client"
@@ -22,11 +20,12 @@ path = "tcp_echo_client.rs"
 name = "tcp_echo_server"
 path = "tcp_echo_server.rs"
 
-[features]
-tokio = ["channels/tokio", "dep:tokio"]
+[[example]]
+name = "tcp_compressed_deflate"
+path = "tcp_compressed_deflate.rs"
 
 [dependencies]
-channels = { workspace = true }
+channels = { workspace = true, features = ["tokio", "flate2"] }
 
 rand = "0.8"
-tokio = { version = "1.29", features = ["full"], optional = true }
+tokio = { version = "1.29", features = ["full"] }

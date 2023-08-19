@@ -2,7 +2,8 @@
 
 use std::error::Error as StdError;
 
-pub(crate) mod prelude {
+/// Traits and types needed to implement [`Serializer`] and [`Deserializer`].
+pub mod prelude {
 	pub use super::{Deserializer, Serializer};
 	pub use std::io::{Read, Write};
 }
@@ -182,4 +183,12 @@ cfg_serde! {
 		mod cbor;
 		pub use self::cbor::Cbor;
 	}
+}
+
+cfg_flate2! {
+	#[path = "flate2/gzip.rs"]
+	pub mod gzip;
+
+	#[path = "flate2/deflate.rs"]
+	pub mod deflate;
 }
