@@ -83,7 +83,7 @@ The differences are:
 - `crc`: Adds support for verifying data with CRC checksums.
 - `flate2`: Adds support for compressing data with [`flate2`].
 - `hmac`: Adds support for cryptographically signing data with [`hmac`] and [`sha3`].
-- `json`: Adds support for sending/receiving any typr with [`serde_json`].
+- `json`: Adds support for sending/receiving any type with [`serde_json`].
 - `statistics`: Capture statistic data like: total bytes sent/received, timestamp of last packet, etc
 - `tokio`: Adds support for sending/receiving types asynchronously.
 
