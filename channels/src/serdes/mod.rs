@@ -201,3 +201,7 @@ cfg_flate2! {
 cfg_crc! {
 	pub mod crc;
 }
+
+cfg_hmac! {
+	pub mod hmac;
+}

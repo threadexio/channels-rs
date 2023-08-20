@@ -71,3 +71,12 @@ macro_rules! cfg_tokio {
 		)*
 	};
 }
+
+macro_rules! cfg_hmac {
+	($($item:item)*) => {
+		$(
+			#[cfg(feature = "hmac")]
+			$item
+		)*
+	};
+}

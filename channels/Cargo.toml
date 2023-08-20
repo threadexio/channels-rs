@@ -22,6 +22,8 @@ bincode = { version = "1.3", optional = true }
 ciborium = { version = "0.2", optional = true }
 crc = { version = "3.0", optional = true }
 flate2 = { version = "1.0", optional = true }
+hmac = { version = "0.12", optional = true }
+sha3 = { version = "0.10", optional = true }
 serde = { version = "1.0", optional = true }
 serde_json = { version = "1.0", optional = true }
 tokio = { version = "1.29", features = ["io-util", "rt"], optional = true }
@@ -35,6 +37,7 @@ full = [
 	"cbor",
 	"crc",
 	"flate2",
+	"hmac",
 	"json",
 	"tokio",
 ]
@@ -43,6 +46,7 @@ bincode = ["dep:bincode"]
 cbor = ["dep:ciborium"]
 crc = ["dep:crc"]
 flate2 = ["dep:flate2"]
+hmac = ["dep:hmac", "dep:sha3"]
 json = ["dep:serde_json"]
 serde = ["dep:serde"]
 statistics = []
