@@ -2,57 +2,16 @@
 
 use super::prelude::*;
 
-use core::fmt;
 use core::marker::PhantomData;
 use core::mem::size_of;
 
-use std::error::Error as StdError;
 use std::io;
 
-/// The error type returned the [`Crc`] middleware.
-#[derive(Debug)]
-pub enum Error<T>
-where
-	T: StdError,
-{
-	/// An IO error was encountered while trying to read/write the crc field.
-	Io(io::Error),
-	/// The payload has suffered corruption. This error can only be
-	/// encountered while deserializing.
-	ChecksumError,
-	/// The next serializer/deserializer returned an error.
-	Next(T),
-}
+mod error;
+pub use error::Error;
 
-impl<T> fmt::Display for Error<T>
-where
-	T: StdError,
-{
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::Io(io_error) => write!(f, "{io_error}"),
-			Self::ChecksumError => write!(f, "checksum error"),
-			Self::Next(e) => write!(f, "{e}"),
-		}
-	}
-}
-
-impl<T> StdError for Error<T> where T: StdError {}
-
-// TODO: Find a way to make `Width` generic.
-type Width = u32;
-
-/// A collection of crc algorithms for use with the middleware.
-pub mod algorithm {
-	// TODO: If `Width` is made generic, this module should just reexport
-	//       every algorithm.
-	pub use crc::{
-		CRC_32_AIXM, CRC_32_AUTOSAR, CRC_32_BASE91_D, CRC_32_BZIP2,
-		CRC_32_CD_ROM_EDC, CRC_32_CKSUM, CRC_32_ISCSI,
-		CRC_32_ISO_HDLC, CRC_32_JAMCRC, CRC_32_MEF, CRC_32_MPEG_2,
-		CRC_32_XFER,
-	};
-}
+pub mod algorithm;
+use algorithm::Width;
 
 /// [`Crc`] builder.
 #[derive(Clone)]
