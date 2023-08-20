@@ -43,9 +43,11 @@
 [`serde::Deserialize`]: serde::Deserialize
 [`bincode`]: mod@bincode
 [`ciborium`]: mod@ciborium
-
-[`Serializer`]: crate::serdes::Serializer
-[`Deserializer`]: crate::serdes::Deserializer
+[`serde_json`]: mod@serde_json
+[`hmac`]: mod@hmac
+[`sha3`]: mod@sha3
+[`flate2`]: mod@flate2
+[`crc`]: mod@crc
 
 ## Repos
 
@@ -68,15 +70,24 @@ The differences are:
 - Channels **will** block, unless the underlying stream is set as non-blocking.
 - The amount of messages that can be queued up before reading is dependent on the underlying stream.
 
-**:warning: Warning:** This library does not support transparent encryption or authentication of the data. This functionality must be implemented by a [`Serializer`] and [`Deserializer`].
-
 # Features
 
+- 🚀 Async & Sync API
+- 📥 Transparent compression
+- 🔑 Transparent authentication with `HMAC-SHA3-512`
+- ➕ Transparent checksumming with CRC
+
+# cargo features
+
+- `cbor`: Adds support for sending/receiving any type with [`ciborium`].
+- `crc`: Adds support for verifying data with CRC checksums.
+- `flate2`: Adds support for compressing data with [`flate2`].
+- `hmac`: Adds support for cryptographically signing data with [`hmac`] and [`sha3`].
+- `json`: Adds support for sending/receiving any typr with [`serde_json`].
 - `statistics`: Capture statistic data like: total bytes sent/received, timestamp of last packet, etc
 - `tokio`: Adds support for sending/receiving types asynchronously.
-- `cbor`: Adds support for sending/receiving any type with [`ciborium`].
 
-## Default features
+## cargo default features
 
 - `serde`: Adds support for sending/receiving any type which implements [`serde::Serialize`] and [`serde::Deserialize`].
 - `bincode`: Adds support for sending/receiving any type with [`bincode`].
