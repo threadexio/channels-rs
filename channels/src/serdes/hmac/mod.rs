@@ -13,7 +13,7 @@ mod error;
 pub use error::Error;
 
 /// [`Hmac`] builder.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Builder<U, K>
 where
 	K: AsRef<[u8]>,
@@ -40,7 +40,7 @@ where
 
 /// A middleware type which cryptographically verifies all data
 /// with [`HMAC-SHA3-512`](sha3::Sha3_512) using the [`mod@hmac`] crate.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Hmac<U, K>
 where
 	K: AsRef<[u8]>,
@@ -66,13 +66,39 @@ where
 	}
 }
 
-impl<U, K> Clone for Hmac<U, K>
+struct HmacRw<T, M>
 where
-	U: Clone,
-	K: AsRef<[u8]> + Clone,
+	M: Mac,
 {
-	fn clone(&self) -> Self {
-		Self { next: self.next.clone(), key: self.key.clone() }
+	inner: T,
+	mac: M,
+}
+
+impl<T, M> Write for HmacRw<T, M>
+where
+	T: Write,
+	M: Mac,
+{
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		let n = self.inner.write(buf)?;
+		self.mac.update(&buf[..n]);
+		Ok(n)
+	}
+
+	fn flush(&mut self) -> io::Result<()> {
+		Ok(())
+	}
+}
+
+impl<T, M> Read for HmacRw<T, M>
+where
+	T: Read,
+	M: Mac,
+{
+	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+		let n = self.inner.read(buf)?;
+		self.mac.update(&buf[..n]);
+		Ok(n)
 	}
 }
 
@@ -128,41 +154,5 @@ where
 		}
 
 		res
-	}
-}
-
-struct HmacRw<T, M>
-where
-	M: Mac,
-{
-	inner: T,
-	mac: M,
-}
-
-impl<T, M> Write for HmacRw<T, M>
-where
-	T: Write,
-	M: Mac,
-{
-	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-		let n = self.inner.write(buf)?;
-		self.mac.update(&buf[..n]);
-		Ok(n)
-	}
-
-	fn flush(&mut self) -> io::Result<()> {
-		Ok(())
-	}
-}
-
-impl<T, M> Read for HmacRw<T, M>
-where
-	T: Read,
-	M: Mac,
-{
-	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-		let n = self.inner.read(buf)?;
-		self.mac.update(&buf[..n]);
-		Ok(n)
 	}
 }

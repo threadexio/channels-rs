@@ -39,7 +39,7 @@ impl<U> Builder<U> {
 
 /// A middleware type which compresses/decompresses all data with deflate
 /// using the [`mod@flate2`] crate.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Deflate<U> {
 	next: U,
 	level: Compression,
@@ -49,15 +49,6 @@ impl<U> Deflate<U> {
 	/// Get a [`Builder`].
 	pub fn builder() -> Builder<U> {
 		Builder::default()
-	}
-}
-
-impl<U> Clone for Deflate<U>
-where
-	U: Clone,
-{
-	fn clone(&self) -> Self {
-		Self { next: self.next.clone(), level: self.level }
 	}
 }
 
