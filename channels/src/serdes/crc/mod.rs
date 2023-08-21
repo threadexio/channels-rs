@@ -2,6 +2,7 @@
 
 use super::prelude::*;
 
+use core::fmt;
 use core::marker::PhantomData;
 use core::mem::size_of;
 
@@ -47,6 +48,7 @@ impl<U> Builder<U> {
 
 /// A middleware type which stores a `crc` field at the end of the
 /// data to validate that it was transported correctly.
+#[derive(Clone)]
 pub struct Crc<U> {
 	next: U,
 	algorithm: &'static crc::Algorithm<Width>,
@@ -57,78 +59,21 @@ impl<U> Crc<U> {
 	pub fn builder() -> Builder<U> {
 		Builder::default()
 	}
-}
 
-impl<U> Clone for Crc<U>
-where
-	U: Clone,
-{
-	fn clone(&self) -> Self {
-		Self {
-			next: self.next.clone(),
-			algorithm: self.algorithm.clone(),
-		}
+	pub(crate) fn create_crc(&self) -> crc::Crc<Width> {
+		crc::Crc::<Width>::new(self.algorithm)
 	}
 }
 
-impl<T, U> Serializer<T> for Crc<U>
+impl<U> fmt::Debug for Crc<U>
 where
-	U: Serializer<T>,
+	U: fmt::Debug,
 {
-	type Error = Error<U::Error>;
-
-	fn serialize<W: Write>(
-		&mut self,
-		mut buf: W,
-		t: &T,
-	) -> Result<(), Self::Error> {
-		let c: crc::Crc<u32> =
-			crc::Crc::<u32>::new(&crc::CRC_32_BZIP2);
-		let mut writer =
-			CrcRw { inner: &mut buf, digest: c.digest() };
-
-		self.next.serialize(&mut writer, t).map_err(Error::Next)?;
-
-		let checksum = writer.digest.finalize();
-		buf.write_all(&checksum.to_be_bytes()).map_err(Error::Io)?;
-
-		Ok(())
-	}
-
-	fn size_hint(&mut self, t: &T) -> Option<usize> {
-		let s = self.next.size_hint(t)? + size_of::<Width>();
-		Some(s)
-	}
-}
-
-impl<T, U> Deserializer<T> for Crc<U>
-where
-	U: Deserializer<T>,
-{
-	type Error = Error<U::Error>;
-
-	fn deserialize<R: Read>(
-		&mut self,
-		mut buf: R,
-	) -> Result<T, Self::Error> {
-		let c = crc::Crc::<u32>::new(&crc::CRC_32_BZIP2);
-		let mut reader =
-			CrcRw { inner: &mut buf, digest: c.digest() };
-
-		let res =
-			self.next.deserialize(&mut reader).map_err(Error::Next);
-
-		let mut unverified = [0u8; 4];
-		reader.read_exact(&mut unverified).map_err(Error::Io)?;
-		let unverified = u32::from_be_bytes(unverified);
-
-		let computed = reader.digest.finalize();
-
-		if unverified != computed {
-			return Err(Error::ChecksumError);
-		}
-
-		res
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Crc")
+			.field("next", &self.next)
+			.field("algorithm", &"...")
+			.finish()
 	}
 }
 
@@ -160,5 +105,67 @@ where
 		let n = self.inner.read(buf)?;
 		self.digest.update(&buf[..n]);
 		Ok(n)
+	}
+}
+
+impl<T, U> Serializer<T> for Crc<U>
+where
+	U: Serializer<T>,
+{
+	type Error = Error<U::Error>;
+
+	fn serialize<W: Write>(
+		&mut self,
+		mut buf: W,
+		t: &T,
+	) -> Result<(), Self::Error> {
+		let c = self.create_crc();
+
+		let mut writer =
+			CrcRw { inner: &mut buf, digest: c.digest() };
+
+		self.next.serialize(&mut writer, t).map_err(Error::Next)?;
+
+		let checksum = writer.digest.finalize();
+		buf.write_all(&checksum.to_be_bytes()).map_err(Error::Io)?;
+
+		Ok(())
+	}
+
+	fn size_hint(&mut self, t: &T) -> Option<usize> {
+		let s = self.next.size_hint(t)? + size_of::<Width>();
+		Some(s)
+	}
+}
+
+impl<T, U> Deserializer<T> for Crc<U>
+where
+	U: Deserializer<T>,
+{
+	type Error = Error<U::Error>;
+
+	fn deserialize<R: Read>(
+		&mut self,
+		mut buf: R,
+	) -> Result<T, Self::Error> {
+		let c = self.create_crc();
+
+		let mut reader =
+			CrcRw { inner: &mut buf, digest: c.digest() };
+
+		let res =
+			self.next.deserialize(&mut reader).map_err(Error::Next);
+
+		let mut unverified = [0u8; 4];
+		reader.read_exact(&mut unverified).map_err(Error::Io)?;
+		let unverified = u32::from_be_bytes(unverified);
+
+		let computed = reader.digest.finalize();
+
+		if unverified != computed {
+			return Err(Error::ChecksumError);
+		}
+
+		res
 	}
 }
