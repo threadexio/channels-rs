@@ -9,3 +9,6 @@ channels = { workspace = true }
 
 tokio = { version = "1.29", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+serial_test = "2.0"

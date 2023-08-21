@@ -322,10 +322,7 @@ cfg_serde! {
 }
 
 cfg_flate2! {
-	#[path = "flate2/gzip.rs"]
 	pub mod gzip;
-
-	#[path = "flate2/deflate.rs"]
 	pub mod deflate;
 }
 

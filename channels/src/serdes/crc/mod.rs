@@ -156,13 +156,15 @@ where
 		let res =
 			self.next.deserialize(&mut reader).map_err(Error::Next);
 
-		let mut unverified = [0u8; 4];
-		reader.read_exact(&mut unverified).map_err(Error::Io)?;
-		let unverified = u32::from_be_bytes(unverified);
+		let calculated = reader.digest.finalize();
 
-		let computed = reader.digest.finalize();
+		let unverified = {
+			let mut unverified = [0u8; 4];
+			buf.read_exact(&mut unverified).map_err(Error::Io)?;
+			u32::from_be_bytes(unverified)
+		};
 
-		if unverified != computed {
+		if unverified != calculated {
 			return Err(Error::ChecksumError);
 		}
 

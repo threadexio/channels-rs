@@ -11,6 +11,9 @@ use flate2::write::GzEncoder;
 // just for this one type.
 pub use flate2::Compression;
 
+mod error;
+pub use error::Error;
+
 /// [`Gzip`] builder.
 #[derive(Debug, Clone)]
 pub struct Builder<U> {
@@ -33,7 +36,7 @@ impl<U> Builder<U> {
 
 	/// Build a [`Gzip`] structure.
 	pub fn build(self, next: U) -> Gzip<U> {
-		Gzip { next, level: self.level }
+		Gzip { next, level: self.level, intermediate: Vec::new() }
 	}
 }
 
@@ -43,6 +46,7 @@ impl<U> Builder<U> {
 pub struct Gzip<U> {
 	next: U,
 	level: Compression,
+	intermediate: Vec<u8>,
 }
 
 impl<U> Gzip<U> {
@@ -56,15 +60,24 @@ impl<T, U> Serializer<T> for Gzip<U>
 where
 	U: Serializer<T>,
 {
-	type Error = U::Error;
+	type Error = Error<U::Error>;
 
 	fn serialize<W: Write>(
 		&mut self,
-		buf: W,
+		mut buf: W,
 		t: &T,
 	) -> Result<(), Self::Error> {
-		let compressed = GzEncoder::new(buf, self.level);
-		self.next.serialize(compressed, t)
+		self.intermediate.clear();
+
+		let compressed =
+			GzEncoder::new(&mut self.intermediate, self.level);
+		self.next.serialize(compressed, t).map_err(Error::Next)?;
+
+		let length = self.intermediate.len() as u64;
+		buf.write_all(&length.to_be_bytes()).map_err(Error::Io)?;
+		buf.write_all(&self.intermediate).map_err(Error::Io)?;
+
+		Ok(())
 	}
 
 	fn size_hint(&mut self, t: &T) -> Option<usize> {
@@ -76,13 +89,21 @@ impl<T, U> Deserializer<T> for Gzip<U>
 where
 	U: Deserializer<T>,
 {
-	type Error = U::Error;
+	type Error = Error<U::Error>;
 
 	fn deserialize<R: Read>(
 		&mut self,
-		buf: R,
+		mut buf: R,
 	) -> Result<T, Self::Error> {
+		let length = {
+			let mut length = [0u8; 8];
+			buf.read_exact(&mut length).map_err(Error::Io)?;
+			u64::from_be_bytes(length)
+		};
+
+		let buf = buf.take(length);
+
 		let uncompressed = GzDecoder::new(buf);
-		self.next.deserialize(uncompressed)
+		self.next.deserialize(uncompressed).map_err(Error::Next)
 	}
 }

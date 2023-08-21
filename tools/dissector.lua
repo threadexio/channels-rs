@@ -79,7 +79,7 @@ end
 
 tcp_table = DissectorTable.get("tcp.port")
 
-ports = { 10000, 10001, 10110 }
+ports = { 10000, 10001, 10002, 10110 }
 
 for _, port in pairs(ports) do
 	tcp_table:add(port, proto)
