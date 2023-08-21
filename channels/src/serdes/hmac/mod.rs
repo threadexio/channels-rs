@@ -40,6 +40,52 @@ where
 
 /// A middleware type which cryptographically verifies all data
 /// with [`HMAC-SHA3-512`](sha3::Sha3_512) using the [`mod@hmac`] crate.
+///
+/// # Security
+///
+/// This middleware is **NOT** a silver bullet. It does protect against
+/// modification of the data but **not** against [replay attacks](https://csrc.nist.gov/glossary/term/replay_attack).
+///
+/// To understand why this is, one must now think what HMAC is. It is a way
+/// for 2 parties to verify that some piece of data is authenticated and
+/// not tampered with in any way.
+///
+/// ## A quick explanation
+///
+/// Think of HMAC as a hand-written signature; it does verify the document
+/// but it does not prevent anyone from photocopying the whole document
+/// with the valid signature on it. This is rather problematic in certain
+/// cases where we also need to guarantee the uniqueness of that document.
+/// This is tackled with bundling in a [nonce value](https://csrc.nist.gov/glossary/term/nonce)
+/// which the other party must be able to verify on their end. This way even
+/// if an attacker were to copy the data byte-for-byte, that data would then
+/// get rejected because its nonce value has already been used previously.
+/// And they could not just change the nonce value because then the signature
+/// would not match and they would not have the secret key to create a new
+/// signature.
+///
+/// ## Why does this crate not support this?
+///
+/// Nonce values are supposed to be unique. In other protocols, an initial state
+/// is shared by the 2 parties in the initial handshake process after they
+/// establish a secure channel. That initial state can then be used to seed a
+/// [CSRNG](https://en.wikipedia.org/wiki/Cryptographically_secure_pseudorandom_number_generator)
+/// which can then be used to generate nonce values.
+///
+/// The protocol this crate uses does not support any handshaking process on its
+/// own, but rather uses the fact that software using this crate is usually
+/// compiled together or have access to the same secret key at compile-time.
+/// This means that a handshake is not required to exchange keys. It also means
+/// that if we shared that initial state, every time the software ran it would
+/// use the exact same nonce values in the same order, thus rendering the entire
+/// system useless. An attacker could simply capture the traffic from one execution
+/// and replay it later when the software restarts.
+///
+/// ## Mitigation
+///
+/// If you find yourself needing data to be signed and/or encrypted, you might find
+/// a use for a crate like [`rustls`](https://github.com/rustls/rustls) and use the
+/// [`io::Read`] and [`io::Write`] types it provides without this middleware.
 #[derive(Debug, Clone)]
 pub struct Hmac<U, K>
 where
