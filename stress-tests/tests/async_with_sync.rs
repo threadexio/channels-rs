@@ -9,7 +9,7 @@ struct Data {
 	c: String,
 }
 
-const ADDR: &str = "127.0.0.1:10110";
+const ADDR: &str = "127.0.0.1:10002";
 const ITER: usize = 1024;
 
 fn server() {
@@ -49,7 +49,7 @@ async fn client() {
 }
 
 #[test]
-fn test_transport() {
+fn async_with_sync() {
 	stress_tests::spawn_server_client(server, || {
 		Runtime::new().unwrap().block_on(async { client().await })
 	})

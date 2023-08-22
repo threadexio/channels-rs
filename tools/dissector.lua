@@ -2,139 +2,166 @@
 
 proto = Proto("channels-rs", "channels-rs Protocol")
 
-proto.fields.version  = ProtoField.uint16("channels.version",  "Version",  base.HEX)
-proto.fields.length   = ProtoField.uint16("channels.len",      "Length")
-proto.fields.checksum = ProtoField.uint16("channels.checksum", "Checksum", base.HEX)
-proto.fields.flags    = ProtoField.uint8("channels.flags",     "Flags",    base.HEX)
-proto.fields.id       = ProtoField.uint8("channels.id",        "ID")
-proto.fields.payload  = ProtoField.bytes ("channels.payload",  "Payload",  base.SPACE)
+bytes_left_in_packet = 0
 
-packet_is_in_group = false
-bytes_left_in_payload = nil
+fields = {
+	{
+		["field"] = ProtoField.uint16("channels.version", "Version", base.HEX),
+		["length"] = 2,
+		["on_add"] = function(buf, data, pinfo, tree)
+			if data:uint() ~= 0xfd3f then
+				tree:add("Invalid version!")
+			end
+		end
+	},
+	{
+		["field"] = ProtoField.uint16("channels.length", "Length"),
+		["length"] = 2,
+		["on_add"] = function(buf, data, pinfo, tree)
+			local HEADER_SIZE = 8
+
+			local packet_len = data:uint()
+			local payload_len = packet_len - HEADER_SIZE
+
+			if packet_len < HEADER_SIZE then
+				tree:add("Invalid packet length! (< HEADER_SIZE)")
+			else
+				tree:add(string.format("[Header length]:  " .. HEADER_SIZE))
+				tree:add(string.format("[Payload length]: " .. payload_len))
+			end
+
+			if buf:len() < packet_len then
+				bytes_left_in_packet = packet_len - buf:len()
+				tree:add(string.format("[Bytes left in packet]: ".. bytes_left_in_packet))
+
+				pinfo.cols.info:prepend("┌ ")
+			else
+				pinfo.cols.info:prepend("• ")
+				bytes_left_in_packet = 0
+			end
+		end
+	},
+	{
+		["field"] = ProtoField.uint16("channels.checksum", "Checksum", base.HEX),
+		["length"] = 2,
+	},
+	{
+		["field"] = ProtoField.uint8("channels.flags", "Flags", base.HEX),
+		["length"] = 1,
+		["on_add"] = function(buf, data, pinfo, tree)
+			local flags_raw = data:uint()
+
+			local flag_names = {
+				"Reserved",
+				"Reserved",
+				"Reserved",
+				"Reserved",
+				"Reserved",
+				"Reserved",
+				"Reserved",
+				"More Data",
+			}
+
+			for bit_num, name in ipairs(flag_names) do
+				bit_num = bit_num - 1 -- start at 0
+
+				local bit_mask = bit.lshift(1, bit_num)
+
+				local is_set = 0
+				if bit.band(flags_raw, bit_mask) ~= 0 then
+					is_set = 1
+				end
+
+				local l_padding = 7 - bit_num
+				local r_padding = bit_num
+
+				local str = string.rep(".", l_padding) .. is_set .. string.rep(".", r_padding)
+				str = string.sub(str, 1, 4) .. " " .. string.sub(str, 5, 8) -- add a space in the middle
+
+				str = str .. string.format(" = 0x%02x", bit_mask * is_set) -- show the hex value of the flag
+
+				local is_set_str
+				if is_set ~= 0 then
+					is_set_str = "Set"
+				else
+					is_set_str = "Not Set"
+				end
+
+				tree:add(string.format("%s: %-10s: %s", str, name, is_set_str))
+			end
+		end,
+	},
+	{
+		["field"] = ProtoField.uint8("channels.id", "ID"),
+		["length"] = 1,
+		["on_add"] = function(buf, data, pinfo, tree)
+			pinfo.cols.info:prepend(string.format("ID=%-3d | ", data:uint()))
+		end
+	},
+	{
+		["field"] = ProtoField.bytes("channels.payload", "Payload", base.SPACE),
+	},
+}
+
+for i, p in ipairs(fields) do
+	proto.fields[i] = p["field"]
+end
 
 function proto.dissector(buf, pinfo, tree)
 	pinfo.cols.protocol = "channels-rs"
 	local subtree = tree:add(proto, buf(), "channels-rs Protocol")
 
-	local version  = buf(0, 2)
-	local length   = buf(2, 2)
-	local checksum = buf(4, 2)
-	local flags    = buf(6, 1)
-	local id       = buf(7, 1)
+	if bytes_left_in_packet > 0 then
+		bytes_left_in_packet = bytes_left_in_packet - buf:len()
 
-	local header_length = 8
-	local payload = buf(header_length)
+		subtree:add(string.format("[Bytes left in packet]: ".. bytes_left_in_packet))
 
-	pinfo.cols.info:prepend("ID=" .. id:uint() .. " ")
-
-	if bytes_left_in_payload ~= nil then
-		if bytes_left_in_payload <= 0 then
-			bytes_left_in_payload = nil
+		if bytes_left_in_packet == 0 then
+			pinfo.cols.info:prepend("Ignore | └ ")
 		else
-			bytes_left_in_payload = bytes_left_in_payload - buf:len()
+			pinfo.cols.info:prepend("Ignore | │ ")
+		end
 
-			pinfo.cols.info:prepend("**Ignore** ")
-		end
+		return;
 	else
-		if buf:len() < length:uint() then
-			-- this means that the channels packet was split up
-			bytes_left_in_payload = length:uint() - buf:len()
-		end
+		bytes_left_in_packet = 0
 	end
 
-	local more_data_flag_set = bitand(flags:uint(), bitshl(1, 7)) ~= 0
-
-	subtree:add_packet_field(proto.fields.version, version, ENC_BIG_ENDIAN)
-
-	local length_tree = subtree:add_packet_field(proto.fields.length, length, ENC_BIG_ENDIAN)
-	length_tree:add("[Header length]: "  .. header_length)
-	length_tree:add("[Payload length]: " .. (length:uint() - header_length))
-
-	subtree:add_packet_field(proto.fields.checksum, checksum, ENC_BIG_ENDIAN)
-
-	local flags_tree = subtree:add_packet_field(proto.fields.flags, flags, ENC_BIG_ENDIAN)
-	add_flag_to_subtree(flags_tree, "More Data", 7, more_data_flag_set)
-
-	subtree:add_packet_field(proto.fields.id,       id,       ENC_BIG_ENDIAN)
-	subtree:add_packet_field(proto.fields.payload,  payload,  ENC_BIG_ENDIAN)
-
-	local packet_group_prefix = ""
-	if more_data_flag_set then
-		if packet_is_in_group then
-			packet_group_prefix = "│ "
+	local pos = 0
+	for i, p in ipairs(fields) do
+		local start
+		if p["start"] ~= nil then
+			start = p["start"](buf)
 		else
-			packet_group_prefix = "┌ "
-			packet_is_in_group = true
+			start = pos
 		end
-	else
-		if packet_is_in_group then
-			packet_group_prefix = "└ "
-			packet_is_in_group = false
+
+		local data
+		if p["length"] ~= nil then
+			data = buf(start, p["length"])
+			pos = pos + p["length"]
 		else
-			packet_group_prefix = "· "
+			data = buf(start)
+		end
+
+		local field = p["field"]
+		local field_tree = subtree:add_packet_field(proto.fields[i], data, ENC_BIG_ENDIAN)
+
+		if p["on_add"] ~= nil then
+			p["on_add"](buf, data, pinfo, field_tree)
 		end
 	end
-	pinfo.cols.info:prepend(packet_group_prefix)
 end
 
 tcp_table = DissectorTable.get("tcp.port")
 
-ports = { 10000, 10001, 10002, 10110 }
+ports = {
+	10000,
+	10001,
+	10002,
+	10003,
+}
 
 for _, port in pairs(ports) do
 	tcp_table:add(port, proto)
-end
-
-function add_flag_to_subtree(tree, name, bit, is_set)
-	local result = ""
-
-	local lpad = 7 - bit
-	for i = 1,lpad do
-		result = "." .. result
-	end
-
-	if is_set then
-		result = result .. "1"
-	else
-		result = result .. "0"
-	end
-
-	local rpad = 7 - lpad
-	for i = 1,rpad do
-		result = result .. "."
-	end
-
-	result = string.sub(result, 0, 4) .. " " .. string.sub(result, 5, 8)
-
-	result = result .. " = " .. name .. ": "
-
-	if is_set then
-		result = result .. "Set"
-	else
-		result = result .. "Not Set"
-	end
-
-	tree:add(result)
-end
-
-function bitand(a, b)
-	local result = 0
-	local bitval = 1
-	while a > 0 and b > 0 do
-	  if a % 2 == 1 and b % 2 == 1 then -- test the rightmost bits
-		  result = result + bitval      -- set the current bit
-	  end
-	  bitval = bitval * 2 -- shift left
-	  a = math.floor(a/2) -- shift right
-	  b = math.floor(b/2)
-	end
-	return result
-end
-
-function bitshl(a, b)
-	return a * (2^b)
-end
-
-function bitshr(a, b)
-	return math.floor(a / (2^b))
 end
