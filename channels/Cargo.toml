@@ -1,7 +1,7 @@
 [package]
 name = "channels"
 description = "Bidirectional channel-like communication over generic Read/Write streams"
-version = "0.9.2"
+version = "0.10.0"
 edition = "2021"
 authors = ["1337"]
 license = "MIT"
@@ -26,7 +26,7 @@ hmac = { version = "0.12", optional = true }
 sha3 = { version = "0.10", optional = true }
 serde = { version = "1.0", optional = true }
 serde_json = { version = "1.0", optional = true }
-tokio = { version = "1.29", features = ["io-util", "rt"], optional = true }
+tokio = { version = "1.32", features = ["io-util", "rt"], optional = true }
 
 [features]
 default = ["serde", "bincode"]
