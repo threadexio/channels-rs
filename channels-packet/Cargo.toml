@@ -1,0 +1,17 @@
+[package]
+name = "channels-packet"
+version = "0.1.0"
+edition = "2021"
+authors = ["1337"]
+license = "MIT"
+repository = "https://github.com/threadexio/channels-rs"
+description = """
+Utilities to parse channels packets.
+"""
+categories = ["parsing", "parser-implementations", "no-std"]
+
+[dependencies]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docrs"]
