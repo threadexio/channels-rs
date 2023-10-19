@@ -1,0 +1,26 @@
+[package]
+name = "channels-io"
+version = "0.1.0"
+edition = "2021"
+authors = ["1337"]
+license = "MIT"
+repository = "https://github.com/threadexio/channels-rs"
+description = """
+Abstractions on sync & async IO traits.
+"""
+categories = ["asynchronous", "no-std"]
+
+[features]
+default = ["std"]
+
+std = []
+tokio = ["std"]
+futures = ["std"]
+
+[dependencies]
+tokio = { version = "1.33", features = ["io-util"] }
+futures = { version = "0.3" }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docrs"]
