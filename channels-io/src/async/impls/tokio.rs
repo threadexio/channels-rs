@@ -8,13 +8,11 @@ use crate::{
 	AsyncRead, AsyncWrite, IntoAsyncReader, IntoAsyncWriter,
 };
 
-use tokio::io as tio;
-
-newtype! { TokioAsyncWrite for: tio::AsyncWrite + Unpin }
+newtype! { TokioAsyncWrite for: tokio::io::AsyncWrite + Unpin }
 
 impl<T> IntoAsyncWriter<TokioAsyncWrite<T>> for T
 where
-	T: tio::AsyncWrite + Unpin,
+	T: tokio::io::AsyncWrite + Unpin,
 {
 	fn into_async_writer(self) -> TokioAsyncWrite<T> {
 		TokioAsyncWrite(self)
@@ -23,16 +21,16 @@ where
 
 impl<T> AsyncWrite for TokioAsyncWrite<T>
 where
-	T: tio::AsyncWrite + Unpin,
+	T: tokio::io::AsyncWrite + Unpin,
 {
-	type Error = std::io::Error;
+	type Error = tokio::io::Error;
 
 	fn poll_write_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut IoSliceRef,
 	) -> Poll<Result<(), Self::Error>> {
-		use std::io::ErrorKind as E;
+		use tokio::io::ErrorKind as E;
 
 		while !buf.is_empty() {
 			match ready!(Pin::new(&mut self.0).poll_write(cx, buf)) {
@@ -59,11 +57,11 @@ where
 	}
 }
 
-newtype! { TokioAsyncRead for: tio::AsyncRead + Unpin }
+newtype! { TokioAsyncRead for: tokio::io::AsyncRead + Unpin }
 
 impl<T> IntoAsyncReader<TokioAsyncRead<T>> for T
 where
-	T: tio::AsyncRead + Unpin,
+	T: tokio::io::AsyncRead + Unpin,
 {
 	fn into_async_reader(self) -> TokioAsyncRead<T> {
 		TokioAsyncRead(self)
@@ -72,19 +70,19 @@ where
 
 impl<T> AsyncRead for TokioAsyncRead<T>
 where
-	T: tio::AsyncRead + Unpin,
+	T: tokio::io::AsyncRead + Unpin,
 {
-	type Error = std::io::Error;
+	type Error = tokio::io::Error;
 
 	fn poll_read_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut IoSliceMut,
 	) -> Poll<Result<(), Self::Error>> {
-		use std::io::ErrorKind as E;
+		use tokio::io::ErrorKind as E;
 
 		while !buf.is_empty() {
-			let mut read_buf = tio::ReadBuf::new(buf);
+			let mut read_buf = tokio::io::ReadBuf::new(buf);
 
 			let (res, delta) =
 				delta_filled_len(&mut read_buf, |buf| {
@@ -108,9 +106,12 @@ where
 	}
 }
 
-fn delta_filled_len<F, T>(buf: &mut tio::ReadBuf, f: F) -> (T, usize)
+fn delta_filled_len<F, T>(
+	buf: &mut tokio::io::ReadBuf,
+	f: F,
+) -> (T, usize)
 where
-	F: FnOnce(&mut tio::ReadBuf) -> T,
+	F: FnOnce(&mut tokio::io::ReadBuf) -> T,
 {
 	let l0 = buf.filled().len();
 	let ret = f(buf);

@@ -24,14 +24,14 @@ impl<T> AsyncRead for FuturesRead<T>
 where
 	T: futures::AsyncRead + Unpin,
 {
-	type Error = std::io::Error;
+	type Error = futures::io::Error;
 
 	fn poll_read_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut IoSliceMut,
 	) -> Poll<Result<(), Self::Error>> {
-		use std::io::ErrorKind as E;
+		use futures::io::ErrorKind as E;
 
 		while !buf.is_empty() {
 			match ready!(Pin::new(&mut self.0).poll_read(cx, buf)) {
@@ -66,14 +66,14 @@ impl<T> AsyncWrite for FuturesWrite<T>
 where
 	T: futures::AsyncWrite + Unpin,
 {
-	type Error = std::io::Error;
+	type Error = futures::io::Error;
 
 	fn poll_write_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut IoSliceRef,
 	) -> Poll<Result<(), Self::Error>> {
-		use std::io::ErrorKind as E;
+		use futures::io::ErrorKind as E;
 
 		while !buf.is_empty() {
 			match ready!(Pin::new(&mut self.0).poll_write(cx, buf)) {
