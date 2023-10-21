@@ -55,18 +55,36 @@ impl<T: BytesMut> IoSliceGeneric<T> {
 }
 
 impl<T: Bytes> IoSliceGeneric<T> {
-	/// Advance the slice by `n` bytes.
+	/// Set the length of the filled slice.
 	///
 	/// # Safety
 	///
-	/// `n` must be less or equal to the length of the slice.
+	/// `n` must not be greater than the length of the entire slice.
 	///
 	/// # Panics
 	///
-	/// Panics if `n` is greater than the length of the slice.
+	/// Panics if `n` is greater than the length of the entire slice.
+	#[track_caller]
+	pub fn set_filled(&mut self, n: usize) {
+		assert!(
+			n <= self.len(),
+			"n must be less or equal to the slice length"
+		);
+		self.pos = n;
+	}
+
+	/// Advance of the filled slice by `n` bytes.
+	///
+	/// # Safety
+	///
+	/// `n` must not be greater than the length of the unfilled slice.
+	///
+	/// # Panics
+	///
+	/// Panics if `n` is greater than the length of the unfilled slice.
+	#[track_caller]
 	pub fn advance(&mut self, n: usize) {
-		assert!(n <= self.len());
-		self.pos += n;
+		self.set_filled(usize::saturating_add(self.len(), n))
 	}
 }
 
