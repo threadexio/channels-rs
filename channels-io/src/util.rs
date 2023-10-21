@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use core::task::Poll;
 
 /// Types which can be used as a byte slice.
