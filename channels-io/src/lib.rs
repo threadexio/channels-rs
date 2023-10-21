@@ -32,7 +32,7 @@ mod r#async;
 mod sync;
 
 pub use self::buf::{IoSlice, IoSliceMut, IoSliceRef};
-pub use self::util::{Bytes, BytesMut, PollExt};
+pub use self::util::{copy_slice, Bytes, BytesMut, PollExt};
 
 pub use self::r#async::{
 	AsyncRead, AsyncWrite, IntoAsyncReader, IntoAsyncWriter,

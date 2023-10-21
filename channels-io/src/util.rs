@@ -146,3 +146,16 @@ impl<T> PollExt<T> for Poll<T> {
 		}
 	}
 }
+
+/// Copy the largest sub-slice of `src` possible into `dst`.
+///
+/// Returns the number of individual elements copied.
+pub fn copy_slice<T: Copy>(src: &[T], dst: &mut [T]) -> usize {
+	match core::cmp::min(src.len(), dst.len()) {
+		0 => 0,
+		n => {
+			dst[..n].copy_from_slice(&src[..n]);
+			n
+		},
+	}
+}
