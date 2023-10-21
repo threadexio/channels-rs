@@ -35,6 +35,21 @@ pub trait AsyncRead {
 	}
 }
 
+impl<T> AsyncRead for &mut T
+where
+	T: AsyncRead + Unpin + ?Sized,
+{
+	type Error = T::Error;
+
+	fn poll_read_all(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &mut IoSliceMut,
+	) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut **self).poll_read_all(cx, buf)
+	}
+}
+
 #[doc(hidden)]
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` them"]

@@ -33,6 +33,21 @@ pub trait Write {
 	fn flush(&mut self) -> Poll<Result<(), Self::Error>>;
 }
 
+impl<T: Write + ?Sized> Write for &mut T {
+	type Error = T::Error;
+
+	fn write_all(
+		&mut self,
+		buf: &mut IoSliceRef,
+	) -> Poll<Result<(), Self::Error>> {
+		(**self).write_all(buf)
+	}
+
+	fn flush(&mut self) -> Poll<Result<(), Self::Error>> {
+		(**self).flush()
+	}
+}
+
 /// Types that can be converted to [`Write`]ers.
 pub trait IntoWriter<T: Write> {
 	/// Convert this type into a writer `T`.

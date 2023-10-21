@@ -30,6 +30,17 @@ pub trait Read {
 	) -> Poll<Result<(), Self::Error>>;
 }
 
+impl<T: Read + ?Sized> Read for &mut T {
+	type Error = T::Error;
+
+	fn read_all(
+		&mut self,
+		buf: &mut IoSliceMut,
+	) -> Poll<Result<(), Self::Error>> {
+		(**self).read_all(buf)
+	}
+}
+
 /// Types that can be converted to [`Read`]ers.
 pub trait IntoReader<T: Read> {
 	/// Convert this type into a reader `T`.

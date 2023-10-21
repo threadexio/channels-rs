@@ -52,6 +52,28 @@ pub trait AsyncWrite {
 	}
 }
 
+impl<T> AsyncWrite for &mut T
+where
+	T: AsyncWrite + Unpin + ?Sized,
+{
+	type Error = T::Error;
+
+	fn poll_write_all(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &mut IoSliceRef,
+	) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut **self).poll_write_all(cx, buf)
+	}
+
+	fn poll_flush(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+	) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut **self).poll_flush(cx)
+	}
+}
+
 #[doc(hidden)]
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` them"]
