@@ -20,10 +20,10 @@ pub trait Read {
 	/// available or needed this can be used instead.
 	///
 	/// If you know for certain that the underlying reader will always block,
-	/// you can safely destruct [`Poll`] away with [`unwrap_poll`].
+	/// you can safely destruct [`Poll`] away with [`unwrap`].
 	///
 	/// [`AsyncRead`]: crate::AsyncRead
-	/// [`unwrap_poll`]: crate::unwrap_poll
+	/// [`unwrap`]: crate::PollExt::unwrap()
 	fn read_all(
 		&mut self,
 		buf: &mut IoSliceMut,

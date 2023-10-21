@@ -31,7 +31,7 @@ impl<T: Bytes + AsMut<[u8]>> BytesMut for T {}
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// use core::fmt::{Debug, Display};
 ///
 /// newtype! { MyType for: Debug + Display }
@@ -72,22 +72,75 @@ macro_rules! newtype {
 }
 pub(crate) use newtype;
 
-/// Unwrap a `Poll<T>` to a `T`.
-///
-/// # Safety
-///
-/// The caller must ensure that `poll` is of the variant [`Poll::Ready`].
-///
-/// # Panics
-///
-/// Panics if `poll` is the [`Poll::Pending`] variant.
-#[track_caller]
-#[must_use]
-pub fn unwrap_poll<T>(poll: Poll<T>) -> T {
-	match poll {
-		Poll::Ready(t) => t,
-		Poll::Pending => {
-			panic!("unwrap_poll tried to unwrap a pending value")
-		},
+/// Extension trait for [`Poll`].
+pub trait PollExt<T>: Sized {
+	/// Returns the contained [`Poll::Ready`] value consuming the `self` value.
+	///
+	/// # Panics
+	///
+	/// Panics if the value is a [`Poll::Pending`] with a panic message provided
+	/// by `msg`.
+	#[track_caller]
+	fn expect(self, msg: &str) -> T;
+
+	/// Returns the contained [`Poll::Ready`] value consuming the `self` value.
+	///
+	/// # Panics
+	///
+	/// Panics if the value is a [`Poll::Pending`].
+	#[track_caller]
+	fn unwrap(self) -> T {
+		self.expect("unwrap called on a `Poll::Pending`")
+	}
+
+	/// Returns the contained [`Poll::Ready`] value or `other` if the value was
+	/// [`Poll::Pending`].
+	#[track_caller]
+	fn unwrap_or(self, other: T) -> T {
+		self.unwrap_or_else(|| other)
+	}
+
+	/// Returns the contained [`Poll::Ready`] value or computes if from _f_.
+	#[track_caller]
+	fn unwrap_or_else<F>(self, f: F) -> T
+	where
+		F: FnOnce() -> T;
+
+	/// Returns the contained [`Poll::Ready`] value or the default value of `T`
+	/// if the value was [`Poll::Pending`].
+	#[track_caller]
+	fn unwrap_or_default(self) -> T
+	where
+		T: Default,
+	{
+		self.unwrap_or_else(|| T::default())
+	}
+}
+
+impl<T> PollExt<T> for Poll<T> {
+	#[track_caller]
+	fn expect(self, msg: &str) -> T {
+		#[cold]
+		#[inline(never)]
+		#[track_caller]
+		fn panic_pending(msg: &str) -> ! {
+			panic!("{}", msg)
+		}
+
+		match self {
+			Poll::Pending => panic_pending(msg),
+			Poll::Ready(v) => v,
+		}
+	}
+
+	#[track_caller]
+	fn unwrap_or_else<F>(self, f: F) -> T
+	where
+		F: FnOnce() -> T,
+	{
+		match self {
+			Poll::Pending => f(),
+			Poll::Ready(v) => v,
+		}
 	}
 }

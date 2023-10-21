@@ -32,7 +32,7 @@ mod r#async;
 mod sync;
 
 pub use self::buf::{IoSlice, IoSliceMut, IoSliceRef};
-pub use self::util::{unwrap_poll, Bytes, BytesMut};
+pub use self::util::{Bytes, BytesMut, PollExt};
 
 pub use self::r#async::{
 	AsyncRead, AsyncWrite, IntoAsyncReader, IntoAsyncWriter,
@@ -43,6 +43,6 @@ pub use self::sync::{IntoReader, IntoWriter, Read, Write};
 pub mod prelude {
 	pub use super::{
 		AsyncRead, AsyncWrite, IntoAsyncReader, IntoAsyncWriter,
-		IntoReader, IntoWriter, Read, Write,
+		IntoReader, IntoWriter, PollExt, Read, Write,
 	};
 }
