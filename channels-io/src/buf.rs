@@ -31,26 +31,38 @@ impl<T> IoSliceGeneric<T> {
 }
 
 impl<T: Bytes> IoSliceGeneric<T> {
+	/// Return the slice of the entire buffer.
+	pub fn entire(&self) -> &[u8] {
+		self.data.as_bytes()
+	}
+
 	/// Return the slice before the cursor.
 	pub fn filled(&self) -> &[u8] {
-		&self.data.as_bytes()[..self.pos]
+		&self.entire()[..self.pos]
 	}
 
 	/// Return the slice after the cursor.
 	pub fn unfilled(&self) -> &[u8] {
-		&self.data.as_bytes()[self.pos..]
+		&self.entire()[self.pos..]
 	}
 }
 
 impl<T: BytesMut> IoSliceGeneric<T> {
+	/// Return the slice of the entire buffer.
+	pub fn entire_mut(&mut self) -> &mut [u8] {
+		self.data.as_mut_bytes()
+	}
+
 	/// Return the slice before the cursor.
 	pub fn filled_mut(&mut self) -> &mut [u8] {
-		&mut self.data.as_mut_bytes()[..self.pos]
+		let i = ..self.pos;
+		&mut self.entire_mut()[i]
 	}
 
 	/// Return the slice after the cursor.
 	pub fn unfilled_mut(&mut self) -> &mut [u8] {
-		&mut self.data.as_mut_bytes()[self.pos..]
+		let i = self.pos..;
+		&mut self.entire_mut()[i]
 	}
 }
 
@@ -66,10 +78,7 @@ impl<T: Bytes> IoSliceGeneric<T> {
 	/// Panics if `n` is greater than the length of the entire slice.
 	#[track_caller]
 	pub fn set_filled(&mut self, n: usize) {
-		assert!(
-			n <= self.len(),
-			"n must be less or equal to the slice length"
-		);
+		assert!(n <= self.entire().len());
 		self.pos = n;
 	}
 
@@ -84,7 +93,39 @@ impl<T: Bytes> IoSliceGeneric<T> {
 	/// Panics if `n` is greater than the length of the unfilled slice.
 	#[track_caller]
 	pub fn advance(&mut self, n: usize) {
-		self.set_filled(usize::saturating_add(self.len(), n))
+		let n = usize::saturating_add(self.filled().len(), n);
+		self.set_filled(n);
+	}
+}
+
+impl<T: Bytes> IoSliceGeneric<T> {
+	/// Compute the delta of the filled length across the execution of _f_.
+	///
+	/// Returns the delta of the length and the output of _f_ in a tuple.
+	///
+	/// # Example
+	/// ```
+	/// let mut buf = channels_io::IoSlice::new([0u8; 4]);
+	///
+	/// let (delta, output) = buf.delta_len(|buf| {
+	///     buf[..4].copy_from_slice(&[1, 2, 3, 4]);
+	///     buf.advance(4);
+	/// });
+	///
+	/// assert_eq!(delta, 4);
+	/// assert_eq!(buf.filled(), &[1, 2, 3, 4]);
+	/// ```
+	pub fn delta_len<F, O>(&mut self, f: F) -> (usize, O)
+	where
+		F: FnOnce(&mut Self) -> O,
+	{
+		let l0 = self.filled().len();
+		let output = f(self);
+		let l1 = self.filled().len();
+
+		let delta = usize::saturating_sub(l1, l0);
+
+		(delta, output)
 	}
 }
 
