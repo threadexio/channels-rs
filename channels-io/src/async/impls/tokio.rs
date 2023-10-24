@@ -2,10 +2,10 @@ use core::pin::Pin;
 use core::task::ready;
 use core::task::{Context, Poll};
 
-use crate::buf::{IoSliceMut, IoSliceRef};
 use crate::util::newtype;
 use crate::{
-	AsyncRead, AsyncWrite, IntoAsyncReader, IntoAsyncWriter,
+	AsyncRead, AsyncWrite, Buf, BufMut, IntoAsyncReader,
+	IntoAsyncWriter,
 };
 
 newtype! { TokioAsyncWrite for: tokio::io::AsyncWrite + Unpin }
@@ -28,12 +28,14 @@ where
 	fn poll_write_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut IoSliceRef,
+		mut buf: impl Buf,
 	) -> Poll<Result<(), Self::Error>> {
 		use tokio::io::ErrorKind as E;
 
-		while !buf.is_empty() {
-			match ready!(Pin::new(&mut self.0).poll_write(cx, buf)) {
+		while !buf.has_remaining() {
+			match ready!(
+				Pin::new(&mut self.0).poll_write(cx, buf.unfilled())
+			) {
 				Ok(0) => {
 					return Poll::Ready(Err(E::WriteZero.into()))
 				},
@@ -77,12 +79,13 @@ where
 	fn poll_read_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut IoSliceMut,
+		mut buf: impl BufMut,
 	) -> Poll<Result<(), Self::Error>> {
 		use tokio::io::ErrorKind as E;
 
-		while !buf.is_empty() {
-			let mut read_buf = tokio::io::ReadBuf::new(buf);
+		while !buf.has_remaining_mut() {
+			let mut read_buf =
+				tokio::io::ReadBuf::new(buf.unfilled_mut());
 
 			let (res, delta) =
 				delta_filled_len(&mut read_buf, |buf| {
@@ -93,7 +96,7 @@ where
 				Ok(0) => {
 					return Poll::Ready(Err(E::UnexpectedEof.into()))
 				},
-				Ok(n) => buf.advance(n),
+				Ok(n) => buf.advance_mut(n),
 				Err(e) if e.kind() == E::Interrupted => continue,
 				Err(e) if e.kind() == E::WouldBlock => {
 					return Poll::Pending

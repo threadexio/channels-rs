@@ -4,7 +4,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use super::decouple;
-use crate::buf::IoSliceRef;
+use crate::Buf;
 
 /// This is the asynchronous version of [`Write`].
 ///
@@ -17,7 +17,7 @@ pub trait AsyncWrite {
 	fn poll_write_all(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut IoSliceRef,
+		buf: impl Buf,
 	) -> Poll<Result<(), Self::Error>>;
 
 	/// Poll the underlying writer and try to flush it.
@@ -30,10 +30,10 @@ pub trait AsyncWrite {
 	///
 	/// This function returns a future that must be awaited for any work to
 	/// happen.
-	fn write_all<'a>(
-		&'a mut self,
-		buf: &'a mut IoSliceRef<'a>,
-	) -> WriteAll<'a, Self>
+	fn write_all<B: Buf + Unpin>(
+		&mut self,
+		buf: B,
+	) -> WriteAll<'_, B, Self>
 	where
 		Self: Unpin,
 	{
@@ -61,7 +61,7 @@ where
 	fn poll_write_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut IoSliceRef,
+		buf: impl Buf,
 	) -> Poll<Result<(), Self::Error>> {
 		Pin::new(&mut **self).poll_write_all(cx, buf)
 	}
@@ -77,28 +77,28 @@ where
 #[doc(hidden)]
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` them"]
-pub struct WriteAll<'a, W>
+pub struct WriteAll<'a, B, W>
 where
+	B: Buf + Unpin,
 	W: AsyncWrite + Unpin + ?Sized,
 {
 	writer: &'a mut W,
-	buf: &'a mut IoSliceRef<'a>,
+	buf: B,
 }
 
-impl<'a, W> WriteAll<'a, W>
+impl<'a, B, W> WriteAll<'a, B, W>
 where
+	B: Buf + Unpin,
 	W: AsyncWrite + Unpin + ?Sized,
 {
-	pub(self) fn new(
-		writer: &'a mut W,
-		buf: &'a mut IoSliceRef<'a>,
-	) -> Self {
+	pub(self) fn new(writer: &'a mut W, buf: B) -> Self {
 		Self { writer, buf }
 	}
 }
 
-impl<'a, W> Future for WriteAll<'a, W>
+impl<'a, B, W> Future for WriteAll<'a, B, W>
 where
+	B: Buf + Unpin,
 	W: AsyncWrite + Unpin + ?Sized,
 {
 	type Output = Result<(), W::Error>;
@@ -107,7 +107,7 @@ where
 		mut self: Pin<&mut Self>,
 		cx: &mut Context<'_>,
 	) -> Poll<Self::Output> {
-		let buf = decouple!(*self.buf; as mut);
+		let buf = decouple!(self.buf; as mut);
 		Pin::new(&mut *self.writer).poll_write_all(cx, buf)
 	}
 }

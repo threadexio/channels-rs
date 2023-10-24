@@ -4,7 +4,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use super::decouple;
-use crate::buf::IoSliceMut;
+use crate::BufMut;
 
 /// This is the asynchronous version of [`Read`].
 ///
@@ -17,17 +17,17 @@ pub trait AsyncRead {
 	fn poll_read_all(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut IoSliceMut,
+		buf: impl BufMut,
 	) -> Poll<Result<(), Self::Error>>;
 
 	/// Read as many bytes an needed to fill `buf`.
 	///
 	/// This function returns a future that must be awaited for any work to
 	/// happen.
-	fn read_all<'a>(
-		&'a mut self,
-		buf: &'a mut IoSliceMut<'a>,
-	) -> ReadAll<'a, Self>
+	fn read_all<B: BufMut + Unpin>(
+		&mut self,
+		buf: B,
+	) -> ReadAll<'_, B, Self>
 	where
 		Self: Unpin,
 	{
@@ -44,7 +44,7 @@ where
 	fn poll_read_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut IoSliceMut,
+		buf: impl BufMut,
 	) -> Poll<Result<(), Self::Error>> {
 		Pin::new(&mut **self).poll_read_all(cx, buf)
 	}
@@ -53,28 +53,28 @@ where
 #[doc(hidden)]
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` them"]
-pub struct ReadAll<'a, R>
+pub struct ReadAll<'a, B, R>
 where
+	B: BufMut + Unpin,
 	R: AsyncRead + Unpin + ?Sized,
 {
 	reader: &'a mut R,
-	buf: &'a mut IoSliceMut<'a>,
+	buf: B,
 }
 
-impl<'a, R> ReadAll<'a, R>
+impl<'a, B, R> ReadAll<'a, B, R>
 where
+	B: BufMut + Unpin,
 	R: AsyncRead + Unpin + ?Sized,
 {
-	pub(self) fn new(
-		reader: &'a mut R,
-		buf: &'a mut IoSliceMut<'a>,
-	) -> Self {
+	pub(self) fn new(reader: &'a mut R, buf: B) -> Self {
 		Self { reader, buf }
 	}
 }
 
-impl<'a, R> Future for ReadAll<'a, R>
+impl<'a, B, R> Future for ReadAll<'a, B, R>
 where
+	B: BufMut + Unpin,
 	R: AsyncRead + Unpin + ?Sized,
 {
 	type Output = Result<(), R::Error>;
@@ -83,7 +83,7 @@ where
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Self::Output> {
-		let buf = decouple!(*self.buf; as mut);
+		let buf = decouple!(self.buf; as mut);
 		Pin::new(&mut *self.reader).poll_read_all(cx, buf)
 	}
 }

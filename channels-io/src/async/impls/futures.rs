@@ -3,10 +3,10 @@ use core::pin::Pin;
 use core::task::ready;
 use core::task::{Context, Poll};
 
-use crate::buf::{IoSliceMut, IoSliceRef};
 use crate::util::newtype;
 use crate::{
-	AsyncRead, AsyncWrite, IntoAsyncReader, IntoAsyncWriter,
+	AsyncRead, AsyncWrite, Buf, BufMut, IntoAsyncReader,
+	IntoAsyncWriter,
 };
 
 newtype! { FuturesRead for: futures::AsyncRead + Unpin }
@@ -29,16 +29,18 @@ where
 	fn poll_read_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut IoSliceMut,
+		mut buf: impl BufMut,
 	) -> Poll<Result<(), Self::Error>> {
 		use futures::io::ErrorKind as E;
 
-		while !buf.is_empty() {
-			match ready!(Pin::new(&mut self.0).poll_read(cx, buf)) {
+		while !buf.has_remaining_mut() {
+			match ready!(Pin::new(&mut self.0)
+				.poll_read(cx, buf.unfilled_mut()))
+			{
 				Ok(0) => {
 					return Poll::Ready(Err(E::WriteZero.into()))
 				},
-				Ok(n) => buf.advance(n),
+				Ok(n) => buf.advance_mut(n),
 				Err(e) if e.kind() == E::Interrupted => continue,
 				Err(e) if e.kind() == E::WouldBlock => {
 					return Poll::Pending
@@ -71,12 +73,14 @@ where
 	fn poll_write_all(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut IoSliceRef,
+		mut buf: impl Buf,
 	) -> Poll<Result<(), Self::Error>> {
 		use futures::io::ErrorKind as E;
 
-		while !buf.is_empty() {
-			match ready!(Pin::new(&mut self.0).poll_write(cx, buf)) {
+		while !buf.has_remaining() {
+			match ready!(
+				Pin::new(&mut self.0).poll_write(cx, buf.unfilled())
+			) {
 				Ok(0) => {
 					return Poll::Ready(Err(E::WriteZero.into()))
 				},

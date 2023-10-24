@@ -1,6 +1,6 @@
 use core::task::Poll;
 
-use crate::buf::IoSliceRef;
+use crate::Buf;
 
 /// The Write trait allows writing bytes to some place.
 ///
@@ -26,7 +26,7 @@ pub trait Write {
 	/// [`unwrap`]: crate::PollExt::unwrap()
 	fn write_all(
 		&mut self,
-		buf: &mut IoSliceRef,
+		buf: impl Buf,
 	) -> Poll<Result<(), Self::Error>>;
 
 	/// Flush the writer ensuring all bytes reach their destination.
@@ -38,7 +38,7 @@ impl<T: Write + ?Sized> Write for &mut T {
 
 	fn write_all(
 		&mut self,
-		buf: &mut IoSliceRef,
+		buf: impl Buf,
 	) -> Poll<Result<(), Self::Error>> {
 		(**self).write_all(buf)
 	}

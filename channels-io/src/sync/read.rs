@@ -1,6 +1,6 @@
 use core::task::Poll;
 
-use crate::buf::IoSliceMut;
+use crate::BufMut;
 
 /// The Read trait allows reading bytes from a source.
 ///
@@ -26,7 +26,7 @@ pub trait Read {
 	/// [`unwrap`]: crate::PollExt::unwrap()
 	fn read_all(
 		&mut self,
-		buf: &mut IoSliceMut,
+		buf: impl BufMut,
 	) -> Poll<Result<(), Self::Error>>;
 }
 
@@ -35,7 +35,7 @@ impl<T: Read + ?Sized> Read for &mut T {
 
 	fn read_all(
 		&mut self,
-		buf: &mut IoSliceMut,
+		buf: impl BufMut,
 	) -> Poll<Result<(), Self::Error>> {
 		(**self).read_all(buf)
 	}

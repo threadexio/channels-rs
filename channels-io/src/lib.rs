@@ -31,7 +31,7 @@ mod util;
 mod r#async;
 mod sync;
 
-pub use self::buf::{IoSlice, IoSliceMut, IoSliceRef};
+pub use self::buf::{Buf, BufMut, IoSlice};
 pub use self::util::{copy_slice, Bytes, BytesMut, PollExt};
 
 pub use self::r#async::{
@@ -42,7 +42,8 @@ pub use self::sync::{IntoReader, IntoWriter, Read, Write};
 /// Common trait imports.
 pub mod prelude {
 	pub use super::{
-		AsyncRead, AsyncWrite, IntoAsyncReader, IntoAsyncWriter,
-		IntoReader, IntoWriter, PollExt, Read, Write,
+		AsyncRead, AsyncWrite, Buf, BufMut, IntoAsyncReader,
+		IntoAsyncWriter, IntoReader, IntoWriter, PollExt, Read,
+		Write,
 	};
 }
