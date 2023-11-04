@@ -147,7 +147,7 @@ impl<T> IoSlice<T> {
 
 impl<T: Bytes> Buf for IoSlice<T> {
 	fn remaining(&self) -> usize {
-		self.unfilled().len() - self.pos
+		self.data.as_bytes().len() - self.pos
 	}
 
 	fn unfilled(&self) -> &[u8] {
