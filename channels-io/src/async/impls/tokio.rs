@@ -34,7 +34,7 @@ where
 	) -> Poll<Result<(), Self::Error>> {
 		use tokio::io::ErrorKind as E;
 
-		while !buf.has_remaining() {
+		while buf.has_remaining() {
 			match ready!(
 				Pin::new(&mut self.0).poll_write(cx, buf.unfilled())
 			) {
@@ -83,7 +83,7 @@ where
 	) -> Poll<Result<(), Self::Error>> {
 		use tokio::io::ErrorKind as E;
 
-		while !buf.has_remaining_mut() {
+		while buf.has_remaining_mut() {
 			let mut read_buf =
 				tokio::io::ReadBuf::new(buf.unfilled_mut());
 
