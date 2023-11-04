@@ -1,20 +1,21 @@
 use core::task::Poll;
 
-use crate::util::newtype;
-use crate::{Buf, BufMut};
-use crate::{IntoReader, IntoWriter, Read, Write};
+use crate::{Buf, BufMut, IntoReader, IntoWriter, Read, Write};
 
 use std::io;
 
-newtype! { StdWrite for: io::Write }
+crate::util::newtype! {
+	/// IO wrapper for the [`mod@std`] traits.
+	StdIo for:
+}
 
-impl<T: io::Write> IntoWriter<StdWrite<T>> for T {
-	fn into_writer(self) -> StdWrite<T> {
-		StdWrite(self)
+impl<T: io::Write> IntoWriter<StdIo<T>> for T {
+	fn into_writer(self) -> StdIo<T> {
+		StdIo(self)
 	}
 }
 
-impl<T: io::Write> Write for StdWrite<T> {
+impl<T: io::Write> Write for StdIo<T> {
 	type Error = io::Error;
 
 	fn write_all(
@@ -23,7 +24,7 @@ impl<T: io::Write> Write for StdWrite<T> {
 	) -> Poll<Result<(), Self::Error>> {
 		use io::ErrorKind as E;
 
-		while !buf.has_remaining() {
+		while buf.has_remaining() {
 			match self.0.write(buf.unfilled()) {
 				Ok(0) => {
 					return Poll::Ready(Err(E::WriteZero.into()))
@@ -51,15 +52,13 @@ impl<T: io::Write> Write for StdWrite<T> {
 	}
 }
 
-newtype! { StdRead for: io::Read }
-
-impl<T: io::Read> IntoReader<StdRead<T>> for T {
-	fn into_reader(self) -> StdRead<T> {
-		StdRead(self)
+impl<T: io::Read> IntoReader<StdIo<T>> for T {
+	fn into_reader(self) -> StdIo<T> {
+		StdIo(self)
 	}
 }
 
-impl<T: io::Read> Read for StdRead<T> {
+impl<T: io::Read> Read for StdIo<T> {
 	type Error = io::Error;
 
 	fn read_all(
@@ -68,7 +67,7 @@ impl<T: io::Read> Read for StdRead<T> {
 	) -> Poll<Result<(), Self::Error>> {
 		use io::ErrorKind as E;
 
-		while !buf.has_remaining_mut() {
+		while buf.has_remaining_mut() {
 			match self.0.read(buf.unfilled_mut()) {
 				Ok(0) => {
 					return Poll::Ready(Err(E::UnexpectedEof.into()))

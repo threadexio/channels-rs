@@ -46,14 +46,18 @@ impl<T: Bytes + AsMut<[u8]>> BytesMut for T {}
 /// [`DerefMut`]: core::ops::DerefMut
 /// [newtype pattern]: https://doc.rust-lang.org/rust-by-example/generics/new_types.html
 macro_rules! newtype {
-	($newtype:ident for: $($bounds:tt)+) => {
+	(
+		$(#[$attr:meta])*
+		$newtype:ident for: $($bounds:tt)*
+	) => {
+		$(#[$attr])*
 		pub struct $newtype<T>(T)
 		where
-			T: $($bounds)+;
+			T: $($bounds)*;
 
 		impl<T> ::core::ops::Deref for $newtype<T>
 		where
-			T: $($bounds)+
+			T: $($bounds)*
 		{
 			type Target = T;
 
@@ -64,7 +68,7 @@ macro_rules! newtype {
 
 		impl<T> ::core::ops::DerefMut for $newtype<T>
 		where
-			T: $($bounds)+
+			T: $($bounds)*
 		{
 			fn deref_mut(&mut self) -> &mut Self::Target {
 				&mut self.0

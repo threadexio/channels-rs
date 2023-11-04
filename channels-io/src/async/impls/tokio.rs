@@ -2,24 +2,26 @@ use core::pin::Pin;
 use core::task::ready;
 use core::task::{Context, Poll};
 
-use crate::util::newtype;
 use crate::{
 	AsyncRead, AsyncWrite, Buf, BufMut, IntoAsyncReader,
 	IntoAsyncWriter,
 };
 
-newtype! { TokioAsyncWrite for: tokio::io::AsyncWrite + Unpin }
+crate::util::newtype! {
+	/// IO wrapper for the [`mod@tokio`] traits.
+	TokioIo for:
+}
 
-impl<T> IntoAsyncWriter<TokioAsyncWrite<T>> for T
+impl<T> IntoAsyncWriter<TokioIo<T>> for T
 where
 	T: tokio::io::AsyncWrite + Unpin,
 {
-	fn into_async_writer(self) -> TokioAsyncWrite<T> {
-		TokioAsyncWrite(self)
+	fn into_async_writer(self) -> TokioIo<T> {
+		TokioIo(self)
 	}
 }
 
-impl<T> AsyncWrite for TokioAsyncWrite<T>
+impl<T> AsyncWrite for TokioIo<T>
 where
 	T: tokio::io::AsyncWrite + Unpin,
 {
@@ -59,18 +61,16 @@ where
 	}
 }
 
-newtype! { TokioAsyncRead for: tokio::io::AsyncRead + Unpin }
-
-impl<T> IntoAsyncReader<TokioAsyncRead<T>> for T
+impl<T> IntoAsyncReader<TokioIo<T>> for T
 where
 	T: tokio::io::AsyncRead + Unpin,
 {
-	fn into_async_reader(self) -> TokioAsyncRead<T> {
-		TokioAsyncRead(self)
+	fn into_async_reader(self) -> TokioIo<T> {
+		TokioIo(self)
 	}
 }
 
-impl<T> AsyncRead for TokioAsyncRead<T>
+impl<T> AsyncRead for TokioIo<T>
 where
 	T: tokio::io::AsyncRead + Unpin,
 {

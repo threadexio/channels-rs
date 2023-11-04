@@ -3,24 +3,26 @@ use core::pin::Pin;
 use core::task::ready;
 use core::task::{Context, Poll};
 
-use crate::util::newtype;
 use crate::{
 	AsyncRead, AsyncWrite, Buf, BufMut, IntoAsyncReader,
 	IntoAsyncWriter,
 };
 
-newtype! { FuturesRead for: futures::AsyncRead + Unpin }
+crate::util::newtype! {
+	/// IO wrapper for the [`mod@futures`] traits.
+	FuturesIo for:
+}
 
-impl<T> IntoAsyncReader<FuturesRead<T>> for T
+impl<T> IntoAsyncReader<FuturesIo<T>> for T
 where
 	T: futures::AsyncRead + Unpin,
 {
-	fn into_async_reader(self) -> FuturesRead<T> {
-		FuturesRead(self)
+	fn into_async_reader(self) -> FuturesIo<T> {
+		FuturesIo(self)
 	}
 }
 
-impl<T> AsyncRead for FuturesRead<T>
+impl<T> AsyncRead for FuturesIo<T>
 where
 	T: futures::AsyncRead + Unpin,
 {
@@ -33,7 +35,7 @@ where
 	) -> Poll<Result<(), Self::Error>> {
 		use futures::io::ErrorKind as E;
 
-		while !buf.has_remaining_mut() {
+		while buf.has_remaining_mut() {
 			match ready!(Pin::new(&mut self.0)
 				.poll_read(cx, buf.unfilled_mut()))
 			{
@@ -53,18 +55,16 @@ where
 	}
 }
 
-newtype! { FuturesWrite for: futures::AsyncWrite + Unpin }
-
-impl<T> IntoAsyncWriter<FuturesWrite<T>> for T
+impl<T> IntoAsyncWriter<FuturesIo<T>> for T
 where
 	T: futures::AsyncWrite + Unpin,
 {
-	fn into_async_writer(self) -> FuturesWrite<T> {
-		FuturesWrite(self)
+	fn into_async_writer(self) -> FuturesIo<T> {
+		FuturesIo(self)
 	}
 }
 
-impl<T> AsyncWrite for FuturesWrite<T>
+impl<T> AsyncWrite for FuturesIo<T>
 where
 	T: futures::AsyncWrite + Unpin,
 {
@@ -77,7 +77,7 @@ where
 	) -> Poll<Result<(), Self::Error>> {
 		use futures::io::ErrorKind as E;
 
-		while !buf.has_remaining() {
+		while buf.has_remaining() {
 			match ready!(
 				Pin::new(&mut self.0).poll_write(cx, buf.unfilled())
 			) {
