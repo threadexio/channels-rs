@@ -1,6 +1,6 @@
 //! Utilities to work with packet headers.
 
-use core::mem::{size_of, transmute};
+use core::mem::size_of;
 use core::num::Wrapping;
 use core::ops;
 use core::ptr;
@@ -319,19 +319,10 @@ impl Checksum {
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-struct u16be(u16);
-
-impl u16be {
-	pub const fn get(&self) -> u16 {
-		u16::from_be(self.0)
-	}
-
-	pub fn set(&mut self, x: u16) {
-		self.0 = x.to_be();
-	}
-}
+struct u16be(pub u16);
 
 #[repr(C)]
+#[repr(packed(1))]
 struct RawHeader {
 	pub version: u16be,
 	pub length: u16be,
@@ -344,11 +335,11 @@ static_assert!(size_of::<RawHeader>() == Header::SIZE);
 
 impl RawHeader {
 	pub fn new_ref(buf: &[u8; Header::SIZE]) -> &Self {
-		unsafe { transmute(buf) }
+		unsafe { &*(buf.as_ptr().cast()) }
 	}
 
 	pub fn new_mut(buf: &mut [u8; Header::SIZE]) -> &mut Self {
-		unsafe { transmute(buf) }
+		unsafe { &mut *(buf.as_mut_ptr().cast()) }
 	}
 
 	pub fn as_bytes(&self) -> &[u8; Header::SIZE] {
@@ -399,8 +390,8 @@ impl Header {
 		{
 			let raw = RawHeader::new_mut(&mut bytes);
 
-			raw.version.set(Self::VERSION);
-			raw.length.set(self.length.as_u16());
+			raw.version.0 = u16::to_be(Self::VERSION);
+			raw.length.0 = u16::to_be(self.length.as_u16());
 			raw.checksum = 0;
 			raw.flags = self.flags.0;
 			raw.id = self.id.0;
@@ -438,7 +429,7 @@ impl Header {
 
 		let raw = RawHeader::new_ref(buf);
 
-		if raw.version.get() != Self::VERSION {
+		if u16::from_be(raw.version.0) != Self::VERSION {
 			return Err(E::VersionMismatch);
 		}
 
@@ -446,7 +437,7 @@ impl Header {
 			return Err(E::InvalidChecksum);
 		}
 
-		let length = PacketLength::new(raw.length.get())
+		let length = PacketLength::new(u16::from_be(raw.length.0))
 			.ok_or(E::InvalidLength)?;
 
 		let id = Id(raw.id);
