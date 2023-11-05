@@ -1,6 +1,6 @@
 //! Utilities to work with packet headers.
-
-use core::mem::size_of;
+//!
+use core::mem::{align_of_val, size_of};
 use core::num::Wrapping;
 use core::ops;
 use core::ptr;
@@ -321,8 +321,8 @@ impl Checksum {
 #[repr(transparent)]
 struct u16be(pub u16);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-#[repr(packed(1))]
 struct RawHeader {
 	pub version: u16be,
 	pub length: u16be,
@@ -334,16 +334,25 @@ struct RawHeader {
 static_assert!(size_of::<RawHeader>() == Header::SIZE);
 
 impl RawHeader {
-	pub fn new_ref(buf: &[u8; Header::SIZE]) -> &Self {
-		unsafe { &*(buf.as_ptr().cast()) }
+	#[inline]
+	pub fn new(buf: &[u8; Header::SIZE]) -> Self {
+		let header_ptr: *const RawHeader = buf.as_ptr().cast();
+		unsafe { ptr::read_unaligned(header_ptr) }
 	}
 
-	pub fn new_mut(buf: &mut [u8; Header::SIZE]) -> &mut Self {
-		unsafe { &mut *(buf.as_mut_ptr().cast()) }
+	#[inline]
+	pub fn as_ptr(&self) -> *const u8 {
+		ptr::addr_of!(*self) as *const u8
 	}
 
+	#[inline]
 	pub fn as_bytes(&self) -> &[u8; Header::SIZE] {
-		unsafe { &*ptr::addr_of!(*self).cast() }
+		unsafe { &*self.as_ptr().cast() }
+	}
+
+	#[inline]
+	pub fn into_bytes(self) -> [u8; Header::SIZE] {
+		unsafe { *self.as_ptr().cast() }
 	}
 }
 
@@ -385,22 +394,17 @@ impl Header {
 
 	/// Convert the header to its raw format.
 	pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-		let mut bytes = [0u8; Self::SIZE];
+		let mut raw = RawHeader::new(&[0u8; Self::SIZE]);
 
-		{
-			let raw = RawHeader::new_mut(&mut bytes);
+		raw.version.0 = u16::to_be(Self::VERSION);
+		raw.length.0 = u16::to_be(self.length.as_u16());
+		raw.checksum = 0;
+		raw.flags = self.flags.0;
+		raw.id = self.id.0;
 
-			raw.version.0 = u16::to_be(Self::VERSION);
-			raw.length.0 = u16::to_be(self.length.as_u16());
-			raw.checksum = 0;
-			raw.flags = self.flags.0;
-			raw.id = self.id.0;
+		raw.checksum = Checksum::checksum(raw.as_bytes());
 
-			let checksum = Checksum::checksum(raw.as_bytes());
-			raw.checksum = checksum;
-		}
-
-		bytes
+		raw.into_bytes()
 	}
 
 	/// Write the buffer to `buf`.
@@ -427,7 +431,7 @@ impl Header {
 	) -> Result<Self, HeaderReadError> {
 		use HeaderReadError as E;
 
-		let raw = RawHeader::new_ref(buf);
+		let raw = RawHeader::new(buf);
 
 		if u16::from_be(raw.version.0) != Self::VERSION {
 			return Err(E::VersionMismatch);
