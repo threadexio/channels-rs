@@ -1,6 +1,6 @@
 //! Utilities to work with packet headers.
-//!
-use core::mem::{align_of_val, size_of};
+
+use core::mem::size_of;
 use core::num::Wrapping;
 use core::ops;
 use core::ptr;
