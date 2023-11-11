@@ -35,14 +35,14 @@ where
 	) -> Poll<Result<(), Self::Error>> {
 		use futures::io::ErrorKind as E;
 
-		while buf.has_remaining_mut() {
+		while buf.has_remaining() {
 			match ready!(Pin::new(&mut self.0)
 				.poll_read(cx, buf.unfilled_mut()))
 			{
 				Ok(0) => {
 					return Poll::Ready(Err(E::WriteZero.into()))
 				},
-				Ok(n) => buf.advance_mut(n),
+				Ok(n) => buf.advance(n),
 				Err(e) if e.kind() == E::Interrupted => continue,
 				Err(e) if e.kind() == E::WouldBlock => {
 					return Poll::Pending

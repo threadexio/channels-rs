@@ -83,7 +83,7 @@ where
 	) -> Poll<Result<(), Self::Error>> {
 		use tokio::io::ErrorKind as E;
 
-		while buf.has_remaining_mut() {
+		while buf.has_remaining() {
 			let mut read_buf =
 				tokio::io::ReadBuf::new(buf.unfilled_mut());
 
@@ -96,7 +96,7 @@ where
 				Ok(0) => {
 					return Poll::Ready(Err(E::UnexpectedEof.into()))
 				},
-				Ok(n) => buf.advance_mut(n),
+				Ok(n) => buf.advance(n),
 				Err(e) if e.kind() == E::Interrupted => continue,
 				Err(e) if e.kind() == E::WouldBlock => {
 					return Poll::Pending
