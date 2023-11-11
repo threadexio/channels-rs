@@ -2,8 +2,10 @@
 resolver = "2"
 members = [
 	"channels",
+	"channels-packet",
+	"channels-io",
+	"channels-serdes",
 	"examples",
-	"benches",
 	"tests-integration",
 	"stress-tests",
 ]
