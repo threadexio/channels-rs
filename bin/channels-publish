@@ -1,38 +1,46 @@
 #!/usr/bin/env python
-import argparse
-import colorama
-import subprocess
-import shutil
 import re
 import os
+import argparse
+import shutil
+import subprocess
+import colorama
 
 CARGO_BIN = os.getenv("CARGO") or "cargo"
 GIT_BIN = os.getenv("GIT") or "git"
 
-def colored(s: str, color = None, style = None) -> str:
-    if color == None:
+
+def colored(s: str, color=None, style=None) -> str:
+    if color is None:
         color = ""
-    if style == None:
+    if style is None:
         style = ""
 
     return f"{color}{style}{s}{colorama.Fore.RESET}{colorama.Back.RESET}{colorama.Style.RESET_ALL}"
 
+
 def __log(prompt: str, *args):
     print(f"{prompt}:", *args)
+
 
 def error(*args):
     prompt = colored("error", color=colorama.Fore.RED, style=colorama.Style.BRIGHT)
     __log(prompt, *args)
 
+
 def warn(*args):
     prompt = colored("warning", color=colorama.Fore.YELLOW, style=colorama.Style.BRIGHT)
     __log(prompt, *args)
 
+
 def info(msg: str, *args):
-    prompt = colored(f"{msg:>12}", color=colorama.Fore.GREEN, style=colorama.Style.BRIGHT)
+    prompt = colored(
+        f"{msg:>12}", color=colorama.Fore.GREEN, style=colorama.Style.BRIGHT
+    )
     __log(prompt, *args)
 
-def run_command(*args: str, log: bool = False, exit_on_error: bool = True):
+
+def run_command(*args: str):
     cmd_str = colored(" ".join(args), color=colorama.Fore.BLUE)
     info("Running", "command: " + cmd_str)
 
@@ -41,16 +49,26 @@ def run_command(*args: str, log: bool = False, exit_on_error: bool = True):
     if status != 0:
         raise Exception("command failed: " + cmd_str)
 
+
 def is_semver_valid(semver: str) -> bool:
     return re.fullmatch("^[0-9]+\.[0-9]+\.[0-9]+$", semver, flags=re.MULTILINE) != None
+
 
 def is_vcs_dirty() -> bool:
     output = subprocess.check_output([GIT_BIN, "status", "--porcelain"])
     return len(output) != 0
 
+
 def back_up_file(src: str, dst: str):
-    info("Backing", "up", colored(src, color=colorama.Fore.BLUE), "to", colored(dst, color=colorama.Fore.BLUE))
+    info(
+        "Backing",
+        "up",
+        colored(src, color=colorama.Fore.BLUE),
+        "to",
+        colored(dst, color=colorama.Fore.BLUE),
+    )
     shutil.copy(src, dst, follow_symlinks=True)
+
 
 def bump_version(cargo_toml: str, version: str):
     if not is_semver_valid(version):
@@ -60,24 +78,44 @@ def bump_version(cargo_toml: str, version: str):
         warn("vcs is dirty")
         back_up_file(cargo_toml, f"{cargo_toml}.orig")
 
-    f = open(cargo_toml, "r")
-    data = f.read()
-    f.close()
+    with open(cargo_toml, "r", encoding="utf-8") as f:
+        data = f.read()
+        f.close()
 
-    data = re.sub("^version\s*=\s*\"[0-9\.]+\"$", f"version = \"{version}\"", data, flags=re.MULTILINE)
+    data = re.sub(
+        r"^version\s*=\s*\"[0-9\.]+\"$",
+        f'version = "{version}"',
+        data,
+        flags=re.MULTILINE,
+    )
 
-    f = open(cargo_toml, "w")
-    f.write(data)
-    f.close()
+    with open(cargo_toml, "w", encoding="utf-8") as f:
+        f.write(data)
+        f.close()
+
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Publish a new version of channels"
+    parser = argparse.ArgumentParser(description="Publish a new version of channels")
+    parser.add_argument(
+        "-p",
+        "--package",
+        help="Specify the package to publish",
+        metavar="<package>",
+        default="channels",
     )
-    parser.add_argument("-p", "--package", help="Specify the package to publish", metavar="<package>", default="channels")
     parser.add_argument("--bump", help="Bump to version", metavar="<semver>")
-    parser.add_argument("--yes-commit", dest="commit", help="Commit staged files after bumping the version. Only valid with --bump", action="store_true")
-    parser.add_argument("--yes-publish", dest="publish", help="Publish to crates.io. Otherwise uses --dry-run for cargo publish", action="store_true")
+    parser.add_argument(
+        "--yes-commit",
+        dest="commit",
+        help="Commit staged files after bumping the version. Only valid with --bump",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--yes-publish",
+        dest="publish",
+        help="Publish to crates.io. Otherwise uses --dry-run for cargo publish",
+        action="store_true",
+    )
     args = parser.parse_args()
 
     publish_args = [CARGO_BIN, "publish", f"--package={args.package}", "-vvv"]
@@ -99,6 +137,7 @@ def main():
         publish_args.append("--dry-run")
 
     run_command(*publish_args)
+
 
 if __name__ == "__main__":
     try:

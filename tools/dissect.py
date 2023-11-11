@@ -1,8 +1,8 @@
 from __future__ import annotations
-from colorama import Fore, Style, Back
 import argparse
 import struct
 import io
+from colorama import Fore, Style, Back
 
 
 def colored(s: str, color=None, style=None) -> str:
@@ -39,13 +39,13 @@ def calculate_checksum(buf: bytes) -> int:
         s += struct.unpack("B", buf)[0]
 
     while s >> 16:
-        s = (s >> 16) + (s & 0xffff)
+        s = (s >> 16) + (s & 0xFFFF)
 
-    return (~s) & 0xffff
+    return (~s) & 0xFFFF
 
 
 class Header:
-    VERSION = 0xfd3f
+    VERSION = 0xFD3F
     SIZE = 8
 
     version: int
@@ -62,7 +62,7 @@ class Header:
         if len(buf) < Header.SIZE:
             raise Exception("buffer too small")
 
-        self.raw = buf[:Header.SIZE]
+        self.raw = buf[: Header.SIZE]
         fields = struct.unpack(">HHHBB", self.raw)
 
         self.version = fields[0]
@@ -75,7 +75,7 @@ class Header:
 
 
 def open_file(path: str, *args, default_path: str | None = None):
-    if default_path is not None and path == '-':
+    if default_path is not None and path == "-":
         path = default_path
 
     return open(path, *args)
@@ -102,7 +102,7 @@ class Packet:
     @staticmethod
     def parse(buf: bytes) -> Packet:
         h = Header(buf)
-        p = Payload(buf[Header.SIZE:h.length])
+        p = Payload(buf[Header.SIZE : h.length])
         return Packet(h, p)
 
     def __len__(self) -> int:
@@ -113,7 +113,7 @@ def parse_bytes_to_packets(buf: bytes) -> [Packet]:
     packets = []
     while len(buf) > 0:
         packet = Packet.parse(buf)
-        buf = buf[packet.header.length:]
+        buf = buf[packet.header.length :]
         packets.append(packet)
 
     return packets
@@ -128,11 +128,19 @@ def color_code_file_path(path: str) -> str:
 
 
 def color_code_flags(is_set: bool) -> str:
-    return colored('set', Fore.MAGENTA, Style.BRIGHT) if is_set else colored('not set', Fore.WHITE, Style.DIM)
+    return (
+        colored("set", Fore.MAGENTA, Style.BRIGHT)
+        if is_set
+        else colored("not set", Fore.WHITE, Style.DIM)
+    )
 
 
 def color_code_ok_invalid(is_ok: bool) -> str:
-    return colored('ok', Fore.GREEN, Style.BRIGHT) if is_ok else colored('invalid', Fore.RED, Style.BRIGHT)
+    return (
+        colored("ok", Fore.GREEN, Style.BRIGHT)
+        if is_ok
+        else colored("invalid", Fore.RED, Style.BRIGHT)
+    )
 
 
 def color_code_const(val: str) -> str:
@@ -157,9 +165,12 @@ def analyze_main(args, raw_input: bytes):
 
     expected_id = 0
 
-    print(f"╭─ {color_code_file_path(args.input)}: {color_code_len(len(packets))} packets - {color_code_len(len(raw_input))} bytes")
+    print(
+        f"╭─ {color_code_file_path(args.input)}: {color_code_len(len(packets))} packets - {color_code_len(len(raw_input))} bytes"
+    )
     for packet in selected_packets:
-        print(f"""│
+        print(
+            f"""│
 ├──● Packet: {color_code_len(len(packet))} bytes
 │  ├──● Header: {color_code_len(packet.header.SIZE)} bytes
 │  │  ├─○ version:  {color_code_const(f'{packet.header.version:<#10x}')}{color_code_ok_invalid(packet.header.version == packet.header.VERSION)}
@@ -170,7 +181,9 @@ def analyze_main(args, raw_input: bytes):
 │  │  ╰─○ id:       {packet.header.id:<#10x}{color_code_ok_invalid(packet.header.id == expected_id)}
 │  ╰──● Payload: {color_code_len(len(packet.payload))} bytes
 │     ╰─○ data:     [...]
-""", end="")
+""",
+            end="",
+        )
         expected_id += 1
     print("│\n╰⬤")
 
@@ -187,11 +200,10 @@ def extract_main(args, raw_input: bytes):
     packets = parse_bytes_to_packets(raw_input)
 
     bytes_written = 0
-    out_file = open_file(args.out, 'wb', default_path='/dev/stdout')
+    out_file = open_file(args.out, "wb", default_path="/dev/stdout")
 
     if args.id is None:
-        info(
-            f"extracting all packets ({color_code_len(len(packets))} packets)")
+        info(f"extracting all packets ({color_code_len(len(packets))} packets)")
 
         for packet in packets:
             bytes_written += extract_packet_to(args, out_file, packet)
@@ -204,48 +216,57 @@ def extract_main(args, raw_input: bytes):
                 return
 
             info(f"extracting packet #{color_code_len(packet_id)}")
-            bytes_written += extract_packet_to(args,
-                                               out_file, packets[packet_id])
+            bytes_written += extract_packet_to(args, out_file, packets[packet_id])
 
     out_file.close()
     info(
-        f"writing {color_code_file_path(args.out)}: {color_code_len(bytes_written)} bytes")
+        f"writing {color_code_file_path(args.out)}: {color_code_len(bytes_written)} bytes"
+    )
 
 
 def cli_main(args):
-    input_file = open_file(args.input, 'rb', default_path='/dev/stdin')
+    input_file = open_file(args.input, "rb", default_path="/dev/stdin")
     raw_input = input_file.read()
     input_file.close()
 
-    subcommands = {
-        'analyze': analyze_main,
-        'extract': extract_main
-    }
+    subcommands = {"analyze": analyze_main, "extract": extract_main}
 
     subcommands[args.subcommand](args, raw_input)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input', help='File to dissect',
-                        required=True, metavar='<path>')
-    parsers = parser.add_subparsers(dest='subcommand')
+    parser.add_argument(
+        "-i", "--input", help="File to dissect", required=True, metavar="<path>"
+    )
+    parsers = parser.add_subparsers(dest="subcommand")
 
     analyze_parser = parsers.add_parser(
-        'analyze', help='Parse the packet(s) into a human readable tree')
+        "analyze", help="Parse the packet(s) into a human readable tree"
+    )
     analyze_parser.add_argument(
-        '--id', help='Specify which packet to operate on (specify multiple times for many packets)', metavar='<index>', action='append')
+        "--id",
+        help="Specify which packet to operate on (specify multiple times for many packets)",
+        metavar="<index>",
+        action="append",
+    )
 
     extract_parser = parsers.add_parser(
-        'extract', help='Extract parts of the packet(s)')
+        "extract", help="Extract parts of the packet(s)"
+    )
     extract_parser.add_argument(
-        '--id', help='Specify which packet to operate on (specify multiple times for many packets)', metavar='<index>', action='append')
+        "--id",
+        help="Specify which packet to operate on (specify multiple times for many packets)",
+        metavar="<index>",
+        action="append",
+    )
     extract_parser.add_argument(
-        '--header', help='Extract the header(s)', action='store_true')
+        "--header", help="Extract the header(s)", action="store_true"
+    )
     extract_parser.add_argument(
-        '--payload', help='Extract the payload(s)', action='store_true')
-    extract_parser.add_argument(
-        'out', help='Specify the output file', metavar='<path>')
+        "--payload", help="Extract the payload(s)", action="store_true"
+    )
+    extract_parser.add_argument("out", help="Specify the output file", metavar="<path>")
 
     args = parser.parse_args()
     cli_main(args)
