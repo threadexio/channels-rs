@@ -22,8 +22,6 @@ The version field indicates what version of the protocol the packet is using. An
 
 In any case, further communication should not be attempted.
 
-The value this field takes is very specific and must be calculated correctly so as to avoid trying to communicate with incompatible clients. Currently the algorithm used for calculating the version is CRC-16/MODBUS and the input is the layout of the header, this way truly incompatible clients (the ones that have a different header layout) will still throw a version mismatch error but compatible clients will continue to work normally. This system allows us to avoid having to track which versions of the crate are compatible with each other; if 2 peers have the same version number, then they have the same layout for the header, thus they are compatible.
-
 ### Packet Length
 
 This field encodes the length of the entire packet in bytes from the start of the [Version field](#version) to the end of the [Payload](#payload). The value of this field is calculated by summing the length of  the header and the length of the payload. All packets must set this field equal to 8 or more. With 8 being the minimum size of any packet, assuming a zero-size payload.
@@ -41,13 +39,7 @@ This field is a bit-flag field, ie. it holds flags important for the transmissio
 |     Bit     |          Name           |
 |:-----------:|:-----------------------:|
 | `0... ....` | [More data](#more-data) |
-| `.0.. ....` |        Reserved         |
-| `..0. ....` |        Reserved         |
-| `...0 ....` |        Reserved         |
-| `.... 0...` |        Reserved         |
-| `.... .0..` |        Reserved         |
-| `.... ..0.` |        Reserved         |
-| `.... ...0` |        Reserved         |
+| `.000 0000` |        Reserved         |
 
 #### More Data
 
