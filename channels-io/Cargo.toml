@@ -16,7 +16,7 @@ tokio = ["dep:tokio", "std"]
 futures = ["dep:futures", "std"]
 
 [dependencies]
-tokio = { version = "1.33", features = ["io-util"], optional = true }
+tokio = { version = "1", features = ["io-util"], optional = true }
 futures = { version = "0.3", optional = true }
 
 [package.metadata.docs.rs]
