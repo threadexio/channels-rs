@@ -8,7 +8,7 @@ async fn main() {
 	let stream = TcpStream::connect("127.0.0.1:10000").await.unwrap();
 
 	let (r, w) = stream.into_split();
-	let (mut tx, mut rx) = channels::channel::<i32, _, _>(r, w);
+	let (mut tx, mut rx) = channels::channel_async::<i32, _, _>(r, w);
 
 	let mut rng = rand::thread_rng();
 

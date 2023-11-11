@@ -7,15 +7,22 @@ use rand::Rng;
 fn main() {
 	let connection = TcpStream::connect("127.0.0.1:10000").unwrap();
 
-	let (mut tx, mut rx) = channels::channel(
-		connection.try_clone().unwrap(),
-		connection,
-	);
+	let sd = channels::serdes::Json::new();
+
+	let mut tx = channels::Sender::builder()
+		.writer(connection.try_clone().unwrap())
+		.serializer(sd.clone())
+		.build();
+
+	let mut rx = channels::Receiver::builder()
+		.reader(connection)
+		.deserializer(sd)
+		.build();
 
 	let mut rng = rand::thread_rng();
 	loop {
 		tx.send_blocking(rng.gen::<i32>()).unwrap();
-		let received = rx.recv_blocking().unwrap();
+		let received: i32 = rx.recv_blocking().unwrap();
 
 		println!("Received: {received}");
 

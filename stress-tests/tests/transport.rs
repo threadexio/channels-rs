@@ -73,12 +73,12 @@ mod async_tests {
 
 		let mut server = {
 			let (r, w) = server_stream.into_split();
-			channels::channel::<Data, _, _>(r, w)
+			channels::channel_async::<Data, _, _>(r, w)
 		};
 
 		let mut client = {
 			let (r, w) = client_stream.into_split();
-			channels::channel::<Data, _, _>(r, w)
+			channels::channel_async::<Data, _, _>(r, w)
 		};
 
 		for i in 0..ITER {

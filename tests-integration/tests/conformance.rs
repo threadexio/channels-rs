@@ -12,7 +12,10 @@ const PACKET: &[u8] = &[
 fn conformance_sender() {
 	let mut buf: Vec<u8> = Vec::with_capacity(32);
 
-	let mut s = Sender::<(), _, _>::new(&mut buf);
+	let mut s = Sender::builder()
+		.serializer(channels::serdes::Bincode::new())
+		.writer(&mut buf)
+		.build();
 
 	s.send_blocking(()).unwrap();
 	assert_eq!(&s.get()[..], PACKET);
@@ -20,6 +23,10 @@ fn conformance_sender() {
 
 #[test]
 fn conformance_receiver() {
-	let mut r = Receiver::<(), _, _>::new(PACKET);
-	r.recv_blocking().unwrap();
+	let mut r = Receiver::builder()
+		.deserializer(channels::serdes::Bincode::new())
+		.reader(PACKET)
+		.build();
+
+	let _: () = r.recv_blocking().unwrap();
 }

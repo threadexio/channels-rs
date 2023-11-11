@@ -2,12 +2,19 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 
 fn connection_handler(connection: TcpStream) {
-	let (mut tx, mut rx) = channels::channel::<i32, _, _>(
-		connection.try_clone().unwrap(),
-		connection,
-	);
+	let sd = channels::serdes::Json::new();
 
-	for received in rx.incoming() {
+	let mut tx = channels::Sender::<i32, _, _>::builder()
+		.writer(connection.try_clone().unwrap())
+		.serializer(sd.clone())
+		.build();
+
+	let mut rx = channels::Receiver::<i32, _, _>::builder()
+		.reader(connection)
+		.deserializer(sd)
+		.build();
+
+	for received in rx.incoming().map(|x| x.unwrap()) {
 		println!(
 			"{}: Received: {received}",
 			thread::current().name().unwrap()

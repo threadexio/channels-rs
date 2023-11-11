@@ -20,10 +20,6 @@ path = "tcp_echo_client.rs"
 name = "tcp_echo_server"
 path = "tcp_echo_server.rs"
 
-[[example]]
-name = "tcp_compressed_deflate"
-path = "tcp_compressed_deflate.rs"
-
 [dependencies]
 channels = { workspace = true, features = ["full"] }
 

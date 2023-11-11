@@ -37,7 +37,8 @@ async fn client() {
 
 	let s = TcpStream::connect(ADDR).await.unwrap();
 	let (r, w) = s.into_split();
-	let (mut tx, mut rx) = channels::channel::<Data, _, _>(r, w);
+	let (mut tx, mut rx) =
+		channels::channel_async::<Data, _, _>(r, w);
 
 	for i in 0..ITER {
 		let data = Data { a: 42, b: i, c: format!("test str #{i}") };
