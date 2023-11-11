@@ -1,5 +1,9 @@
 #![doc = include_str!("../README.md")]
-#![allow(unknown_lints)]
+#![allow(
+	unknown_lints,
+	clippy::new_without_default,
+	clippy::needless_doctest_main
+)]
 #![warn(
 	clippy::all,
 	clippy::style,
@@ -19,62 +23,107 @@
 	rustdoc::all,
 	rustdoc::broken_intra_doc_links
 )]
-#![allow(clippy::new_without_default, clippy::needless_doctest_main)]
 #![deny(missing_docs)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
-#[macro_use]
-mod macros;
+extern crate alloc;
 
-mod io;
-mod mem;
-mod packet;
-mod util;
+// TODO: Packet middleware
 
-pub mod adapter;
+mod common;
+
 pub mod error;
-pub mod serdes;
-
-cfg_statistics! {
-	pub mod stats;
-}
-
-pub mod sender;
-pub use sender::Sender;
 
 pub mod receiver;
-pub use receiver::Receiver;
+pub mod sender;
+
+#[cfg(feature = "statistics")]
+pub use self::common::Statistics;
+
+pub use self::receiver::Receiver;
+pub use self::sender::Sender;
+
+pub use channels_io as io;
+pub use channels_serdes as serdes;
+
+use channels_io::prelude::*;
 
 /// A tuple containing a [`Sender`] and a [`Receiver`].
 pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 
-cfg_serde! {
-	cfg_bincode! {
-		/// Create a new channel.
-		///
-		/// If your reader and writer are one type that does not support splitting
-		/// its 2 halves, use the `split` function from [`adapter::unsync`]
-		/// or [`adapter::sync`].
-		///
-		/// **NOTE:** If you need a [`Sender`] and a [`Receiver`] that use
-		/// different types, the `new` or the [`Sender::with_serializer`] and
-		/// [`Receiver::with_deserializer`] methods.
-		///
-		/// # Usage
-		/// ```no_run
-		/// use std::net::TcpStream;
-		///
-		/// let conn = TcpStream::connect("0.0.0.0:1234").unwrap();
-		///
-		/// let (mut tx, mut rx) = channels::channel(conn.try_clone().unwrap(), conn);
-		///
-		/// tx.send_blocking(42_i32).unwrap();
-		/// let received: i32 = rx.recv_blocking().unwrap();
-		/// ```
-		pub fn channel<T, R, W>(
-			r: R,
-			w: W,
-		) -> Pair<T, R, W, serdes::Bincode, serdes::Bincode> {
-			(Sender::new(w), Receiver::new(r))
-		}
-	}
+#[cfg(feature = "bincode")]
+/// Create a new synchronous channel.
+///
+/// # Example
+/// ```no_run
+/// use std::net::TcpStream;
+///
+/// let conn = TcpStream::connect("127.0.0.1:1234").unwrap();
+///
+/// let (mut tx, mut rx) = channels::channel(conn.try_clone().unwrap(), conn);
+///
+/// tx.send_blocking(42_i32).unwrap();
+/// let received: i32 = rx.recv_blocking().unwrap();
+/// ```
+pub fn channel<T, R, W>(
+	r: impl IntoReader<R>,
+	w: impl IntoWriter<W>,
+) -> Pair<T, R, W, channels_serdes::Bincode, channels_serdes::Bincode>
+where
+	for<'de> T: serde::Serialize + serde::Deserialize<'de>,
+	R: Read,
+	W: Write,
+{
+	use channels_serdes::Bincode;
+
+	(
+		Sender::builder()
+			.writer(w)
+			.serializer(Bincode::new())
+			.build(),
+		Receiver::builder()
+			.reader(r)
+			.deserializer(Bincode::new())
+			.build(),
+	)
+}
+
+#[cfg(feature = "bincode")]
+/// Create a new asynchronous channel.
+///
+/// # Example
+/// ```no_run
+/// use tokio::net::TcpStream;
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let conn = TcpStream::connect("127.0.0.1:1234").await.unwrap();
+///     let (r, w) = conn.into_split();
+///     let (mut tx, mut rx) = channels::channel_async(r, w);
+///
+///     tx.send(42_i32).await.unwrap();
+///     let received: i32 = rx.recv().await.unwrap();
+/// }
+/// ```
+pub fn channel_async<T, R, W>(
+	r: impl IntoAsyncReader<R>,
+	w: impl IntoAsyncWriter<W>,
+) -> Pair<T, R, W, channels_serdes::Bincode, channels_serdes::Bincode>
+where
+	for<'de> T: serde::Serialize + serde::Deserialize<'de>,
+	R: AsyncRead,
+	W: AsyncWrite,
+{
+	use channels_serdes::Bincode;
+
+	(
+		Sender::builder()
+			.async_writer(w)
+			.serializer(Bincode::new())
+			.build(),
+		Receiver::builder()
+			.async_reader(r)
+			.deserializer(Bincode::new())
+			.build(),
+	)
 }
