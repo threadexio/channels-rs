@@ -263,18 +263,17 @@ where
 {
 	type Error = R::Error;
 
-	fn poll_read_all(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context,
+	async fn read_all(
+		&mut self,
 		mut buf: impl BufMut,
-	) -> Poll<Result<(), Self::Error>> {
+	) -> Result<(), Self::Error> {
 		let l0 = buf.remaining();
-		let output =
-			Pin::new(&mut self.inner).poll_read_all(cx, &mut buf);
+		let output = self.inner.read_all(&mut buf).await;
 		let l1 = buf.remaining();
 
 		let delta = l0 - l1;
 		self.on_read(delta as u64);
+
 		output
 	}
 }
@@ -392,8 +391,12 @@ where
 		self: Pin<&mut Self>,
 		cx: &mut Context<'_>,
 	) -> Poll<Self::Output> {
-		self.get_mut()
-			.poll_once(|r, buf| Pin::new(r).poll_read_all(cx, buf))
+		self.get_mut().poll_once(|r, buf| {
+			let mut fut = r.read_all(buf);
+			// SAFETY: `fut` will never be moved because it is allocated in this
+			//         clojure and is never moved inside any function.
+			unsafe { Pin::new_unchecked(&mut fut).poll(cx) }
+		})
 	}
 }
 

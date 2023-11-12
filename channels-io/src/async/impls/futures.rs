@@ -1,7 +1,6 @@
-use core::marker::Unpin;
-use core::pin::Pin;
-use core::task::ready;
-use core::task::{Context, Poll};
+use core::future::Future;
+
+use futures::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{
 	AsyncRead, AsyncWrite, Buf, BufMut, IntoAsyncReader,
@@ -28,30 +27,22 @@ where
 {
 	type Error = futures::io::Error;
 
-	fn poll_read_all(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context,
+	async fn read_all(
+		&mut self,
 		mut buf: impl BufMut,
-	) -> Poll<Result<(), Self::Error>> {
+	) -> Result<(), Self::Error> {
 		use futures::io::ErrorKind as E;
 
 		while buf.has_remaining() {
-			match ready!(Pin::new(&mut self.0)
-				.poll_read(cx, buf.unfilled_mut()))
-			{
-				Ok(0) => {
-					return Poll::Ready(Err(E::WriteZero.into()))
-				},
+			match self.0.read(buf.unfilled_mut()).await {
+				Ok(0) => return Err(E::WriteZero.into()),
 				Ok(n) => buf.advance(n),
 				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) if e.kind() == E::WouldBlock => {
-					return Poll::Pending
-				},
-				Err(e) => return Poll::Ready(Err(e)),
+				Err(e) => return Err(e),
 			}
 		}
 
-		Poll::Ready(Ok(()))
+		Ok(())
 	}
 }
 
@@ -70,36 +61,30 @@ where
 {
 	type Error = futures::io::Error;
 
-	fn poll_write_all(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context,
+	async fn write_all(
+		&mut self,
 		mut buf: impl Buf,
-	) -> Poll<Result<(), Self::Error>> {
+	) -> Result<(), Self::Error> {
 		use futures::io::ErrorKind as E;
 
 		while buf.has_remaining() {
-			match ready!(
-				Pin::new(&mut self.0).poll_write(cx, buf.unfilled())
-			) {
-				Ok(0) => {
-					return Poll::Ready(Err(E::WriteZero.into()))
-				},
+			match self.0.write(buf.unfilled()).await {
+				Ok(0) => return Err(E::WriteZero.into()),
 				Ok(n) => buf.advance(n),
 				Err(e) if e.kind() == E::Interrupted => continue,
 				Err(e) if e.kind() == E::WouldBlock => {
-					return Poll::Pending
+					panic!("async io operation returned `WouldBlock`")
 				},
-				Err(e) => return Poll::Ready(Err(e)),
+				Err(e) => return Err(e),
 			}
 		}
 
-		Poll::Ready(Ok(()))
+		Ok(())
 	}
 
-	fn poll_flush(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context,
-	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.0).poll_flush(cx)
+	fn flush(
+		&mut self,
+	) -> impl Future<Output = Result<(), Self::Error>> {
+		self.0.flush()
 	}
 }

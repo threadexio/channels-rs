@@ -1,9 +1,9 @@
 //! Module containing the implementation for [`Sender`].
 
 use core::borrow::Borrow;
+use core::future::Future;
 use core::marker::PhantomData;
-use core::pin::Pin;
-use core::task::{Context, Poll};
+use core::task::Poll;
 
 use alloc::vec::Vec;
 
@@ -259,18 +259,16 @@ where
 
 impl<W> AsyncWrite for StatWriter<W>
 where
-	W: AsyncWrite + Unpin,
+	W: AsyncWrite,
 {
 	type Error = W::Error;
 
-	fn poll_write_all(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context,
+	async fn write_all(
+		&mut self,
 		mut buf: impl Buf,
-	) -> Poll<Result<(), Self::Error>> {
+	) -> Result<(), Self::Error> {
 		let l0 = buf.remaining();
-		let output =
-			Pin::new(&mut self.inner).poll_write_all(cx, &mut buf);
+		let output = self.inner.write_all(&mut buf).await;
 		let l1 = buf.remaining();
 
 		let delta = l0 - l1;
@@ -278,11 +276,10 @@ where
 		output
 	}
 
-	fn poll_flush(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context,
-	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.inner).poll_flush(cx)
+	fn flush(
+		&mut self,
+	) -> impl Future<Output = Result<(), Self::Error>> {
+		self.inner.flush()
 	}
 }
 
