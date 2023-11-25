@@ -368,9 +368,10 @@ where
 						Err(e) => {
 							return Ready(Err(SendError::Io(e)))
 						},
-						Ok(_) => {
+						Ok(_) if !packet.has_remaining() => {
 							self.state = State::NoPacket;
 						},
+						Ok(_) => {},
 					}
 				},
 			}
