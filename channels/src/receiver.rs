@@ -70,11 +70,10 @@ where
 	///
 	/// This function will return a future that will complete only when all the
 	/// bytes of `T` have been received.
-	pub fn recv(
+	pub async fn recv(
 		&mut self,
-	) -> impl Future<Output = Result<T, RecvError<D::Error, R::Error>>> + '_
-	{
-		Recv::new(self)
+	) -> Result<T, RecvError<D::Error, R::Error>> {
+		Recv::new(self).await
 	}
 }
 
@@ -289,8 +288,6 @@ impl State {
 	};
 }
 
-/// A future that will complete once a whole type `T` has been received.
-#[must_use = "futures do nothing unless you `.await` them"]
 struct Recv<'a, T, R, D> {
 	recv: &'a mut Receiver<T, R, D>,
 	payload: IoSlice<Vec<u8>>,
@@ -395,7 +392,7 @@ where
 			let mut fut = r.read_all(buf);
 			// SAFETY: `fut` will never be moved because it is allocated in this
 			//         clojure and is never moved inside any function.
-			unsafe { Pin::new_unchecked(&mut fut).poll(cx) }
+			unsafe { Pin::new_unchecked(&mut fut) }.poll(cx)
 		})
 	}
 }
