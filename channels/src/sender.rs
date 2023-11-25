@@ -3,7 +3,8 @@
 use core::borrow::Borrow;
 use core::future::Future;
 use core::marker::PhantomData;
-use core::task::Poll;
+use core::pin::Pin;
+use core::task::{ready, Context, Poll};
 
 use alloc::vec::Vec;
 
@@ -11,7 +12,7 @@ use channels_io::prelude::*;
 use channels_io::IoSlice;
 
 use channels_packet::{
-	slice_to_array_mut, Flags, Header, IdGenerator, PayloadLength,
+	slice_to_array_mut, Flags, Header, PayloadLength,
 };
 use channels_serdes::Serializer;
 
@@ -77,19 +78,7 @@ where
 			serialize_type(&mut self.serializer, data.borrow())
 				.map_err(SendError::Serde)?;
 
-		let mut packets =
-			PacketIter::new(&mut self.pcb.id_gen, serialized);
-
-		while let Some(packet) = packets.next_packet() {
-			self.writer
-				.write_all(packet)
-				.await
-				.map_err(SendError::Io)?;
-		}
-
-		self.writer.flush().await.map_err(SendError::Io)?;
-
-		Ok(())
+		Send::new(self, serialized).await
 	}
 }
 
@@ -118,19 +107,9 @@ where
 			serialize_type(&mut self.serializer, data.borrow())
 				.map_err(SendError::Serde)?;
 
-		let mut packets =
-			PacketIter::new(&mut self.pcb.id_gen, serialized);
-
-		while let Some(packet) = packets.next_packet() {
-			self.writer
-				.write_all(packet)
-				.unwrap()
-				.map_err(SendError::Io)?;
-		}
-
-		self.writer.flush().unwrap().map_err(SendError::Io)?;
-
-		Ok(())
+		Send::new(self, serialized)
+			.poll_once(|w, buf| w.write_all(buf))
+			.unwrap()
 	}
 }
 
@@ -237,7 +216,6 @@ where
 	W: Write,
 {
 	type Error = W::Error;
-	#[track_caller]
 
 	fn write_all(
 		&mut self,
@@ -283,85 +261,140 @@ where
 	}
 }
 
-struct PacketIter<'a> {
-	id_gen: &'a mut IdGenerator,
-	serialized: IoSlice<Vec<u8>>,
-	yielded_at_least_once: bool,
-	packet: Vec<u8>,
+enum State {
+	HasPacket { packet: IoSlice<Vec<u8>> },
+	NoPacket,
 }
 
-impl<'a> PacketIter<'a> {
+struct Send<'a, T, W, S> {
+	sender: &'a mut Sender<T, W, S>,
+	data: IoSlice<Vec<u8>>,
+	has_sent_at_least_one: bool,
+	state: State,
+}
+
+impl<'a, T, W, S> Send<'a, T, W, S>
+where
+	S: Serializer<T>,
+{
 	fn new(
-		id_gen: &'a mut IdGenerator,
-		serialized: IoSlice<Vec<u8>>,
+		sender: &'a mut Sender<T, W, S>,
+		data: IoSlice<Vec<u8>>,
 	) -> Self {
 		Self {
-			id_gen,
-			packet: Vec::new(),
-			serialized,
-			yielded_at_least_once: false,
+			sender,
+			data,
+			has_sent_at_least_one: false,
+			state: State::NoPacket,
 		}
 	}
 
-	fn prepare_packet(&mut self) -> &[u8] {
+	fn poll_once<F, E>(
+		&mut self,
+		mut write_all: F,
+	) -> Poll<Result<(), SendError<S::Error, E>>>
+	where
+		F: FnMut(
+			&mut StatWriter<W>,
+			&mut dyn Buf,
+		) -> Poll<Result<(), E>>,
+	{
 		use core::cmp::min;
+		use Poll::Ready;
 
-		let payload_length = unsafe {
-			let saturated = min(
-				self.serialized.remaining(),
-				PayloadLength::MAX.as_usize(),
-			);
+		loop {
+			match self.state {
+				State::NoPacket => {
+					let payload_length = unsafe {
+						let saturated = min(
+							self.data.remaining(),
+							PayloadLength::MAX.as_usize(),
+						);
 
-			PayloadLength::new_unchecked(saturated as u16)
-		};
+						PayloadLength::new_unchecked(saturated as u16)
+					};
 
-		let packet_length = payload_length.to_packet_length();
+					if payload_length.as_usize() == 0
+						&& self.has_sent_at_least_one
+					{
+						return Ready(Ok(()));
+					}
 
-		self.packet.resize(packet_length.as_usize(), 0);
+					let packet_length =
+						payload_length.to_packet_length();
 
-		if payload_length.as_usize() != 0 {
-			let n = channels_io::copy_slice(
-				self.serialized.unfilled(),
-				&mut self.packet[Header::SIZE..],
-			);
-			self.serialized.advance(n);
+					let mut packet =
+						vec![0u8; packet_length.as_usize()];
 
-			if n < payload_length.as_usize() {
-				self.packet.resize(Header::SIZE + n, 0);
+					if payload_length.as_usize() != 0 {
+						let n = channels_io::copy_slice(
+							self.data.unfilled(),
+							&mut packet[Header::SIZE..],
+						);
+						self.data.advance(n);
+
+						if n < payload_length.as_usize() {
+							packet.resize(Header::SIZE + n, 0);
+						}
+					}
+
+					Header {
+						length: packet_length,
+						flags: Flags::zero()
+							.set_if(Flags::MORE_DATA, |_| {
+								self.data.has_remaining()
+							}),
+						id: self.sender.pcb.id_gen.next_id(),
+					}
+					.write_to(unsafe {
+						// SAFETY: The range guarantees that the slice is exactly equal to
+						//         Header::SIZE.
+						slice_to_array_mut(
+							&mut packet[..Header::SIZE],
+						)
+					});
+
+					self.has_sent_at_least_one = true;
+
+					self.state = State::HasPacket {
+						packet: IoSlice::new(packet),
+					};
+				},
+				State::HasPacket { ref mut packet } => {
+					match ready!(write_all(
+						&mut self.sender.writer,
+						packet
+					)) {
+						Err(e) => {
+							return Ready(Err(SendError::Io(e)))
+						},
+						Ok(_) => {
+							self.state = State::NoPacket;
+						},
+					}
+				},
 			}
 		}
-
-		Header {
-			length: packet_length,
-			flags: Flags::zero().set_if(Flags::MORE_DATA, |_| {
-				self.serialized.has_remaining()
-			}),
-			id: self.id_gen.next_id(),
-		}
-		.write_to(unsafe {
-			// SAFETY: The range guarantees that the slice is exactly equal to
-			//         Header::SIZE.
-			slice_to_array_mut(&mut self.packet[..Header::SIZE])
-		});
-
-		&self.packet
 	}
+}
 
-	fn next_packet(&mut self) -> Option<&[u8]> {
-		// Why `yielded_at_least_once` is needed:
-		//   Senders must always send one packet regardless of whether or not
-		//   the serialized type takes up any space. In case a type serializes
-		//   to zero bytes, the sender must send exactly one empty packet.
-		if !self.yielded_at_least_once {
-			self.yielded_at_least_once = true;
-			let packet = self.prepare_packet();
-			Some(packet)
-		} else if self.serialized.has_remaining() {
-			let packet = self.prepare_packet();
-			Some(packet)
-		} else {
-			None
-		}
+impl<'a, T, W, S> Future for Send<'a, T, W, S>
+where
+	W: AsyncWrite + Unpin,
+	S: Serializer<T>,
+{
+	type Output = Result<(), SendError<S::Error, W::Error>>;
+
+	fn poll(
+		self: Pin<&mut Self>,
+		cx: &mut Context<'_>,
+	) -> Poll<Self::Output> {
+		self.get_mut().poll_once(|w, buf| {
+			let mut fut = w.write_all(buf);
+			// SAFETY: `fut` will never be moved because it is allocated in this
+			//         clojure and is never moved inside any function.
+			unsafe { Pin::new_unchecked(&mut fut) }.poll(cx)
+		})
 	}
 }
 
