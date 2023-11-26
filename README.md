@@ -2,28 +2,17 @@
 [docs-rs]: https://docs.rs/channels/latest/channels
 [github-actions]: https://github.com/threadexio/channels-rs/actions/workflows/ci.yaml
 
-[github-rust]: https://github.com/threadexio/channels-rs
-[github-c]: https://github.com/threadexio/channels-c
-
-[license-badge]: https://img.shields.io/github/license/threadexio/channels-rs?style=flat-square&labelColor=0d1117&color=decd87
-[version-badge]: https://img.shields.io/crates/v/channels?style=flat-square&logo=rust&labelColor=0d1117&color=decd87
-[downloads-badge]: https://img.shields.io/crates/d/channels?style=flat-square&logo=rust&labelColor=0d1117&color=decd87
-
-[tests-badge]: https://img.shields.io/github/actions/workflow/status/threadexio/channels-rs/ci.yaml?style=flat-square&logo=github&label=tests&labelColor=0d1117
-[docs-badge]: https://img.shields.io/docsrs/channels?style=flat-square&logo=docs.rs&labelColor=0d1117
+[license-badge]: https://img.shields.io/github/license/threadexio/channels-rs?style=for-the-badge&logo=github&label=license&labelColor=%23000&color=%236e00f2
+[tests-badge]: https://img.shields.io/github/actions/workflow/status/threadexio/channels-rs/ci.yaml?style=for-the-badge&logo=github&label=tests&labelColor=%23000&color=%239500d6
+[version-badge]: https://img.shields.io/crates/v/channels?style=for-the-badge&logo=rust&label=crates.io&labelColor=%23000&color=%23bc00ba
+[docs-badge]: https://img.shields.io/docsrs/channels?style=for-the-badge&logo=docs.rs&labelColor=%23000&color=%23e2009e
+[downloads-badge]: https://img.shields.io/crates/d/channels?style=for-the-badge&label=downloads&labelColor=%23000&color=%23ff0089
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/.github/images/logo.svg" width="250px">
-
-  <!--
-  For testing local changes.
-  <img src=".github/images/logo.svg" width="250px">
-  -->
-
-  <h3>channels-rs</h3>
+  <img src=".github/images/logo.svg">
 
   <p>
-    A crate that allows for easy and fast communication between processes, threads and systems.
+    Easy and fast communication between processes, threads and systems.
   </p>
 
   [![license-badge]][crates-io]
@@ -35,63 +24,32 @@
 
 </div>
 
-[`std::io::Read`]: std::io::Read
-[`std::io::Write`]: std::io::Write
-[`std::sync::mpsc`]: std::sync::mpsc
+<br>
 
-[`serde::Serialize`]: serde::Serialize
-[`serde::Deserialize`]: serde::Deserialize
-[`bincode`]: mod@bincode
-[`ciborium`]: mod@ciborium
-[`serde_json`]: mod@serde_json
-[`hmac`]: mod@hmac
-[`sha3`]: mod@sha3
-[`flate2`]: mod@flate2
-[`crc`]: mod@crc
+Sender/Receiver types for communicating with a channel-like API across generic IO streams. It takes the burden on serializing, deserializing and transporting data off your back and let's you focus on the important logic of your project. It is:
 
-## Repos
+- **Fast**: The simple protocol allows lower-overhead parsing of data.
 
-This library is available in the following languages:
+- **Minimal**: Channels can be used in `no_std` environments with only a memory allocator.
 
-- **[Rust][github-rust]**
-- [C][github-c] (work in progress)
+- **Light**: Channels' low memory usage means it can run in constrained embedded environments.
 
-Sender/Receiver types to be used with _any_ type that implements [`std::io::Read`] and [`std::io::Write`].
+# How it works
 
-This crate is similar to [`std::sync::mpsc`] in terms of the API, and most of the documentation
-for that module carries over to this crate.
+Channels implements a communication protocol that allows sending and receiving data across any medium. It works over _any_ stream synchronous or asynchronous. Currently it can work with any of the following IO traits:
 
-Don't think of these channels as a replacement for [`std::sync::mpsc`], but as another implementation that works over many different transports.
+- [`std::io::{Read, Write}`](https://doc.rust-lang.org/stable/std/io)
+- [`tokio::io::{AsyncRead, AsyncWrite}`](https://docs.rs/tokio/latest/tokio/io)
+- [`futures::io::{AsyncRead, AsyncWrite}`](https://docs.rs/futures/latest/futures/io)
 
-These channels are meant to be used in combination with network sockets, local sockets, pipes, etc.
-
-The differences are:
-
-- Channels **will** block, unless the underlying stream is set as non-blocking.
-- The amount of messages that can be queued up before reading is dependent on the underlying stream.
-
-# Features
-
-- 🚀 Async & Sync API
-- 📥 Transparent compression
-- 🔑 Transparent authentication with `HMAC-SHA3-512`
-- ➕ Transparent checksumming with CRC
-
-# cargo features
-
-- `cbor`: Adds support for sending/receiving any type with [`ciborium`].
-- `crc`: Adds support for verifying data with CRC checksums.
-- `flate2`: Adds support for compressing data with [`flate2`].
-- `hmac`: Adds support for cryptographically signing data with [`hmac`] and [`sha3`].
-- `json`: Adds support for sending/receiving any type with [`serde_json`].
-- `statistics`: Capture statistic data like: total bytes sent/received, timestamp of last packet, etc
-- `tokio`: Adds support for sending/receiving types asynchronously.
-
-## cargo default features
-
-- `serde`: Adds support for sending/receiving any type which implements [`serde::Serialize`] and [`serde::Deserialize`].
-- `bincode`: Adds support for sending/receiving any type with [`bincode`].
+You can find out more about how the underlying communication protocol works [here](./spec/PROTOCOL.md).
 
 # Examples
 
 See: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
+
+# License
+
+- All code in this repository is licensed under the MIT license, a copy of which can be found [here](./LICENSE).
+
+- All artwork in this repository is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/). A copy of the license can be found [here](./.github/images/LICENSE).
