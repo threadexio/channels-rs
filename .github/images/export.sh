@@ -13,8 +13,9 @@ export_svg() {
 	local height="${res#*x}"
 	shift
 
+	rm -f "$out"
 	inkscape "$in" \
-	        --export-filename "$out" \
+	    --export-filename "$out" \
 		--export-overwrite \
 		--export-type "$type" \
 		--export-area-page \
@@ -22,4 +23,5 @@ export_svg() {
 		"$@"
 }
 
-export_svg logo.inkscape.svg logo.png 1280x640 
+export_svg logo.inkscape.svg logo.transparent.png 1280x640 --export-background-opacity='0.0'
+export_svg logo.inkscape.svg repo.banner.png      1280x640 --export-background='#000'
