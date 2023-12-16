@@ -19,7 +19,6 @@ jobs:
           - { os: macos-latest,   toolchain: nightly }
 
     runs-on: ${{ matrix.job.os }}
-    if: "${{ !startsWith(github.event.head_commit.message, '[no-ci]') }}"
 
     name: Test on ${{ matrix.job.os }} with ${{ matrix.job.toolchain }}
 
@@ -45,9 +44,9 @@ jobs:
       - name: Check
         run: |
           cargo fmt --check --all
-          cargo check --workspace --all-features
-          cargo clippy --all --all-features
+          cargo check --workspace
+          cargo clippy --all
 
       - name: Test
         run: |
-          cargo test --all-features
+          cargo test
