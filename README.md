@@ -9,7 +9,7 @@
 [downloads-badge]: https://img.shields.io/crates/d/channels?style=for-the-badge&label=downloads&labelColor=%23000&color=%23ff0089
 
 <div align="center">
-  <img src=".github/images/logo.transparent.png">
+  <img src=".../../../.github/images/logo.transparent.png">
 
   <p>
     Easy and fast communication between processes, threads and systems.
