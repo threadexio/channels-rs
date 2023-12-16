@@ -7,14 +7,13 @@ use core::task::Poll;
 
 use alloc::vec::Vec;
 
-use channels_io::{BufMut, IoSlice, PollExt};
-
 use channels_packet::{Flags, Header};
 use channels_serdes::Deserializer;
 
 #[allow(unused_imports)]
 use crate::common::{Pcb, Statistics};
 use crate::error::{RecvError, VerifyError};
+use crate::util::{BufMut, IoSlice};
 
 /// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
 /// except for a [few key differences](crate).
@@ -269,6 +268,8 @@ mod std_impl {
 	use super::*;
 
 	use std::io::{self, Read};
+
+	use crate::util::PollExt;
 
 	impl<R> Reader<R>
 	where

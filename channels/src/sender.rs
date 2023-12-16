@@ -6,8 +6,6 @@ use core::task::{ready, Poll};
 
 use alloc::vec::Vec;
 
-use channels_io::{Buf, IoSlice};
-
 use channels_packet::{
 	slice_to_array_mut, Flags, Header, PayloadLength,
 };
@@ -16,6 +14,7 @@ use channels_serdes::Serializer;
 #[allow(unused_imports)]
 use crate::common::{Pcb, Statistics};
 use crate::error::SendError;
+use crate::util::{Buf, IoSlice};
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -201,7 +200,7 @@ impl<'a, W> Send<'a, W> {
 						vec![0u8; packet_length.as_usize()];
 
 					if payload_length.as_usize() != 0 {
-						let n = channels_io::copy_slice(
+						let n = crate::util::copy_slice(
 							self.data.unfilled(),
 							&mut packet[Header::SIZE..],
 						);
@@ -260,11 +259,11 @@ where
 
 #[cfg(feature = "std")]
 mod std_impl {
-	use channels_io::PollExt;
-
 	use super::*;
 
 	use std::io::{self, Write};
+
+	use crate::util::PollExt;
 
 	impl<W> Writer<W>
 	where

@@ -28,9 +28,8 @@
 
 extern crate alloc;
 
-// TODO: Packet middleware
-
 mod common;
+mod util;
 
 pub mod error;
 
