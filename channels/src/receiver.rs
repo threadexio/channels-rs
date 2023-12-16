@@ -1,11 +1,9 @@
 //! Module containing the implementation for [`Receiver`].
 
-use core::future::Future;
 use core::marker::PhantomData;
 use core::mem::take;
-use core::pin::{pin, Pin};
 use core::task::ready;
-use core::task::{Context, Poll};
+use core::task::Poll;
 
 use alloc::vec::Vec;
 
@@ -289,7 +287,6 @@ mod std_impl {
 					Err(e) if e.kind() == E::WouldBlock => {
 						return Pending
 					},
-					Err(e) if e.kind() == E::UnexpectedEof => break,
 					Err(e) => return Ready(Err(e)),
 					Ok(0) => {
 						return Ready(Err(E::UnexpectedEof.into()))
@@ -356,6 +353,10 @@ core::compile_error!(
 mod tokio_impl {
 	use super::*;
 
+	use core::future::Future;
+	use core::pin::{pin, Pin};
+	use core::task::Context;
+
 	use tokio::io::{self, AsyncRead};
 
 	impl<R> Reader<R>
@@ -381,7 +382,6 @@ mod tokio_impl {
 					Err(e) if e.kind() == E::WouldBlock => {
 						return Poll::Pending
 					},
-					Err(e) if e.kind() == E::UnexpectedEof => break,
 					Err(e) => return Ready(Err(e)),
 					Ok(_) => {
 						let l1 = read_buf.filled().len();
@@ -459,6 +459,10 @@ mod tokio_impl {
 mod futures_impl {
 	use super::*;
 
+	use core::future::Future;
+	use core::pin::{pin, Pin};
+	use core::task::Context;
+
 	use futures::AsyncRead;
 	use std::io;
 
@@ -482,7 +486,6 @@ mod futures_impl {
 					Err(e) if e.kind() == E::WouldBlock => {
 						return Poll::Pending
 					},
-					Err(e) if e.kind() == E::UnexpectedEof => break,
 					Err(e) => return Ready(Err(e)),
 					Ok(0) => {
 						return Ready(Err(E::UnexpectedEof.into()))

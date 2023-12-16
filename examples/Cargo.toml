@@ -21,7 +21,7 @@ name = "tcp_echo_server"
 path = "tcp_echo_server.rs"
 
 [dependencies]
-channels = { workspace = true, features = ["full"] }
+channels = { workspace = true, features = ["full", "tokio"] }
 
 rand = "0.8"
 tokio = { version = "1.29", features = ["full"] }

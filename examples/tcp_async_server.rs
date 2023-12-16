@@ -9,13 +9,13 @@ async fn main() {
 	let mut client1 = {
 		let (stream, _) = listener.accept().await.unwrap();
 		let (r, w) = stream.into_split();
-		channels::channel_async::<i32, _, _>(r, w)
+		channels::channel::<i32, _, _>(r, w)
 	};
 
 	let mut client2 = {
 		let (stream, _) = listener.accept().await.unwrap();
 		let (r, w) = stream.into_split();
-		channels::channel_async::<i32, _, _>(r, w)
+		channels::channel::<i32, _, _>(r, w)
 	};
 
 	loop {

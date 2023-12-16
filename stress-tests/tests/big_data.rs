@@ -77,12 +77,12 @@ mod async_tests {
 		let mut client = {
 			let (r, w) =
 				TcpStream::connect(ADDR).await.unwrap().into_split();
-			channels::channel_async::<Data, _, _>(r, w)
+			channels::channel::<Data, _, _>(r, w)
 		};
 
 		let mut server = {
 			let (r, w) = accept.await.unwrap().0.into_split();
-			channels::channel_async::<Data, _, _>(r, w)
+			channels::channel::<Data, _, _>(r, w)
 		};
 
 		for i in 0..ITER {
