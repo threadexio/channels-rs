@@ -43,7 +43,6 @@ pub use self::common::Statistics;
 pub use self::receiver::Receiver;
 pub use self::sender::Sender;
 
-pub use channels_io as io;
 pub use channels_serdes as serdes;
 
 use channels_io::prelude::*;
@@ -66,12 +65,11 @@ pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 /// let received: i32 = rx.recv_blocking().unwrap();
 /// ```
 pub fn channel<T, R, W>(
-	r: impl IntoReader<R>,
+	r: R,
 	w: impl IntoWriter<W>,
 ) -> Pair<T, R, W, channels_serdes::Bincode, channels_serdes::Bincode>
 where
 	for<'de> T: serde::Serialize + serde::Deserialize<'de>,
-	R: Read,
 	W: Write,
 {
 	use channels_serdes::Bincode;
@@ -106,12 +104,11 @@ where
 /// }
 /// ```
 pub fn channel_async<T, R, W>(
-	r: impl IntoAsyncReader<R>,
+	r: R,
 	w: impl IntoAsyncWriter<W>,
 ) -> Pair<T, R, W, channels_serdes::Bincode, channels_serdes::Bincode>
 where
 	for<'de> T: serde::Serialize + serde::Deserialize<'de>,
-	R: AsyncRead,
 	W: AsyncWrite,
 {
 	use channels_serdes::Bincode;
@@ -122,7 +119,7 @@ where
 			.serializer(Bincode::new())
 			.build(),
 		Receiver::builder()
-			.async_reader(r)
+			.reader(r)
 			.deserializer(Bincode::new())
 			.build(),
 	)

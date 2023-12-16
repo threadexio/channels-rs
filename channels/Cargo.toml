@@ -18,15 +18,16 @@ channels-serdes = { version = "0.1.0", path = "../channels-serdes" }
 
 serde = { version = "1.0", default-features = false, optional = true }
 tokio = { version = "1", features = ["net"], optional = true }
+futures = { version = "*", optional = true }
 
 [features]
 default = ["std", "bincode"]
-full = ["std", "statistics", "futures", "tokio", "bincode", "cbor", "json"]
+full = ["std", "statistics", "bincode", "cbor", "json"]
 
 std = ["channels-io/std"]
 statistics = []
 
-futures = ["channels-io/futures"]
+futures = ["channels-io/futures", "dep:futures"]
 tokio = ["channels-io/tokio", "dep:tokio"]
 
 bincode = ["channels-serdes/bincode", "dep:serde"]
