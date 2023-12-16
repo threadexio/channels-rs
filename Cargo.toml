@@ -4,9 +4,10 @@ members = [
 	"channels",
 	"channels-packet",
 	"channels-serdes",
-	"examples",
 	"tests-integration",
 	"stress-tests",
+	"examples",
+	"examples/chat-app",
 ]
 
 [workspace.dependencies]

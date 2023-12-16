@@ -1,0 +1,16 @@
+[package]
+name = "chat-app"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = "1"
+channels = { workspace = true, features = ["tokio"] }
+chrono = "0.4"
+clap = { version = "4", features = ["derive"] }
+colored = "2"
+fern = "0.6"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
