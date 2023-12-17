@@ -10,6 +10,7 @@ documentation = "https://docs.rs/channels"
 readme = "README.md"
 keywords = ["client", "networking", "server", "stream", "channel"]
 categories = ["no-std", "network-programming"]
+rust-version = "1.64.0"
 
 [dependencies]
 channels-packet = { version = "0.1.0", path = "../channels-packet" }

@@ -21,7 +21,7 @@ async fn main() {
 }
 
 #[derive(Debug, Parser)]
-struct Args {
+pub struct Args {
 	#[arg(
 		long = "level",
 		help = "Console log level",
@@ -41,14 +41,14 @@ struct Args {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-enum Color {
+pub enum Color {
 	Always,
 	Never,
 	Auto,
 }
 
 #[derive(Debug, Subcommand)]
-enum Command {
+pub enum Command {
 	Serve(ServeArgs),
 	Connect(ConnectArgs),
 }
