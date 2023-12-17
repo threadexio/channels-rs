@@ -59,7 +59,7 @@ mod sync_tests {
 	#[serial]
 	#[test]
 	fn big_data() {
-		stress_tests::spawn_server_client(server, client)
+		stress_tests::spawn_server_client(server, client);
 	}
 }
 

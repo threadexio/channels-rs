@@ -53,7 +53,7 @@ mod sync_tests {
 	#[serial]
 	#[test]
 	fn transport() {
-		stress_tests::spawn_server_client(server, client)
+		stress_tests::spawn_server_client(server, client);
 	}
 }
 

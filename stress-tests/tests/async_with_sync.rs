@@ -52,5 +52,5 @@ async fn client() {
 fn async_with_sync() {
 	stress_tests::spawn_server_client(server, || {
 		Runtime::new().unwrap().block_on(async { client().await })
-	})
+	});
 }
