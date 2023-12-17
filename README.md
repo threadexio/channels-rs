@@ -28,11 +28,52 @@
 
 Sender/Receiver types for communicating with a channel-like API across generic IO streams. It takes the burden on serializing, deserializing and transporting data off your back and let's you focus on the important logic of your project. It is:
 
-- **Fast**: The simple protocol allows lower-overhead parsing of data.
+- **Fast**: The simple protocol allows low-overhead transporting of data.
 
-- **Minimal**: Channels can be used in `no_std` environments with only a memory allocator.
+- **Modular**: Channels' _sans-io_ approach means it can be used on top of any medium, be it a network socket, a pipe, a shared memory region, a file, anything.
 
-- **Light**: Channels' low memory usage means it can run in constrained embedded environments.
+- **Ergonomic**: The API offered empowers you to use your time on building the logic of your application instead of worrying about data transport.
+
+- **Async & sync first**: Channels' natively supports both synchronous and asynchronous operation with no hacky workarounds like spawning threads or running a separate runtime.
+
+# In action
+
+```rust no_run
+use tokio::net::TcpStream;
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+enum Message {
+    Ping,
+    Pong
+}
+
+#[tokio::main]
+async fn main() {
+    let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+    let (r, w) = stream.into_split();
+    let (mut tx, mut rx) = channels::channel::<Message, _, _>(r, w);
+
+    loop {
+        match rx.recv().await.unwrap() {
+            Message::Ping => {
+                println!("pinged!");
+                tx.send(Message::Pong).await.unwrap();
+            }
+            Message::Pong => {
+                println!("ponged!");
+            }
+        }
+    }
+}
+```
+
+For more, see: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
+
+Some more complete examples:
+
+- [chat-app](./examples/chat-app)
 
 # How it works
 
@@ -43,10 +84,6 @@ Channels implements a communication protocol that allows sending and receiving d
 - [`futures::io::{AsyncRead, AsyncWrite}`](https://docs.rs/futures/latest/futures/io)
 
 You can find out more about how the underlying communication protocol works [here](./spec/PROTOCOL.md).
-
-# Examples
-
-See: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
 
 # License
 

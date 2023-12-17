@@ -17,7 +17,7 @@ channels-packet = { version = "0.1.0", path = "../channels-packet" }
 channels-serdes = { version = "0.1.0", path = "../channels-serdes" }
 
 serde = { version = "1.0", default-features = false, optional = true }
-tokio = { version = "1", features = ["net"], optional = true }
+tokio = { version = "1", default-features = false, optional = true }
 futures = { version = "0.3", optional = true }
 
 [features]
