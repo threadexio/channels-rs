@@ -1,5 +1,6 @@
 //! Module containing the implementation for [`Receiver`].
 
+use core::fmt;
 use core::marker::PhantomData;
 use core::mem::take;
 use core::task::ready;
@@ -19,7 +20,7 @@ use crate::util::{BufMut, IoSlice};
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Receiver<T, R, D> {
 	_marker: PhantomData<T>,
 	reader: Reader<R>,
@@ -73,6 +74,22 @@ impl<T, R, D> Receiver<T, R, D> {
 		&self.reader.statistics
 	}
 }
+
+impl<T, R, D> fmt::Debug for Receiver<T, R, D>
+where
+	Reader<R>: fmt::Debug,
+	D: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Receiver")
+			.field("reader", &self.reader)
+			.field("deserializer", &self.deserializer)
+			.finish_non_exhaustive()
+	}
+}
+
+unsafe impl<T, R: Send, D: Send> Send for Receiver<T, R, D> {}
+unsafe impl<T, R: Sync, D: Sync> Sync for Receiver<T, R, D> {}
 
 /// An iterator over received messages.
 #[derive(Debug)]
@@ -191,14 +208,14 @@ impl<Ser, Io> From<RecvPayloadError<Io>> for RecvError<Ser, Io> {
 	}
 }
 
-struct Recv<'a, R> {
+struct RecvPayload<'a, R> {
 	reader: &'a mut Reader<R>,
 	pcb: &'a mut Pcb,
 	payload: IoSlice<Vec<u8>>,
 	state: State,
 }
 
-impl<'a, R> Recv<'a, R> {
+impl<'a, R> RecvPayload<'a, R> {
 	fn new(pcb: &'a mut Pcb, reader: &'a mut Reader<R>) -> Self {
 		Self {
 			pcb,
@@ -336,7 +353,7 @@ mod std_impl {
 			&mut self,
 		) -> Result<T, RecvError<D::Error, io::Error>> {
 			let mut payload =
-				Recv::new(&mut self.pcb, &mut self.reader)
+				RecvPayload::new(&mut self.pcb, &mut self.reader)
 					.advance(|r, buf| r.read_std(buf))
 					.unwrap()?;
 
@@ -419,7 +436,7 @@ mod tokio_impl {
 		}
 	}
 
-	impl<R> Future for Recv<'_, R>
+	impl<R> Future for RecvPayload<'_, R>
 	where
 		R: AsyncRead + Unpin,
 	{
@@ -446,7 +463,8 @@ mod tokio_impl {
 			&mut self,
 		) -> Result<T, RecvError<D::Error, io::Error>> {
 			let mut payload =
-				Recv::new(&mut self.pcb, &mut self.reader).await?;
+				RecvPayload::new(&mut self.pcb, &mut self.reader)
+					.await?;
 
 			self.deserializer
 				.deserialize(&mut payload)
@@ -517,7 +535,7 @@ mod futures_impl {
 		}
 	}
 
-	impl<R> Future for Recv<'_, R>
+	impl<R> Future for RecvPayload<'_, R>
 	where
 		R: AsyncRead + Unpin,
 	{
@@ -544,7 +562,8 @@ mod futures_impl {
 			&mut self,
 		) -> Result<T, RecvError<D::Error, io::Error>> {
 			let mut payload =
-				Recv::new(&mut self.pcb, &mut self.reader).await?;
+				RecvPayload::new(&mut self.pcb, &mut self.reader)
+					.await?;
 
 			self.deserializer
 				.deserialize(&mut payload)

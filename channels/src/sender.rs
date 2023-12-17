@@ -1,6 +1,7 @@
 //! Module containing the implementation for [`Sender`].
 
 use core::borrow::Borrow;
+use core::fmt;
 use core::marker::PhantomData;
 use core::task::{ready, Poll};
 
@@ -20,7 +21,7 @@ use crate::util::{Buf, IoSlice};
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Sender<T, W, S> {
 	_marker: PhantomData<T>,
 	writer: Writer<W>,
@@ -70,8 +71,23 @@ impl<T, W, S> Sender<T, W, S> {
 	}
 }
 
+impl<T, W, S> fmt::Debug for Sender<T, W, S>
+where
+	Writer<W>: fmt::Debug,
+	S: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Sender")
+			.field("writer", &self.writer)
+			.field("serializer", &self.serializer)
+			.finish_non_exhaustive()
+	}
+}
+
+unsafe impl<T, W: Send, S: Send> Send for Sender<T, W, S> {}
+unsafe impl<T, W: Sync, S: Sync> Sync for Sender<T, W, S> {}
+
 /// A builder that when completed will return a [`Sender`].
-#[derive(Debug)]
 pub struct Builder<T, W, S> {
 	_marker: PhantomData<T>,
 	writer: W,
@@ -155,7 +171,7 @@ enum State {
 	NoPacket,
 }
 
-struct Send<'a, W> {
+struct SendPayload<'a, W> {
 	writer: &'a mut Writer<W>,
 	pcb: &'a mut Pcb,
 	data: IoSlice<Vec<u8>>,
@@ -163,7 +179,7 @@ struct Send<'a, W> {
 	state: State,
 }
 
-impl<'a, W> Send<'a, W> {
+impl<'a, W> SendPayload<'a, W> {
 	fn new(
 		pcb: &'a mut Pcb,
 		writer: &'a mut Writer<W>,
@@ -332,10 +348,14 @@ mod std_impl {
 				serialize_type(&mut self.serializer, data.borrow())
 					.map_err(SendError::Serde)?;
 
-			Send::new(&mut self.pcb, &mut self.writer, serialized)
-				.advance(|w, buf| w.write_std(buf))
-				.unwrap()
-				.map_err(SendError::Io)
+			SendPayload::new(
+				&mut self.pcb,
+				&mut self.writer,
+				serialized,
+			)
+			.advance(|w, buf| w.write_std(buf))
+			.unwrap()
+			.map_err(SendError::Io)
 		}
 	}
 }
@@ -386,7 +406,7 @@ mod tokio_impl {
 		}
 	}
 
-	impl<W> Future for Send<'_, W>
+	impl<W> Future for SendPayload<'_, W>
 	where
 		W: AsyncWrite + Unpin,
 	{
@@ -420,9 +440,13 @@ mod tokio_impl {
 				serialize_type(&mut self.serializer, data.borrow())
 					.map_err(SendError::Serde)?;
 
-			Send::new(&mut self.pcb, &mut self.writer, serialized)
-				.await
-				.map_err(SendError::Io)
+			SendPayload::new(
+				&mut self.pcb,
+				&mut self.writer,
+				serialized,
+			)
+			.await
+			.map_err(SendError::Io)
 		}
 	}
 }
@@ -474,7 +498,7 @@ mod futures_impl {
 		}
 	}
 
-	impl<W> Future for Send<'_, W>
+	impl<W> Future for SendPayload<'_, W>
 	where
 		W: AsyncWrite + Unpin,
 	{
@@ -508,9 +532,13 @@ mod futures_impl {
 				serialize_type(&mut self.serializer, data.borrow())
 					.map_err(SendError::Serde)?;
 
-			Send::new(&mut self.pcb, &mut self.writer, serialized)
-				.await
-				.map_err(SendError::Io)
+			SendPayload::new(
+				&mut self.pcb,
+				&mut self.writer,
+				serialized,
+			)
+			.await
+			.map_err(SendError::Io)
 		}
 	}
 }
