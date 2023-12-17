@@ -270,7 +270,6 @@ where
 	serializer.serialize(t)
 }
 
-#[cfg(feature = "std")]
 mod std_impl {
 	use super::*;
 

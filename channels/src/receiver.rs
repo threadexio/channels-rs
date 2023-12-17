@@ -279,7 +279,6 @@ fn reserve_slice_in_vec(vec: &mut Vec<u8>, len: usize) -> &mut [u8] {
 	&mut vec[start..new_len]
 }
 
-#[cfg(feature = "std")]
 mod std_impl {
 	use super::*;
 

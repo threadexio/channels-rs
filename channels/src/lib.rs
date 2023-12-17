@@ -24,7 +24,6 @@
 	rustdoc::broken_intra_doc_links
 )]
 #![deny(missing_docs)]
-#![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 
