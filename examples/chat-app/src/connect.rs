@@ -53,12 +53,15 @@ pub async fn connect(
 				line.clear();
 				stdin.read_line(&mut line).await.context("failed to read line from stdin")
 			} => {
-				r?;
+				let _ = r?;
+				let line = line.trim();
 
-				state
-					.net
-					.send(ClientNetMessage::SendMessage { content: line.trim().to_owned() })
-					.await.context("failed to send message")?;
+				if !line.is_empty() {
+					state
+						.net
+						.send(ClientNetMessage::SendMessage { content: line.to_owned() })
+						.await.context("failed to send message")?;
+				}
 			}
 			r = state.net.recv() => {
 				let message = r.context("failed to receive message")?;

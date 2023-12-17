@@ -64,10 +64,13 @@ async fn handle_client(state: State<Unauthenticated>) -> Result<()> {
 			r = client.net.recv() => {
 				match r? {
 					ClientNetMessage::SendMessage { content } => {
-						client.srv.send(Notification::ChatMessage {
-							owner: client.state.name.clone(),
-							content,
-						});
+						let content = content.trim();
+						if !content.is_empty() {
+							client.srv.send(Notification::ChatMessage {
+								owner: client.state.name.clone(),
+								content: content.to_owned(),
+							});
+						}
 					}
 					_ => bail!("unexpected message received")
 				}

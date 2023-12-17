@@ -18,7 +18,7 @@ pub enum ServerNetMessage {
 	UserConnected { name: String },
 }
 
-type Serdes = channels::serdes::Json;
+type Serdes = channels::serdes::Bincode;
 
 #[derive(Debug)]
 pub struct ClientSide {
