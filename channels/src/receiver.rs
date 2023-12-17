@@ -34,7 +34,23 @@ impl<T> Receiver<T, (), ()> {
 	}
 }
 
+#[cfg(feature = "bincode")]
+impl<T, R> Receiver<T, R, crate::serdes::Bincode> {
+	/// Creates a new [`Receiver`] from `reader`.
+	pub fn new(reader: R) -> Self {
+		Self::with_deserializer(reader, Default::default())
+	}
+}
+
 impl<T, R, D> Receiver<T, R, D> {
+	/// Create a new [`Receiver`] from `reader` that uses `deserializer`.
+	pub fn with_deserializer(reader: R, deserializer: D) -> Self {
+		Receiver::builder()
+			.reader(reader)
+			.deserializer(deserializer)
+			.build()
+	}
+
 	/// Get a reference to the underlying reader.
 	pub fn get(&self) -> &R {
 		&self.reader.inner
@@ -98,10 +114,10 @@ impl<T, D> Builder<T, (), D> {
 
 impl<T, R> Builder<T, R, ()> {
 	/// Use this deserializer.
-	pub fn deserializer<D>(self, deserializer: D) -> Builder<T, R, D>
-	where
-		D: Deserializer<T>,
-	{
+	pub fn deserializer<D>(
+		self,
+		deserializer: D,
+	) -> Builder<T, R, D> {
 		Builder {
 			_marker: PhantomData,
 			reader: self.reader,

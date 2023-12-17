@@ -35,7 +35,23 @@ impl<T> Sender<T, (), ()> {
 	}
 }
 
+#[cfg(feature = "bincode")]
+impl<T, W> Sender<T, W, crate::serdes::Bincode> {
+	/// Creates a new [`Sender`] from `writer`.
+	pub fn new(writer: W) -> Self {
+		Self::with_serializer(writer, Default::default())
+	}
+}
+
 impl<T, W, S> Sender<T, W, S> {
+	/// Create a new [`Sender`] from `writer` that uses `serializer`.
+	pub fn with_serializer(writer: W, serializer: S) -> Self {
+		Sender::builder()
+			.writer(writer)
+			.serializer(serializer)
+			.build()
+	}
+
 	/// Get a reference to the underlying writer.
 	pub fn get(&self) -> &W {
 		&self.writer.inner
@@ -88,10 +104,7 @@ impl<T, S> Builder<T, (), S> {
 
 impl<T, W> Builder<T, W, ()> {
 	/// Use this serializer.
-	pub fn serializer<S>(self, serializer: S) -> Builder<T, W, S>
-	where
-		S: Serializer<T>,
-	{
+	pub fn serializer<S>(self, serializer: S) -> Builder<T, W, S> {
 		Builder {
 			_marker: PhantomData,
 			writer: self.writer,
