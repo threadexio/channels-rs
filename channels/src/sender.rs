@@ -15,7 +15,7 @@ use channels_serdes::Serializer;
 #[allow(unused_imports)]
 use crate::common::{Pcb, Statistics};
 use crate::error::SendError;
-use crate::util::{Buf, IoSlice};
+use crate::util::{Buf, IoSlice, PollExt};
 
 /// The sending-half of the channel. This is the same as [`std::sync::mpsc::Sender`],
 /// except for a [few key differences](crate).
@@ -276,36 +276,174 @@ impl<'a, W> SendPayload<'a, W> {
 	}
 }
 
-fn serialize_type<T, S>(
-	serializer: &mut S,
-	t: &T,
-) -> Result<Vec<u8>, S::Error>
-where
-	S: Serializer<T>,
-{
-	serializer.serialize(t)
-}
+#[cfg(all(feature = "tokio", feature = "futures"))]
+core::compile_error!(
+	"tokio and futures features cannot be active at once"
+);
 
-mod std_impl {
+#[cfg(any(feature = "tokio", feature = "futures"))]
+mod async_impl {
 	use super::*;
 
-	use std::io::{self, Write};
+	use core::future::Future;
+	use core::pin::{pin, Pin};
+	use core::task::{ready, Context, Poll};
 
-	use crate::util::PollExt;
+	#[cfg(feature = "tokio")]
+	mod imp {
+		use super::*;
 
-	impl<W> Writer<W>
-	where
-		W: Write,
-	{
-		pub fn write_std(
-			&mut self,
+		use tokio::io;
+
+		pub use io::{AsyncWrite, Error};
+
+		pub fn poll_write<W>(
+			writer: &mut Writer<W>,
 			buf: &mut dyn Buf,
-		) -> Poll<io::Result<()>> {
+			cx: &mut Context,
+		) -> Poll<io::Result<()>>
+		where
+			W: AsyncWrite + Unpin,
+		{
 			use io::ErrorKind as E;
 			use Poll::*;
 
 			while buf.has_remaining() {
-				match self.inner.write(buf.unfilled()) {
+				match ready!(pin!(&mut writer.inner)
+					.poll_write(cx, buf.unfilled()))
+				{
+					Err(e) if e.kind() == E::Interrupted => continue,
+					Err(e) if e.kind() == E::WouldBlock => {
+						return Pending
+					},
+					Err(e) => return Ready(Err(e)),
+					Ok(0) => {
+						return Ready(Err(E::UnexpectedEof.into()))
+					},
+					Ok(n) => {
+						buf.advance(n);
+						writer.on_write(n as u64);
+					},
+				}
+			}
+
+			Ready(Ok(()))
+		}
+	}
+
+	#[cfg(feature = "futures")]
+	mod imp {
+		use super::*;
+
+		use std::io;
+
+		pub use futures::AsyncWrite;
+		pub use io::Error;
+
+		pub fn poll_write<W>(
+			writer: &mut Writer<W>,
+			buf: &mut dyn Buf,
+			cx: &mut Context,
+		) -> Poll<io::Result<()>>
+		where
+			W: AsyncWrite + Unpin,
+		{
+			use io::ErrorKind as E;
+			use Poll::*;
+
+			while buf.has_remaining() {
+				match ready!(pin!(&mut writer.inner)
+					.poll_write(cx, buf.unfilled()))
+				{
+					Err(e) if e.kind() == E::Interrupted => continue,
+					Err(e) if e.kind() == E::WouldBlock => {
+						return Pending
+					},
+					Err(e) => return Ready(Err(e)),
+					Ok(0) => {
+						return Ready(Err(E::UnexpectedEof.into()))
+					},
+					Ok(n) => {
+						buf.advance(n);
+						writer.on_write(n as u64);
+					},
+				}
+			}
+
+			Ready(Ok(()))
+		}
+	}
+
+	use self::imp::{poll_write, AsyncWrite, Error};
+
+	impl<W> Future for SendPayload<'_, W>
+	where
+		W: AsyncWrite + Unpin,
+	{
+		type Output = Result<(), Error>;
+
+		fn poll(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+		) -> Poll<Self::Output> {
+			self.advance(|w, b| poll_write(w, b, cx))
+		}
+	}
+
+	impl<T, W, S> Sender<T, W, S>
+	where
+		W: AsyncWrite + Unpin,
+		S: Serializer<T>,
+	{
+		/// Attempts to send `data` through the channel.
+		///
+		/// This function will return a future that will complete only when all the
+		/// bytes of `data` have been sent through the channel.
+		pub async fn send<D>(
+			&mut self,
+			data: D,
+		) -> Result<(), SendError<S::Error, Error>>
+		where
+			D: Borrow<T>,
+		{
+			let serialized = self
+				.serializer
+				.serialize(data.borrow())
+				.map_err(SendError::Serde)?;
+
+			SendPayload::new(
+				&mut self.pcb,
+				&mut self.writer,
+				serialized,
+			)
+			.await
+			.map_err(SendError::Io)
+		}
+	}
+}
+
+mod sync_impl {
+	use super::*;
+
+	mod imp {
+		use super::*;
+
+		use std::io;
+
+		pub use io::{Error, Write};
+
+		pub fn write<W>(
+			writer: &mut Writer<W>,
+			buf: &mut dyn Buf,
+		) -> Poll<Result<(), Error>>
+		where
+			W: Write,
+		{
+			use io::ErrorKind as E;
+			use Poll::*;
+
+			while buf.has_remaining() {
+				match writer.inner.write(buf.unfilled()) {
 					Err(e) if e.kind() == E::Interrupted => continue,
 					Err(e) if e.kind() == E::WouldBlock => {
 						return Pending
@@ -314,7 +452,7 @@ mod std_impl {
 					Ok(0) => return Ready(Err(E::WriteZero.into())),
 					Ok(n) => {
 						buf.advance(n);
-						self.on_write(n as u64);
+						writer.on_write(n as u64);
 					},
 				}
 			}
@@ -322,6 +460,8 @@ mod std_impl {
 			Ready(Ok(()))
 		}
 	}
+
+	use self::imp::{write, Error, Write};
 
 	impl<T, W, S> Sender<T, W, S>
 	where
@@ -340,204 +480,22 @@ mod std_impl {
 		pub fn send_blocking<D>(
 			&mut self,
 			data: D,
-		) -> Result<(), SendError<S::Error, io::Error>>
+		) -> Result<(), SendError<S::Error, Error>>
 		where
 			D: Borrow<T>,
 		{
-			let serialized =
-				serialize_type(&mut self.serializer, data.borrow())
-					.map_err(SendError::Serde)?;
+			let serialized = self
+				.serializer
+				.serialize(data.borrow())
+				.map_err(SendError::Serde)?;
 
 			SendPayload::new(
 				&mut self.pcb,
 				&mut self.writer,
 				serialized,
 			)
-			.advance(|w, buf| w.write_std(buf))
+			.advance(write)
 			.unwrap()
-			.map_err(SendError::Io)
-		}
-	}
-}
-
-#[cfg(feature = "tokio")]
-#[cfg(not(feature = "futures"))]
-mod tokio_impl {
-	use super::*;
-
-	use core::future::Future;
-	use core::pin::{pin, Pin};
-	use core::task::Context;
-
-	use tokio::io::{self, AsyncWrite};
-
-	impl<W> Writer<W>
-	where
-		W: AsyncWrite + Unpin,
-	{
-		pub fn poll_write_tokio(
-			&mut self,
-			cx: &mut Context,
-			buf: &mut dyn Buf,
-		) -> Poll<io::Result<()>> {
-			use io::ErrorKind as E;
-			use Poll::*;
-
-			while buf.has_remaining() {
-				match ready!(pin!(&mut self.inner)
-					.poll_write(cx, buf.unfilled()))
-				{
-					Err(e) if e.kind() == E::Interrupted => continue,
-					Err(e) if e.kind() == E::WouldBlock => {
-						return Pending
-					},
-					Err(e) => return Ready(Err(e)),
-					Ok(0) => {
-						return Ready(Err(E::UnexpectedEof.into()))
-					},
-					Ok(n) => {
-						buf.advance(n);
-						self.on_write(n as u64);
-					},
-				}
-			}
-
-			Ready(Ok(()))
-		}
-	}
-
-	impl<W> Future for SendPayload<'_, W>
-	where
-		W: AsyncWrite + Unpin,
-	{
-		type Output = Result<(), io::Error>;
-
-		fn poll(
-			mut self: Pin<&mut Self>,
-			cx: &mut Context<'_>,
-		) -> Poll<Self::Output> {
-			self.advance(|w, buf| w.poll_write_tokio(cx, buf))
-		}
-	}
-
-	impl<T, W, S> Sender<T, W, S>
-	where
-		W: AsyncWrite + Unpin,
-		S: Serializer<T>,
-	{
-		/// Attempts to send `data` through the channel.
-		///
-		/// This function will return a future that will complete only when all the
-		/// bytes of `data` have been sent through the channel.
-		pub async fn send<D>(
-			&mut self,
-			data: D,
-		) -> Result<(), SendError<S::Error, io::Error>>
-		where
-			D: Borrow<T>,
-		{
-			let serialized =
-				serialize_type(&mut self.serializer, data.borrow())
-					.map_err(SendError::Serde)?;
-
-			SendPayload::new(
-				&mut self.pcb,
-				&mut self.writer,
-				serialized,
-			)
-			.await
-			.map_err(SendError::Io)
-		}
-	}
-}
-
-#[cfg(feature = "futures")]
-#[cfg(not(feature = "tokio"))]
-mod futures_impl {
-	use super::*;
-
-	use core::future::Future;
-	use core::pin::{pin, Pin};
-	use core::task::Context;
-
-	use futures::AsyncWrite;
-	use std::io;
-
-	impl<W> Writer<W>
-	where
-		W: AsyncWrite + Unpin,
-	{
-		pub fn poll_write_futures(
-			&mut self,
-			cx: &mut Context,
-			buf: &mut dyn Buf,
-		) -> Poll<io::Result<()>> {
-			use io::ErrorKind as E;
-			use Poll::*;
-
-			while buf.has_remaining() {
-				match ready!(pin!(&mut self.inner)
-					.poll_write(cx, buf.unfilled()))
-				{
-					Err(e) if e.kind() == E::Interrupted => continue,
-					Err(e) if e.kind() == E::WouldBlock => {
-						return Pending
-					},
-					Err(e) => return Ready(Err(e)),
-					Ok(0) => {
-						return Ready(Err(E::UnexpectedEof.into()))
-					},
-					Ok(n) => {
-						buf.advance(n);
-						self.on_write(n as u64);
-					},
-				}
-			}
-
-			Ready(Ok(()))
-		}
-	}
-
-	impl<W> Future for SendPayload<'_, W>
-	where
-		W: AsyncWrite + Unpin,
-	{
-		type Output = Result<(), io::Error>;
-
-		fn poll(
-			mut self: Pin<&mut Self>,
-			cx: &mut Context<'_>,
-		) -> Poll<Self::Output> {
-			self.advance(|w, buf| w.poll_write_futures(cx, buf))
-		}
-	}
-
-	impl<T, W, S> Sender<T, W, S>
-	where
-		W: AsyncWrite + Unpin,
-		S: Serializer<T>,
-	{
-		/// Attempts to send `data` through the channel.
-		///
-		/// This function will return a future that will complete only when all the
-		/// bytes of `data` have been sent through the channel.
-		pub async fn send<D>(
-			&mut self,
-			data: D,
-		) -> Result<(), SendError<S::Error, io::Error>>
-		where
-			D: Borrow<T>,
-		{
-			let serialized =
-				serialize_type(&mut self.serializer, data.borrow())
-					.map_err(SendError::Serde)?;
-
-			SendPayload::new(
-				&mut self.pcb,
-				&mut self.writer,
-				serialized,
-			)
-			.await
 			.map_err(SendError::Io)
 		}
 	}

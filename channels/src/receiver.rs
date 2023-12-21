@@ -2,9 +2,7 @@
 
 use core::fmt;
 use core::marker::PhantomData;
-use core::mem::take;
-use core::task::ready;
-use core::task::Poll;
+use core::task::{ready, Poll};
 
 use alloc::vec::Vec;
 
@@ -237,6 +235,17 @@ impl<'a, R> RecvPayload<'a, R> {
 	{
 		use Poll::*;
 
+		/// Grow `vec` by `len` bytes and return the newly-allocated bytes as a slice.
+		fn reserve_slice_in_vec(
+			vec: &mut Vec<u8>,
+			len: usize,
+		) -> &mut [u8] {
+			let start = vec.len();
+			let new_len = usize::saturating_add(start, len);
+			vec.resize(new_len, 0);
+			&mut vec[start..new_len]
+		}
+
 		loop {
 			match self.state {
 				State::PartialHeader { ref mut part } => {
@@ -279,7 +288,8 @@ impl<'a, R> RecvPayload<'a, R> {
 						self.state = State::INITIAL;
 					},
 					Ok(_) => {
-						let payload = take(self.payload.inner_mut());
+						let payload =
+							core::mem::take(self.payload.inner_mut());
 						return Ready(Ok(payload));
 					},
 				},
@@ -288,34 +298,190 @@ impl<'a, R> RecvPayload<'a, R> {
 	}
 }
 
-/// Grow `vec` by `len` bytes and return the newly-allocated bytes as a slice.
-fn reserve_slice_in_vec(vec: &mut Vec<u8>, len: usize) -> &mut [u8] {
-	let start = vec.len();
-	let new_len = usize::saturating_add(start, len);
-	vec.resize(new_len, 0);
-	&mut vec[start..new_len]
-}
+#[cfg(all(feature = "tokio", feature = "futures"))]
+core::compile_error!(
+	"tokio and futures features cannot be active at once"
+);
 
-mod std_impl {
+#[cfg(any(feature = "tokio", feature = "futures"))]
+mod async_impl {
 	use super::*;
 
-	use std::io::{self, Read};
+	use core::future::Future;
+	use core::pin::{pin, Pin};
+	use core::task::Context;
 
-	use crate::util::PollExt;
+	#[cfg(feature = "tokio")]
+	mod imp {
+		use super::*;
 
-	impl<R> Reader<R>
-	where
-		R: Read,
-	{
-		pub fn read_std(
-			&mut self,
+		use tokio::io;
+
+		pub use io::{AsyncRead, Error};
+
+		pub fn poll_read<R>(
+			reader: &mut Reader<R>,
 			buf: &mut dyn BufMut,
-		) -> Poll<io::Result<()>> {
+			cx: &mut Context,
+		) -> Poll<Result<(), Error>>
+		where
+			R: AsyncRead + Unpin,
+		{
 			use io::ErrorKind as E;
 			use Poll::*;
 
 			while buf.has_remaining() {
-				match self.inner.read(buf.unfilled_mut()) {
+				let mut read_buf =
+					io::ReadBuf::new(buf.unfilled_mut());
+				let l0 = read_buf.filled().len();
+				match ready!(pin!(&mut reader.inner)
+					.poll_read(cx, &mut read_buf))
+				{
+					Err(e) if e.kind() == E::Interrupted => continue,
+					Err(e) if e.kind() == E::WouldBlock => {
+						return Poll::Pending
+					},
+					Err(e) => return Ready(Err(e)),
+					Ok(_) => {
+						let l1 = read_buf.filled().len();
+						let dl = l1 - l0;
+
+						if dl != 0 {
+							buf.advance(dl);
+							reader.on_read(dl as u64);
+						} else {
+							return Ready(Err(
+								E::UnexpectedEof.into()
+							));
+						}
+					},
+				}
+			}
+			Ready(Ok(()))
+		}
+	}
+
+	#[cfg(feature = "futures")]
+	mod imp {
+		use super::*;
+
+		use std::io;
+
+		pub use futures::AsyncRead;
+		pub use io::Error;
+
+		pub fn poll_read<R>(
+			reader: &mut Reader<R>,
+			buf: &mut dyn BufMut,
+			cx: &mut Context,
+		) -> Poll<io::Result<()>>
+		where
+			R: AsyncRead + Unpin,
+		{
+			use io::ErrorKind as E;
+			use Poll::*;
+
+			while buf.has_remaining() {
+				match ready!(pin!(&mut reader.inner)
+					.poll_read(cx, buf.unfilled_mut()))
+				{
+					Err(e) if e.kind() == E::Interrupted => continue,
+					Err(e) if e.kind() == E::WouldBlock => {
+						return Poll::Pending
+					},
+					Err(e) => return Ready(Err(e)),
+					Ok(0) => {
+						return Ready(Err(E::UnexpectedEof.into()))
+					},
+					Ok(n) => {
+						buf.advance(n);
+						reader.on_read(n as u64);
+					},
+				}
+			}
+
+			Ready(Ok(()))
+		}
+	}
+
+	use self::imp::{poll_read, AsyncRead, Error};
+
+	impl<R> Future for RecvPayload<'_, R>
+	where
+		R: AsyncRead + Unpin,
+	{
+		type Output = Result<Vec<u8>, RecvPayloadError<Error>>;
+
+		fn poll(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context<'_>,
+		) -> Poll<Self::Output> {
+			self.advance(|r, b| poll_read(r, b, cx))
+		}
+	}
+
+	impl<T, R, D> Receiver<T, R, D>
+	where
+		R: AsyncRead + Unpin,
+		D: Deserializer<T>,
+	{
+		/// Attempts to receive a type `T` from the channel.
+		///
+		/// This function will return a future that will complete only when all the
+		/// bytes of `T` have been received.
+		pub async fn recv(
+			&mut self,
+		) -> Result<T, RecvError<D::Error, Error>> {
+			let mut payload =
+				RecvPayload::new(&mut self.pcb, &mut self.reader)
+					.await?;
+
+			self.deserializer
+				.deserialize(&mut payload)
+				.map_err(RecvError::Serde)
+		}
+	}
+
+	impl<'a, T, R, D> Incoming<'a, T, R, D>
+	where
+		R: AsyncRead + Unpin,
+		D: Deserializer<T>,
+	{
+		/// Return the next message.
+		///
+		/// This method is the async equivalent of [`Iterator::next()`].
+		pub async fn next_async(
+			&mut self,
+		) -> Result<T, RecvError<D::Error, Error>> {
+			self.receiver.recv().await
+		}
+	}
+}
+
+mod sync_impl {
+	use super::*;
+
+	use crate::util::PollExt;
+
+	mod imp {
+		use super::*;
+
+		use std::io;
+
+		pub use io::{Error, Read};
+
+		pub fn read<R>(
+			reader: &mut Reader<R>,
+			buf: &mut dyn BufMut,
+		) -> Poll<io::Result<()>>
+		where
+			R: Read,
+		{
+			use io::ErrorKind as E;
+			use Poll::*;
+
+			while buf.has_remaining() {
+				match reader.inner.read(buf.unfilled_mut()) {
 					Err(e) if e.kind() == E::Interrupted => continue,
 					Err(e) if e.kind() == E::WouldBlock => {
 						return Pending
@@ -326,7 +492,7 @@ mod std_impl {
 					},
 					Ok(n) => {
 						buf.advance(n);
-						self.on_read(n as u64);
+						reader.on_read(n as u64);
 					},
 				}
 			}
@@ -334,6 +500,8 @@ mod std_impl {
 			Ready(Ok(()))
 		}
 	}
+
+	use self::imp::{read, Error, Read};
 
 	impl<T, R, D> Receiver<T, R, D>
 	where
@@ -351,10 +519,10 @@ mod std_impl {
 		#[track_caller]
 		pub fn recv_blocking(
 			&mut self,
-		) -> Result<T, RecvError<D::Error, io::Error>> {
+		) -> Result<T, RecvError<D::Error, Error>> {
 			let mut payload =
 				RecvPayload::new(&mut self.pcb, &mut self.reader)
-					.advance(|r, buf| r.read_std(buf))
+					.advance(read)
 					.unwrap()?;
 
 			self.deserializer
@@ -368,221 +536,10 @@ mod std_impl {
 		R: Read,
 		D: Deserializer<T>,
 	{
-		type Item = Result<T, RecvError<D::Error, io::Error>>;
+		type Item = Result<T, RecvError<D::Error, Error>>;
 
 		fn next(&mut self) -> Option<Self::Item> {
 			Some(self.receiver.recv_blocking())
-		}
-	}
-}
-
-#[cfg(all(feature = "tokio", feature = "futures"))]
-core::compile_error!(
-	"tokio and futures features cannot be active at the same time"
-);
-
-#[cfg(feature = "tokio")]
-#[cfg(not(feature = "futures"))]
-mod tokio_impl {
-	use super::*;
-
-	use core::future::Future;
-	use core::pin::{pin, Pin};
-	use core::task::Context;
-
-	use tokio::io::{self, AsyncRead};
-
-	impl<R> Reader<R>
-	where
-		R: AsyncRead + Unpin,
-	{
-		pub fn poll_read_tokio(
-			&mut self,
-			cx: &mut Context,
-			buf: &mut dyn BufMut,
-		) -> Poll<io::Result<()>> {
-			use io::ErrorKind as E;
-			use Poll::*;
-
-			while buf.has_remaining() {
-				let mut read_buf =
-					io::ReadBuf::new(buf.unfilled_mut());
-				let l0 = read_buf.filled().len();
-				match ready!(pin!(&mut self.inner)
-					.poll_read(cx, &mut read_buf))
-				{
-					Err(e) if e.kind() == E::Interrupted => continue,
-					Err(e) if e.kind() == E::WouldBlock => {
-						return Poll::Pending
-					},
-					Err(e) => return Ready(Err(e)),
-					Ok(_) => {
-						let l1 = read_buf.filled().len();
-						let dl = l1 - l0;
-
-						if dl != 0 {
-							buf.advance(dl);
-							self.on_read(dl as u64);
-						} else {
-							return Ready(Err(
-								E::UnexpectedEof.into()
-							));
-						}
-					},
-				}
-			}
-
-			Ready(Ok(()))
-		}
-	}
-
-	impl<R> Future for RecvPayload<'_, R>
-	where
-		R: AsyncRead + Unpin,
-	{
-		type Output = Result<Vec<u8>, RecvPayloadError<io::Error>>;
-
-		fn poll(
-			mut self: Pin<&mut Self>,
-			cx: &mut Context<'_>,
-		) -> Poll<Self::Output> {
-			self.advance(|r, buf| r.poll_read_tokio(cx, buf))
-		}
-	}
-
-	impl<T, R, D> Receiver<T, R, D>
-	where
-		R: AsyncRead + Unpin,
-		D: Deserializer<T>,
-	{
-		/// Attempts to receive a type `T` from the channel.
-		///
-		/// This function will return a future that will complete only when all the
-		/// bytes of `T` have been received.
-		pub async fn recv(
-			&mut self,
-		) -> Result<T, RecvError<D::Error, io::Error>> {
-			let mut payload =
-				RecvPayload::new(&mut self.pcb, &mut self.reader)
-					.await?;
-
-			self.deserializer
-				.deserialize(&mut payload)
-				.map_err(RecvError::Serde)
-		}
-	}
-
-	impl<'a, T, R, D> Incoming<'a, T, R, D>
-	where
-		R: AsyncRead + Unpin,
-		D: Deserializer<T>,
-	{
-		/// Return the next message.
-		///
-		/// This method is the async equivalent of [`Iterator::next()`].
-		pub async fn next_async(
-			&mut self,
-		) -> Result<T, RecvError<D::Error, io::Error>> {
-			self.receiver.recv().await
-		}
-	}
-}
-
-#[cfg(feature = "futures")]
-#[cfg(not(feature = "tokio"))]
-mod futures_impl {
-	use super::*;
-
-	use core::future::Future;
-	use core::pin::{pin, Pin};
-	use core::task::Context;
-
-	use futures::AsyncRead;
-	use std::io;
-
-	impl<R> Reader<R>
-	where
-		R: AsyncRead + Unpin,
-	{
-		pub fn poll_read_futures(
-			&mut self,
-			cx: &mut Context,
-			buf: &mut dyn BufMut,
-		) -> Poll<io::Result<()>> {
-			use io::ErrorKind as E;
-			use Poll::*;
-
-			while buf.has_remaining() {
-				match ready!(pin!(&mut self.inner)
-					.poll_read(cx, buf.unfilled_mut()))
-				{
-					Err(e) if e.kind() == E::Interrupted => continue,
-					Err(e) if e.kind() == E::WouldBlock => {
-						return Poll::Pending
-					},
-					Err(e) => return Ready(Err(e)),
-					Ok(0) => {
-						return Ready(Err(E::UnexpectedEof.into()))
-					},
-					Ok(n) => {
-						buf.advance(n);
-						self.on_read(n as u64);
-					},
-				}
-			}
-
-			Ready(Ok(()))
-		}
-	}
-
-	impl<R> Future for RecvPayload<'_, R>
-	where
-		R: AsyncRead + Unpin,
-	{
-		type Output = Result<Vec<u8>, RecvPayloadError<io::Error>>;
-
-		fn poll(
-			mut self: Pin<&mut Self>,
-			cx: &mut Context<'_>,
-		) -> Poll<Self::Output> {
-			self.advance(|r, buf| r.poll_read_futures(cx, buf))
-		}
-	}
-
-	impl<T, R, D> Receiver<T, R, D>
-	where
-		R: AsyncRead + Unpin,
-		D: Deserializer<T>,
-	{
-		/// Attempts to receive a type `T` from the channel.
-		///
-		/// This function will return a future that will complete only when all the
-		/// bytes of `T` have been received.
-		pub async fn recv(
-			&mut self,
-		) -> Result<T, RecvError<D::Error, io::Error>> {
-			let mut payload =
-				RecvPayload::new(&mut self.pcb, &mut self.reader)
-					.await?;
-
-			self.deserializer
-				.deserialize(&mut payload)
-				.map_err(RecvError::Serde)
-		}
-	}
-
-	impl<'a, T, R, D> Incoming<'a, T, R, D>
-	where
-		R: AsyncRead + Unpin,
-		D: Deserializer<T>,
-	{
-		/// Return the next message.
-		///
-		/// This method is the async equivalent of [`Iterator::next()`].
-		pub async fn next_async(
-			&mut self,
-		) -> Result<T, RecvError<D::Error, io::Error>> {
-			self.receiver.recv().await
 		}
 	}
 }
