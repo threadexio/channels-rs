@@ -8,16 +8,16 @@ repository = "https://github.com/threadexio/channels-rs"
 description = """
 Utilities to serialize/deserialize types.
 """
-categories = ["parsing", "parser-implementations", "no-std"]
+categories = ["parsing", "parser-implementations"]
 
 [features]
-__std = []
-
 bincode = ["dep:serde", "dep:bincode"]
-cbor = ["__std", "dep:serde", "dep:ciborium"]
+cbor = ["dep:serde", "dep:ciborium"]
 json = ["dep:serde", "dep:serde_json"]
 
 [dependencies]
+channels-packet = { version = "0.1.0", path = "../channels-packet" }
+
 cfg-if = "1.0"
 
 bincode = { version = "1.3", optional = true }

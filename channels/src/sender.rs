@@ -7,10 +7,8 @@ use core::task::{ready, Poll};
 
 use alloc::vec::Vec;
 
-use channels_packet::{
-	slice_to_array_mut, Flags, Header, PayloadLength,
-};
-use channels_serdes::Serializer;
+use channels_packet::{Flags, Header, PayloadLength};
+use channels_serdes::{PayloadBuffer, Serializer};
 
 #[allow(unused_imports)]
 use crate::common::{Pcb, Statistics};
@@ -166,15 +164,44 @@ impl<W> Writer<W> {
 	}
 }
 
+struct Packet {
+	header: IoSlice<[u8; Header::SIZE]>,
+	payload: IoSlice<Vec<u8>>,
+}
+
+impl Packet {
+	pub fn has_remaining(&self) -> bool {
+		self.header.has_remaining() || self.payload.has_remaining()
+	}
+
+	pub fn advance(&mut self, mut n: usize) {
+		use core::cmp::min;
+
+		if self.header.has_remaining() {
+			let i = min(n, self.header.remaining());
+			self.header.advance(i);
+			n -= i;
+		}
+
+		if self.payload.has_remaining() {
+			let i = min(n, self.payload.remaining());
+			self.payload.advance(i);
+			n -= i;
+		}
+
+		let _ = n;
+	}
+}
+
 enum State {
-	HasPacket { packet: IoSlice<Vec<u8>> },
+	HasPacket { packet: Packet },
 	NoPacket,
 }
 
 struct SendPayload<'a, W> {
 	writer: &'a mut Writer<W>,
 	pcb: &'a mut Pcb,
-	data: IoSlice<Vec<u8>>,
+	data: PayloadBuffer,
 	has_sent_at_least_one: bool,
 	state: State,
 }
@@ -183,12 +210,12 @@ impl<'a, W> SendPayload<'a, W> {
 	fn new(
 		pcb: &'a mut Pcb,
 		writer: &'a mut Writer<W>,
-		data: Vec<u8>,
+		data: PayloadBuffer,
 	) -> Self {
 		Self {
 			pcb,
 			writer,
-			data: IoSlice::new(data),
+			data,
 			has_sent_at_least_one: false,
 			state: State::NoPacket,
 		}
@@ -196,79 +223,72 @@ impl<'a, W> SendPayload<'a, W> {
 
 	fn advance<F, E>(
 		&mut self,
-		mut write_all: F,
+		mut write_packet: F,
 	) -> Poll<Result<(), E>>
 	where
-		F: FnMut(&mut Writer<W>, &mut dyn Buf) -> Poll<Result<(), E>>,
+		F: FnMut(&mut Writer<W>, &mut Packet) -> Poll<Result<(), E>>,
 	{
-		use core::cmp::min;
 		use Poll::*;
 
 		loop {
 			match self.state {
 				State::NoPacket => {
-					let payload_length = unsafe {
-						let saturated = min(
-							self.data.remaining(),
-							PayloadLength::MAX.as_usize(),
-						);
+					let (payload, payload_length) = match (
+						self.data.pop_first(),
+						self.has_sent_at_least_one,
+					) {
+						(Some(payload), _) => {
+							debug_assert!(
+								payload.len()
+									<= PayloadLength::MAX.as_usize()
+							);
 
-						PayloadLength::new_unchecked(saturated as u16)
+							// SAFETY: `payload` comes from `self.data` which
+							//         guarantees that its chunks have length
+							//         `PayloadLength`.
+							let len = payload.len() as u16;
+							let len = unsafe {
+								PayloadLength::new_unchecked(len)
+							};
+
+							(payload, len)
+						},
+						(None, false) => {
+							(Vec::new(), PayloadLength::MIN)
+						},
+						(None, true) => return Ready(Ok(())),
 					};
-
-					if payload_length.as_usize() == 0
-						&& self.has_sent_at_least_one
-					{
-						return Ready(Ok(()));
-					}
 
 					let packet_length =
 						payload_length.to_packet_length();
 
-					let mut packet =
-						vec![0u8; packet_length.as_usize()];
-
-					if payload_length.as_usize() != 0 {
-						let n = crate::util::copy_slice(
-							self.data.unfilled(),
-							&mut packet[Header::SIZE..],
-						);
-						self.data.advance(n);
-
-						if n < payload_length.as_usize() {
-							packet.resize(Header::SIZE + n, 0);
-						}
-					}
-
-					Header {
+					let header = Header {
 						length: packet_length,
 						flags: Flags::zero()
 							.set_if(Flags::MORE_DATA, |_| {
-								self.data.has_remaining()
+								self.data.chunk_count() > 0
 							}),
 						id: self.pcb.id_gen.next_id(),
 					}
-					.write_to(unsafe {
-						// SAFETY: The range guarantees that the slice is exactly equal to
-						//         Header::SIZE.
-						slice_to_array_mut(
-							&mut packet[..Header::SIZE],
-						)
-					});
+					.to_bytes();
 
 					self.has_sent_at_least_one = true;
 
 					self.state = State::HasPacket {
-						packet: IoSlice::new(packet),
+						packet: Packet {
+							header: IoSlice::new(header),
+							payload: IoSlice::new(payload),
+						},
 					};
 				},
 				State::HasPacket { ref mut packet } => {
-					match ready!(write_all(self.writer, packet)) {
+					match ready!(write_packet(self.writer, packet)) {
 						Err(e) => return Ready(Err(e)),
-						Ok(_) if !packet.has_remaining() => {
-							self.state = State::NoPacket;
+						Ok(_) => {
+							if !packet.has_remaining() {
+								self.state = State::NoPacket;
+							}
 						},
-						Ok(_) => {},
 					}
 				},
 			}
@@ -297,9 +317,9 @@ mod async_impl {
 
 		pub use io::{AsyncWrite, Error};
 
-		pub fn poll_write<W>(
+		pub fn poll_write_packet<W>(
 			writer: &mut Writer<W>,
-			buf: &mut dyn Buf,
+			packet: &mut Packet,
 			cx: &mut Context,
 		) -> Poll<io::Result<()>>
 		where
@@ -308,9 +328,11 @@ mod async_impl {
 			use io::ErrorKind as E;
 			use Poll::*;
 
-			while buf.has_remaining() {
+			while packet.has_remaining() {
+				let iovecs = packet_to_iovecs(packet);
+
 				match ready!(pin!(&mut writer.inner)
-					.poll_write(cx, buf.unfilled()))
+					.poll_write_vectored(cx, &iovecs))
 				{
 					Err(e) if e.kind() == E::Interrupted => continue,
 					Err(e) if e.kind() == E::WouldBlock => {
@@ -321,7 +343,7 @@ mod async_impl {
 						return Ready(Err(E::UnexpectedEof.into()))
 					},
 					Ok(n) => {
-						buf.advance(n);
+						packet.advance(n);
 						writer.on_write(n as u64);
 					},
 				}
@@ -340,9 +362,9 @@ mod async_impl {
 		pub use futures::AsyncWrite;
 		pub use io::Error;
 
-		pub fn poll_write<W>(
+		pub fn poll_write_packet<W>(
 			writer: &mut Writer<W>,
-			buf: &mut dyn Buf,
+			packet: &mut Packet,
 			cx: &mut Context,
 		) -> Poll<io::Result<()>>
 		where
@@ -351,9 +373,11 @@ mod async_impl {
 			use io::ErrorKind as E;
 			use Poll::*;
 
-			while buf.has_remaining() {
+			while packet.has_remaining() {
+				let iovecs = packet_to_iovecs(packet);
+
 				match ready!(pin!(&mut writer.inner)
-					.poll_write(cx, buf.unfilled()))
+					.poll_write_vectored(cx, &iovecs))
 				{
 					Err(e) if e.kind() == E::Interrupted => continue,
 					Err(e) if e.kind() == E::WouldBlock => {
@@ -364,7 +388,7 @@ mod async_impl {
 						return Ready(Err(E::UnexpectedEof.into()))
 					},
 					Ok(n) => {
-						buf.advance(n);
+						packet.advance(n);
 						writer.on_write(n as u64);
 					},
 				}
@@ -374,7 +398,7 @@ mod async_impl {
 		}
 	}
 
-	use self::imp::{poll_write, AsyncWrite, Error};
+	use self::imp::{poll_write_packet, AsyncWrite, Error};
 
 	impl<W> Future for SendPayload<'_, W>
 	where
@@ -386,7 +410,7 @@ mod async_impl {
 			mut self: Pin<&mut Self>,
 			cx: &mut Context<'_>,
 		) -> Poll<Self::Output> {
-			self.advance(|w, b| poll_write(w, b, cx))
+			self.advance(|w, b| poll_write_packet(w, b, cx))
 		}
 	}
 
@@ -406,18 +430,14 @@ mod async_impl {
 		where
 			D: Borrow<T>,
 		{
-			let serialized = self
+			let payload = self
 				.serializer
 				.serialize(data.borrow())
 				.map_err(SendError::Serde)?;
 
-			SendPayload::new(
-				&mut self.pcb,
-				&mut self.writer,
-				serialized,
-			)
-			.await
-			.map_err(SendError::Io)
+			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
+				.await
+				.map_err(SendError::Io)
 		}
 	}
 }
@@ -432,9 +452,9 @@ mod sync_impl {
 
 		pub use io::{Error, Write};
 
-		pub fn write<W>(
+		pub fn write_packet<W>(
 			writer: &mut Writer<W>,
-			buf: &mut dyn Buf,
+			packet: &mut Packet,
 		) -> Poll<Result<(), Error>>
 		where
 			W: Write,
@@ -442,8 +462,10 @@ mod sync_impl {
 			use io::ErrorKind as E;
 			use Poll::*;
 
-			while buf.has_remaining() {
-				match writer.inner.write(buf.unfilled()) {
+			while packet.has_remaining() {
+				let iovecs = packet_to_iovecs(packet);
+
+				match writer.inner.write_vectored(&iovecs) {
 					Err(e) if e.kind() == E::Interrupted => continue,
 					Err(e) if e.kind() == E::WouldBlock => {
 						return Pending
@@ -451,7 +473,7 @@ mod sync_impl {
 					Err(e) => return Ready(Err(e)),
 					Ok(0) => return Ready(Err(E::WriteZero.into())),
 					Ok(n) => {
-						buf.advance(n);
+						packet.advance(n);
 						writer.on_write(n as u64);
 					},
 				}
@@ -461,7 +483,7 @@ mod sync_impl {
 		}
 	}
 
-	use self::imp::{write, Error, Write};
+	use self::imp::{write_packet, Error, Write};
 
 	impl<T, W, S> Sender<T, W, S>
 	where
@@ -484,19 +506,25 @@ mod sync_impl {
 		where
 			D: Borrow<T>,
 		{
-			let serialized = self
+			let payload = self
 				.serializer
 				.serialize(data.borrow())
 				.map_err(SendError::Serde)?;
 
-			SendPayload::new(
-				&mut self.pcb,
-				&mut self.writer,
-				serialized,
-			)
-			.advance(write)
-			.unwrap()
-			.map_err(SendError::Io)
+			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
+				.advance(write_packet)
+				.unwrap()
+				.map_err(SendError::Io)
 		}
 	}
+}
+
+#[inline]
+fn packet_to_iovecs(packet: &mut Packet) -> [std::io::IoSlice; 2] {
+	use std::io::IoSlice;
+
+	[
+		IoSlice::new(packet.header.unfilled()),
+		IoSlice::new(packet.payload.unfilled()),
+	]
 }
