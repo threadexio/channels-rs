@@ -1,5 +1,8 @@
+use std::fmt;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use channels::Statistics;
 
 /// Spawn a server and a client thread and wait for them to complete.
 pub fn spawn_server_client<S, C, So, Co>(
@@ -53,4 +56,46 @@ where
 	let elapsed = start.elapsed();
 
 	(elapsed, output)
+}
+
+pub struct Stats<'a> {
+	pub duration: Duration,
+	pub tx: &'a Statistics,
+	pub rx: &'a Statistics,
+}
+
+impl fmt::Display for Stats<'_> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		writeln!(
+			f,
+			"finished in {:.5} seconds",
+			self.duration.as_secs_f64()
+		)?;
+		writeln!(f)?;
+		writeln!(f, "tx total: {} bytes", self.tx.total_bytes())?;
+		writeln!(f, "rx total: {} bytes", self.rx.total_bytes())?;
+		writeln!(f)?;
+
+		let xbs = self.tx.total_bytes() as f64
+			/ self.duration.as_secs_f64();
+		let xkbs = xbs / 1024.0;
+		let xmbs = xkbs / 1024.0;
+
+		writeln!(
+			f,
+			"tx rate: {xbs:.3} B/s = {xkbs:.3} kB/s = {xmbs:.3} MB/s",
+		)?;
+
+		let xbs = self.rx.total_bytes() as f64
+			/ self.duration.as_secs_f64();
+		let xkbs = xbs / 1024.0;
+		let xmbs = xkbs / 1024.0;
+
+		writeln!(
+			f,
+			"rx rate: {xbs:.3} B/s = {xkbs:.3} kB/s = {xmbs:.3} MB/s",
+		)?;
+
+		Ok(())
+	}
 }

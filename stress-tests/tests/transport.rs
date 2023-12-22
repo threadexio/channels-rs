@@ -17,7 +17,17 @@ mod sync_tests {
 
 	use std::net::{TcpListener, TcpStream};
 
-	fn server() {
+	use stress_tests::{spawn_server_client, time, Stats};
+
+	type Pair = channels::Pair<
+		Data,
+		TcpStream,
+		TcpStream,
+		channels::serdes::Bincode,
+		channels::serdes::Bincode,
+	>;
+
+	fn server() -> Pair {
 		let listener = TcpListener::bind(ADDR).unwrap();
 		let (s, _) = listener.accept().unwrap();
 		let (mut tx, mut rx) =
@@ -33,9 +43,11 @@ mod sync_tests {
 
 			tx.send_blocking(data).unwrap();
 		}
+
+		(tx, rx)
 	}
 
-	fn client() {
+	fn client() -> Pair {
 		let s = TcpStream::connect(ADDR).unwrap();
 		let (mut tx, mut rx) =
 			channels::channel(s.try_clone().unwrap(), s);
@@ -48,12 +60,23 @@ mod sync_tests {
 
 			assert_eq!(rx.recv_blocking().unwrap(), data);
 		}
+
+		(tx, rx)
 	}
 
 	#[serial]
 	#[test]
 	fn transport() {
-		stress_tests::spawn_server_client(server, client);
+		let (_, client) =
+			spawn_server_client(|| time(server), || time(client));
+
+		let stats = Stats {
+			duration: client.0,
+			tx: client.1 .0.statistics(),
+			rx: client.1 .1.statistics(),
+		};
+
+		eprintln!("{stats}");
 	}
 }
 
