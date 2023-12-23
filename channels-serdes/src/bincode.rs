@@ -53,7 +53,9 @@ where
 		let bincode = &mut bincode;
 
 		let size_hint = bincode.serialized_size(t)?;
-		buf.reserve(size_hint as usize);
+		if let Ok(size_hint) = usize::try_from(size_hint) {
+			buf.reserve(size_hint);
+		}
 
 		bincode.serialize_into(&mut buf, t).map(|_| buf)
 	}
