@@ -14,6 +14,19 @@ fn default_bincode_config() -> impl Options {
 
 /// The [`mod@bincode`] serializer which automatically works with all
 /// types that implement [`serde::Serialize`] and [`serde::Deserialize`].
+///
+/// Note that the default options this crate uses are not the same as the
+/// ones from [`bincode::options()`].
+///
+/// Default configuration:
+///
+/// - **Byte Limit**: `Unlimited`
+/// - **Endianness**: `Big`
+/// - **Int Encoding**: `Fixint`
+/// - **Trailing Behavior**: `Reject`
+///
+/// **NOTE:** If you want to use other options with [`mod@bincode`] you must
+/// implement your own serializer and deserializer.
 #[derive(Debug, Default, Clone)]
 pub struct Bincode {}
 
@@ -22,18 +35,6 @@ impl Bincode {
 	pub fn new() -> Self {
 		Self {}
 	}
-
-	// TODO: Constructor that accepts a clojure that creates the bincode config
-	//
-	// Possible implementation:
-	/*
-	pub fn with_config<F>(f: F) -> Self
-	where
-		F: Fn() -> impl Options,
-	{            // ^ coming in 1.74.0 (hopefully)
-		Self { config: f }
-	}
-	*/
 }
 
 impl<T> Serializer<T> for Bincode
@@ -48,9 +49,7 @@ where
 		t: &T,
 	) -> Result<PayloadBuffer, Self::Error> {
 		let mut buf = PayloadBuffer::new();
-
-		let mut bincode = default_bincode_config();
-		let bincode = &mut bincode;
+		let bincode = &mut default_bincode_config();
 
 		let size_hint = bincode.serialized_size(t)?;
 		if let Ok(size_hint) = usize::try_from(size_hint) {
