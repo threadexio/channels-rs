@@ -19,7 +19,6 @@ use crate::util::{Buf, IoSlice, PollExt};
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-#[derive(Clone)]
 pub struct Sender<T, W, S> {
 	_marker: PhantomData<T>,
 	writer: Writer<W>,
@@ -82,8 +81,19 @@ where
 	}
 }
 
-unsafe impl<T, W: Send, S: Send> Send for Sender<T, W, S> {}
-unsafe impl<T, W: Sync, S: Sync> Sync for Sender<T, W, S> {}
+unsafe impl<T, W, S> Send for Sender<T, W, S>
+where
+	Writer<W>: Send,
+	S: Send,
+{
+}
+
+unsafe impl<T, W, S> Sync for Sender<T, W, S>
+where
+	Writer<W>: Sync,
+	S: Sync,
+{
+}
 
 /// A builder that when completed will return a [`Sender`].
 pub struct Builder<T, W, S> {

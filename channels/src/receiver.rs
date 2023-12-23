@@ -18,7 +18,6 @@ use crate::util::{BufMut, IoSlice};
 /// except for a [few key differences](crate).
 ///
 /// See [crate-level documentation](crate).
-#[derive(Clone)]
 pub struct Receiver<T, R, D> {
 	_marker: PhantomData<T>,
 	reader: Reader<R>,
@@ -86,8 +85,19 @@ where
 	}
 }
 
-unsafe impl<T, R: Send, D: Send> Send for Receiver<T, R, D> {}
-unsafe impl<T, R: Sync, D: Sync> Sync for Receiver<T, R, D> {}
+unsafe impl<T, R, D> Send for Receiver<T, R, D>
+where
+	Reader<R>: Send,
+	D: Send,
+{
+}
+
+unsafe impl<T, R, D> Sync for Receiver<T, R, D>
+where
+	Reader<R>: Sync,
+	D: Sync,
+{
+}
 
 /// An iterator over received messages.
 #[derive(Debug)]
