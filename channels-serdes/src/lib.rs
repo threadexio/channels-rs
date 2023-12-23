@@ -40,7 +40,7 @@ pub trait Serializer<T> {
 	/// The error returned by [`Serializer::serialize()`].
 	type Error;
 
-	/// Serialize `t` into a `Vec<u8>`.
+	/// Serialize `t` to a buffer.
 	fn serialize(
 		&mut self,
 		t: &T,
