@@ -160,6 +160,7 @@ ports = {
 	10001,
 	10002,
 	10003,
+	13942
 }
 
 for _, port in pairs(ports) do

@@ -74,7 +74,7 @@ cfg_if! {
 }
 
 cfg_if! {
-	if #[cfg(all(feature = "__std", feature = "cbor"))] {
+	if #[cfg(feature = "cbor")] {
 		mod cbor;
 		pub use self::cbor::Cbor;
 	}
