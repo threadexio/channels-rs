@@ -1,9 +1,7 @@
 //! Utilities to work with packet headers.
 
-use core::mem::size_of;
 use core::num::Wrapping;
 use core::ops;
-use core::ptr;
 
 use crate::util::static_assert;
 
@@ -272,24 +270,29 @@ impl Checksum {
 		Self { state: 0 }
 	}
 
+	/// Update the checksum with `w`.
+	pub fn update_u16(&mut self, w: u16) {
+		self.state += u32::from(w);
+	}
+
+	/// Same as [`Checksum::update_u16`] but for use with the builder pattern.
+	pub fn chain_update_u16(mut self, w: u16) -> Self {
+		self.update_u16(w);
+		self
+	}
+
 	/// Update the checksum from `buf`.
+	#[allow(clippy::missing_panics_doc)]
 	pub fn update(&mut self, data: &[u8]) {
-		let mut ptr: *const u16 = data.as_ptr().cast();
-		let mut left = data.len();
+		let mut iter = data.chunks_exact(2);
 
-		while left > 1 {
-			unsafe {
-				self.state += u32::from(ptr::read_unaligned(ptr));
-				ptr = ptr.add(1);
-				left -= 2;
-			}
-		}
+		(&mut iter)
+			.map(|x| -> [u8; 2] { x.try_into().unwrap() })
+			.map(u16::from_be_bytes)
+			.for_each(|w| self.update_u16(w));
 
-		if left == 1 {
-			unsafe {
-				self.state +=
-					u32::from(ptr::read_unaligned(ptr.cast::<u8>()));
-			}
+		if let &[w] = iter.remainder() {
+			self.update_u16(u16::from(w) << 8);
 		}
 	}
 
@@ -313,46 +316,6 @@ impl Checksum {
 	/// Equivalent to: `Checksum::new().chain_update(data).finalize()`.
 	pub fn checksum(data: &[u8]) -> u16 {
 		Self::new().chain_update(data).finalize()
-	}
-}
-
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(transparent)]
-struct u16be(pub u16);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
-struct RawHeader {
-	pub version: u16be,
-	pub length: u16be,
-	pub checksum: u16,
-	pub flags: u8,
-	pub id: u8,
-}
-
-static_assert!(size_of::<RawHeader>() == Header::SIZE);
-
-impl RawHeader {
-	#[inline]
-	pub fn new(buf: &[u8; Header::SIZE]) -> Self {
-		let header_ptr: *const RawHeader = buf.as_ptr().cast();
-		unsafe { ptr::read_unaligned(header_ptr) }
-	}
-
-	#[inline]
-	pub fn as_ptr(&self) -> *const u8 {
-		ptr::addr_of!(*self) as *const u8
-	}
-
-	#[inline]
-	pub fn as_bytes(&self) -> &[u8; Header::SIZE] {
-		unsafe { &*self.as_ptr().cast() }
-	}
-
-	#[inline]
-	pub fn into_bytes(self) -> [u8; Header::SIZE] {
-		unsafe { *self.as_ptr().cast() }
 	}
 }
 
@@ -392,19 +355,43 @@ impl Header {
 
 	const VERSION: u16 = 0xfd3f;
 
+	const VERSION_SHIFT: u64 = 6 * 8;
+	const LENGTH_SHIFT: u64 = 4 * 8;
+	const CHECKSUM_SHIFT: u64 = 2 * 8;
+	const FLAGS_SHIFT: u64 = 8;
+	const ID_SHIFT: u64 = 0;
+
 	/// Convert the header to its raw format.
+	#[allow(clippy::cast_lossless)]
 	pub fn to_bytes(&self) -> [u8; Self::SIZE] {
-		let mut raw = RawHeader::new(&[0u8; Self::SIZE]);
+		const fn combine_u8(a: u8, b: u8) -> u16 {
+			(a as u16) << 8 | (b as u16)
+		}
 
-		raw.version.0 = u16::to_be(Self::VERSION);
-		raw.length.0 = u16::to_be(self.length.as_u16());
-		raw.checksum = 0;
-		raw.flags = self.flags.0;
-		raw.id = self.id.0;
+		let version = Self::VERSION;
+		let length = self.length.as_u16();
+		let flags = self.flags.0;
+		let id = self.id.0;
 
-		raw.checksum = Checksum::checksum(raw.as_bytes());
+		let checksum = Checksum::new()
+			.chain_update_u16(version)
+			.chain_update_u16(length)
+			.chain_update_u16(combine_u8(flags, id))
+			.finalize();
 
-		raw.into_bytes()
+		let version = version as u64;
+		let length = length as u64;
+		let checksum = checksum as u64;
+		let flags = flags as u64;
+		let id = id as u64;
+
+		let raw = (version << Self::VERSION_SHIFT)
+			| (length << Self::LENGTH_SHIFT)
+			| (checksum << Self::CHECKSUM_SHIFT)
+			| (flags << Self::FLAGS_SHIFT)
+			| (id << Self::ID_SHIFT);
+
+		raw.to_be_bytes()
 	}
 
 	/// Write the buffer to `buf`.
@@ -431,27 +418,39 @@ impl Header {
 	) -> Result<Self, HeaderReadError> {
 		use HeaderReadError as E;
 
-		let raw = RawHeader::new(buf);
+		let raw = u64::from_be_bytes(*buf);
 
-		if u16::from_be(raw.version.0) != Self::VERSION {
+		let version = (raw >> Self::VERSION_SHIFT) as u16;
+		if version != Self::VERSION {
 			return Err(E::VersionMismatch);
 		}
 
-		if Checksum::checksum(raw.as_bytes()) != 0 {
+		let checksum = Checksum::new()
+			.chain_update_u16(raw as u16)
+			.chain_update_u16((raw >> (2 * 8)) as u16)
+			.chain_update_u16((raw >> (4 * 8)) as u16)
+			.chain_update_u16((raw >> (6 * 8)) as u16)
+			.finalize();
+
+		if checksum != 0 {
 			return Err(E::InvalidChecksum);
 		}
 
-		let length = PacketLength::new(u16::from_be(raw.length.0))
-			.ok_or(E::InvalidLength)?;
+		let length = (raw >> Self::LENGTH_SHIFT) as u16;
+		let flags = (raw >> Self::FLAGS_SHIFT) as u8;
+		let id = (raw >> Self::ID_SHIFT) as u8;
 
-		let id = Id(raw.id);
+		let length =
+			PacketLength::new(length).ok_or(E::InvalidLength)?;
+
+		let id = Id(id);
 		if gen.current() != id {
 			return Err(E::OutOfOrder);
 		} else {
 			let _ = gen.next_id();
 		}
 
-		let flags = Flags(raw.flags);
+		let flags = Flags(flags);
 
 		Ok(Self { length, flags, id })
 	}
@@ -464,7 +463,7 @@ mod tests {
 	#[test]
 	fn test_checksum_impl() {
 		fn test_case(data: &[u8], expected: u16) {
-			let calculated = Checksum::checksum(data).to_be();
+			let calculated = Checksum::checksum(data);
 			assert_eq!(
 				expected, calculated,
 				"{expected:#x?} != {calculated:#x?}"
