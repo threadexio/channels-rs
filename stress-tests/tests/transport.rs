@@ -27,7 +27,6 @@ mod sync_tests {
 		TcpStream,
 		TcpStream,
 		channels::serdes::Bincode,
-		channels::serdes::Bincode,
 	>;
 
 	fn server() -> (Duration, Pair) {

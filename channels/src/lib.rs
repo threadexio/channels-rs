@@ -44,12 +44,16 @@ pub use self::sender::Sender;
 pub use channels_serdes as serdes;
 
 /// A tuple containing a [`Sender`] and a [`Receiver`].
-pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
+pub type Pair<T, R, W, Sd> = (Sender<T, W, Sd>, Receiver<T, R, Sd>);
 
 #[cfg(feature = "bincode")]
-/// Create a new synchronous channel.
+/// Create a new channel.
 ///
-/// # Example
+/// This function is just a shorthand for [`Sender::new`] and [`Receiver::new`].
+///
+/// # Examples
+///
+/// Synchronous version:
 /// ```no_run
 /// use std::net::TcpStream;
 ///
@@ -60,23 +64,27 @@ pub type Pair<T, R, W, S, D> = (Sender<T, W, S>, Receiver<T, R, D>);
 /// tx.send_blocking(42_i32).unwrap();
 /// let received: i32 = rx.recv_blocking().unwrap();
 /// ```
+///
+/// Asynchronous version:
+/// ```no_run
+/// use tokio::net::TcpStream;
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let conn = TcpStream::connect("127.0.0.1:1234").await.unwrap();
+///     let (r, w) = conn.into_split();
+///     let (mut tx, mut rx) = channels::channel(r, w);
+///
+///     tx.send(42_i32).await.unwrap();
+///     let received: i32 = rx.recv().await.unwrap();
+/// }
+/// ```
 pub fn channel<T, R, W>(
 	r: R,
 	w: W,
-) -> Pair<T, R, W, channels_serdes::Bincode, channels_serdes::Bincode>
+) -> Pair<T, R, W, channels_serdes::Bincode>
 where
 	for<'de> T: serde::Serialize + serde::Deserialize<'de>,
 {
-	use channels_serdes::Bincode;
-
-	(
-		Sender::builder()
-			.writer(w)
-			.serializer(Bincode::new())
-			.build(),
-		Receiver::builder()
-			.reader(r)
-			.deserializer(Bincode::new())
-			.build(),
-	)
+	(Sender::new(w), Receiver::new(r))
 }
