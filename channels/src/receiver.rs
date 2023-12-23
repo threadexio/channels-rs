@@ -284,13 +284,18 @@ impl<'a, R> RecvPayload<'a, R> {
 					Err(e) => {
 						return Ready(Err(e));
 					},
-					Ok(_) if header.flags & Flags::MORE_DATA => {
-						self.state = State::INITIAL;
-					},
 					Ok(_) => {
-						let payload =
-							core::mem::take(self.payload.inner_mut());
-						return Ready(Ok(payload));
+						#[cfg(feature = "statistics")]
+						self.reader.statistics.inc_packets();
+
+						if header.flags & Flags::MORE_DATA {
+							self.state = State::INITIAL;
+						} else {
+							let payload = core::mem::take(
+								self.payload.inner_mut(),
+							);
+							return Ready(Ok(payload));
+						}
 					},
 				},
 			}
@@ -434,7 +439,13 @@ mod async_impl {
 		) -> Result<T, RecvError<D::Error, Error>> {
 			let mut payload =
 				RecvPayload::new(&mut self.pcb, &mut self.reader)
-					.await?;
+					.await
+					.map(|x| {
+						#[cfg(feature = "statistics")]
+						self.reader.statistics.inc_ops();
+
+						x
+					})?;
 
 			self.deserializer
 				.deserialize(&mut payload)
@@ -523,7 +534,13 @@ mod sync_impl {
 			let mut payload =
 				RecvPayload::new(&mut self.pcb, &mut self.reader)
 					.advance(read)
-					.unwrap()?;
+					.unwrap()
+					.map(|x| {
+						#[cfg(feature = "statistics")]
+						self.reader.statistics.inc_ops();
+
+						x
+					})?;
 
 			self.deserializer
 				.deserialize(&mut payload)

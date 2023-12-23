@@ -66,35 +66,46 @@ pub struct Stats<'a> {
 
 impl fmt::Display for Stats<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		writeln!(
-			f,
-			"finished in {:.5} seconds",
-			self.duration.as_secs_f64()
-		)?;
-		writeln!(f)?;
-		writeln!(f, "tx total: {} bytes", self.tx.total_bytes())?;
-		writeln!(f, "rx total: {} bytes", self.rx.total_bytes())?;
-		writeln!(f)?;
+		let duration_s = self.duration.as_secs_f64();
 
-		let xbs = self.tx.total_bytes() as f64
-			/ self.duration.as_secs_f64();
-		let xkbs = xbs / 1024.0;
-		let xmbs = xkbs / 1024.0;
+		let packet_send_rate = self.tx.packets() as f64 / duration_s;
+		let packet_recv_rate = self.rx.packets() as f64 / duration_s;
 
-		writeln!(
-			f,
-			"tx rate: {xbs:.3} B/s = {xkbs:.3} kB/s = {xmbs:.3} MB/s",
-		)?;
+		let avg_tx_packet_size =
+			self.tx.total_bytes() as f64 / self.tx.packets() as f64;
+		let avg_rx_packet_size =
+			self.rx.total_bytes() as f64 / self.rx.packets() as f64;
 
-		let xbs = self.rx.total_bytes() as f64
-			/ self.duration.as_secs_f64();
-		let xkbs = xbs / 1024.0;
-		let xmbs = xkbs / 1024.0;
+		let tx_rate_bps = self.tx.total_bytes() as f64 / duration_s;
+		let tx_rate_kbps = tx_rate_bps / 1024.0;
+		let tx_rate_mbps = tx_rate_kbps / 1024.0;
 
-		writeln!(
-			f,
-			"rx rate: {xbs:.3} B/s = {xkbs:.3} kB/s = {xmbs:.3} MB/s",
-		)?;
+		let rx_rate_bps = self.rx.total_bytes() as f64 / duration_s;
+		let rx_rate_kbps = rx_rate_bps / 1024.0;
+		let rx_rate_mbps = rx_rate_kbps / 1024.0;
+
+		#[rustfmt::skip]
+		{
+			writeln!(f, "finished in {:.5} seconds", duration_s)?;
+			writeln!(f)?;
+			writeln!(f, "total send operations:    {}", self.tx.ops())?;
+			writeln!(f, "total receive operations: {}", self.rx.ops())?;
+			writeln!(f)?;
+			writeln!(f, "total packets sent:       {}", self.tx.packets())?;
+			writeln!(f, "total packets received:   {}", self.rx.packets())?;
+			writeln!(f)?;
+			writeln!(f, "tx total: {} B", self.tx.total_bytes())?;
+			writeln!(f, "rx total: {} B", self.rx.total_bytes())?;
+			writeln!(f)?;
+			writeln!(f, "packet send rate:         {:.3} packets/s", packet_send_rate)?;
+			writeln!(f, "packet receive rate:      {:.3} packets/s", packet_recv_rate)?;
+			writeln!(f)?;
+			writeln!(f, "tx rate: {:.3} B/s = {:.3} kB/s = {:.3} MB/s", tx_rate_bps, tx_rate_kbps, tx_rate_mbps)?;
+			writeln!(f, "rx rate: {:.3} B/s = {:.3} kB/s = {:.3} MB/s", rx_rate_bps, rx_rate_kbps, rx_rate_mbps)?;
+			writeln!(f)?;
+			writeln!(f, "average tx packet size:   {:.3} B", avg_tx_packet_size)?;
+			writeln!(f, "average rx packet size:   {:.3} B", avg_rx_packet_size)?;
+		};
 
 		Ok(())
 	}

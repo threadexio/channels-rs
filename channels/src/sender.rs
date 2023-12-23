@@ -287,6 +287,9 @@ impl<'a, W> SendPayload<'a, W> {
 						Ok(_) => {
 							if !packet.has_remaining() {
 								self.state = State::NoPacket;
+
+								#[cfg(feature = "statistics")]
+								self.writer.statistics.inc_packets();
 							}
 						},
 					}
@@ -437,6 +440,10 @@ mod async_impl {
 
 			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
 				.await
+				.map(|_| {
+					#[cfg(feature = "statistics")]
+					self.writer.statistics.inc_ops();
+				})
 				.map_err(SendError::Io)
 		}
 	}
@@ -514,6 +521,10 @@ mod sync_impl {
 			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
 				.advance(write_packet)
 				.unwrap()
+				.map(|_| {
+					#[cfg(feature = "statistics")]
+					self.writer.statistics.inc_ops();
+				})
 				.map_err(SendError::Io)
 		}
 	}

@@ -15,7 +15,10 @@ const ITER: usize = 1024;
 mod sync_tests {
 	use super::*;
 
-	use std::net::{TcpListener, TcpStream};
+	use std::{
+		net::{TcpListener, TcpStream},
+		time::Duration,
+	};
 
 	use stress_tests::{spawn_server_client, time, Stats};
 
@@ -27,56 +30,66 @@ mod sync_tests {
 		channels::serdes::Bincode,
 	>;
 
-	fn server() -> Pair {
+	fn server() -> (Duration, Pair) {
 		let listener = TcpListener::bind(ADDR).unwrap();
 		let (s, _) = listener.accept().unwrap();
 		let (mut tx, mut rx) =
 			channels::channel(s.try_clone().unwrap(), s);
 
-		for i in 0..ITER {
-			let data: Data = rx.recv_blocking().unwrap();
+		time(move || {
+			for i in 0..ITER {
+				let data: Data = rx.recv_blocking().unwrap();
 
-			assert_eq!(
-				data,
-				Data { a: 42, b: i, c: format!("test str #{i}") }
-			);
+				assert_eq!(
+					data,
+					Data { a: 42, b: i, c: format!("test str #{i}") }
+				);
 
-			tx.send_blocking(data).unwrap();
-		}
+				tx.send_blocking(data).unwrap();
+			}
 
-		(tx, rx)
+			(tx, rx)
+		})
 	}
 
-	fn client() -> Pair {
+	fn client() -> (Duration, Pair) {
 		let s = TcpStream::connect(ADDR).unwrap();
 		let (mut tx, mut rx) =
 			channels::channel(s.try_clone().unwrap(), s);
 
-		for i in 0..ITER {
-			let data =
-				Data { a: 42, b: i, c: format!("test str #{i}") };
+		time(move || {
+			for i in 0..ITER {
+				let data =
+					Data { a: 42, b: i, c: format!("test str #{i}") };
 
-			tx.send_blocking(data.clone()).unwrap();
+				tx.send_blocking(data.clone()).unwrap();
 
-			assert_eq!(rx.recv_blocking().unwrap(), data);
-		}
+				assert_eq!(rx.recv_blocking().unwrap(), data);
+			}
 
-		(tx, rx)
+			(tx, rx)
+		})
 	}
 
 	#[serial]
 	#[test]
 	fn transport() {
-		let (_, client) =
-			spawn_server_client(|| time(server), || time(client));
+		let (server, client) = spawn_server_client(server, client);
 
-		let stats = Stats {
+		let server_stats = Stats {
+			duration: server.0,
+			tx: server.1 .0.statistics(),
+			rx: server.1 .1.statistics(),
+		};
+
+		let client_stats = Stats {
 			duration: client.0,
 			tx: client.1 .0.statistics(),
 			rx: client.1 .1.statistics(),
 		};
 
-		eprintln!("{stats}");
+		eprintln!("server:\n===============\n{server_stats}\n");
+		eprintln!("client:\n===============\n{client_stats}\n");
 	}
 }
 

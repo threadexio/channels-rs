@@ -13,7 +13,10 @@ const ITER: usize = 64;
 mod sync_tests {
 	use super::*;
 
-	use std::net::{TcpListener, TcpStream};
+	use std::{
+		net::{TcpListener, TcpStream},
+		time::Duration,
+	};
 
 	use stress_tests::{spawn_server_client, time, Stats};
 
@@ -25,64 +28,74 @@ mod sync_tests {
 		channels::serdes::Bincode,
 	>;
 
-	fn server() -> Pair {
+	fn server() -> (Duration, Pair) {
 		let listener = TcpListener::bind(ADDR).unwrap();
 		let (s, _) = listener.accept().unwrap();
 		let (mut tx, mut rx) =
 			channels::channel(s.try_clone().unwrap(), s);
 
-		for _ in 0..ITER {
-			let data: Data = rx.recv_blocking().unwrap();
+		time(move || {
+			for _ in 0..ITER {
+				let data: Data = rx.recv_blocking().unwrap();
 
-			assert!(
-				data.buffer
-					.iter()
-					.enumerate()
-					.all(|(i, x)| *x == i as u8),
-				"the buffer has corrupted data"
-			);
+				assert!(
+					data.buffer
+						.iter()
+						.enumerate()
+						.all(|(i, x)| *x == i as u8),
+					"the buffer has corrupted data"
+				);
 
-			tx.send_blocking(data).unwrap();
-		}
+				tx.send_blocking(data).unwrap();
+			}
 
-		(tx, rx)
+			(tx, rx)
+		})
 	}
 
-	fn client() -> Pair {
+	fn client() -> (Duration, Pair) {
 		let s = TcpStream::connect(ADDR).unwrap();
 		let (mut tx, mut rx) = channels::channel::<Data, _, _>(
 			s.try_clone().unwrap(),
 			s,
 		);
 
-		for i in 0..ITER {
-			let data = Data {
-				buffer: (0..usize::from(u16::MAX) + 16000 + i)
-					.map(|x| x as u8)
-					.collect(),
-			};
+		time(move || {
+			for i in 0..ITER {
+				let data = Data {
+					buffer: (0..usize::from(u16::MAX) + 16000 + i)
+						.map(|x| x as u8)
+						.collect(),
+				};
 
-			tx.send_blocking(&data).unwrap();
+				tx.send_blocking(&data).unwrap();
 
-			assert_eq!(rx.recv_blocking().unwrap(), data);
-		}
+				assert_eq!(rx.recv_blocking().unwrap(), data);
+			}
 
-		(tx, rx)
+			(tx, rx)
+		})
 	}
 
 	#[serial]
 	#[test]
 	fn big_data() {
-		let (_, client) =
-			spawn_server_client(|| time(server), || time(client));
+		let (server, client) = spawn_server_client(server, client);
 
-		let stats = Stats {
+		let server_stats = Stats {
+			duration: server.0,
+			tx: server.1 .0.statistics(),
+			rx: server.1 .1.statistics(),
+		};
+
+		let client_stats = Stats {
 			duration: client.0,
 			tx: client.1 .0.statistics(),
 			rx: client.1 .1.statistics(),
 		};
 
-		eprintln!("{stats}");
+		eprintln!("server:\n===============\n{server_stats}\n");
+		eprintln!("client:\n===============\n{client_stats}\n");
 	}
 }
 
