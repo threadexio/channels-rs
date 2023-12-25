@@ -3,8 +3,9 @@ members = [
 	"channels",
 	"channels-packet",
 	"channels-serdes",
-	"tests-integration",
+	"benches",
 	"stress-tests",
+	"tests-integration",
 	"examples",
 	"examples/chat-app",
 ]

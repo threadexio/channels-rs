@@ -1,0 +1,18 @@
+[package]
+name = "benches"
+version = "0.0.0"
+edition = "2021"
+publish = false
+autobenches = false
+
+[dependencies]
+channels = { workspace = true, features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "send"
+path = "send.rs"
+harness = false
