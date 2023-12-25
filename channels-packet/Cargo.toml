@@ -11,7 +11,3 @@ Utilities to parse channels packets.
 categories = ["parsing", "parser-implementations", "no-std"]
 
 [dependencies]
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docrs"]
