@@ -1,13 +1,5 @@
 use serial_test::serial;
-
-#[derive(
-	Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize,
-)]
-struct Data {
-	a: i32,
-	b: usize,
-	c: String,
-}
+use stress_tests::{spawn_server_client, time, Data, TestResults};
 
 const ADDR: &str = "127.0.0.1:10000";
 const ITER: usize = 1024;
@@ -19,8 +11,6 @@ mod sync_tests {
 		net::{TcpListener, TcpStream},
 		time::Duration,
 	};
-
-	use stress_tests::{spawn_server_client, time, Stats};
 
 	type Pair = channels::Pair<
 		Data,
@@ -73,22 +63,15 @@ mod sync_tests {
 	#[serial]
 	#[test]
 	fn transport() {
-		let (server, client) = spawn_server_client(server, client);
+		let (server, _) = spawn_server_client(server, client);
 
-		let server_stats = Stats {
-			duration: server.0,
-			tx: server.1 .0.statistics(),
-			rx: server.1 .1.statistics(),
-		};
-
-		let client_stats = Stats {
-			duration: client.0,
-			tx: client.1 .0.statistics(),
-			rx: client.1 .1.statistics(),
-		};
-
-		eprintln!("server:\n===============\n{server_stats}\n");
-		eprintln!("client:\n===============\n{client_stats}\n");
+		eprintln!(
+			"{}",
+			TestResults {
+				duration: server.0,
+				stats: server.1 .0.statistics()
+			}
+		);
 	}
 }
 

@@ -4,6 +4,19 @@ use std::time::{Duration, Instant};
 
 use channels::Statistics;
 
+pub mod units;
+
+use units::{Bytes, Kilobytes, Megabytes};
+
+#[derive(
+	Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize,
+)]
+pub struct Data {
+	pub a: i32,
+	pub b: usize,
+	pub c: String,
+}
+
 /// Spawn a server and a client thread and wait for them to complete.
 pub fn spawn_server_client<S, C, So, Co>(
 	server: S,
@@ -58,53 +71,42 @@ where
 	(elapsed, output)
 }
 
-pub struct Stats<'a> {
+pub struct TestResults<'a> {
 	pub duration: Duration,
-	pub tx: &'a Statistics,
-	pub rx: &'a Statistics,
+	pub stats: &'a Statistics,
 }
 
-impl fmt::Display for Stats<'_> {
+impl fmt::Display for TestResults<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let duration_s = self.duration.as_secs_f64();
 
-		let packet_send_rate = self.tx.packets() as f64 / duration_s;
-		let packet_recv_rate = self.rx.packets() as f64 / duration_s;
+		let op_count = self.stats.ops();
+		let packet_count = self.stats.packets();
+		let total_bytes = self.stats.total_bytes();
 
-		let avg_tx_packet_size =
-			self.tx.total_bytes() as f64 / self.tx.packets() as f64;
-		let avg_rx_packet_size =
-			self.rx.total_bytes() as f64 / self.rx.packets() as f64;
+		let op_rate = op_count as f64 / duration_s;
+		let packet_rate = packet_count as f64 / duration_s;
 
-		let tx_rate_bps = self.tx.total_bytes() as f64 / duration_s;
-		let tx_rate_kbps = tx_rate_bps / 1024.0;
-		let tx_rate_mbps = tx_rate_kbps / 1024.0;
+		let io_rate_bps = total_bytes as f64 / duration_s;
+		let io_rate_kbps = io_rate_bps / 1024.0;
+		let io_rate_mbps = io_rate_kbps / 1024.0;
 
-		let rx_rate_bps = self.rx.total_bytes() as f64 / duration_s;
-		let rx_rate_kbps = rx_rate_bps / 1024.0;
-		let rx_rate_mbps = rx_rate_kbps / 1024.0;
+		let avg_packet_size =
+			total_bytes as f64 / packet_count as f64;
 
 		#[rustfmt::skip]
 		{
-			writeln!(f, "finished in {:.5} seconds", duration_s)?;
+			writeln!(f, "finished in {duration_s:.5}s")?;
 			writeln!(f)?;
-			writeln!(f, "total send operations:    {}", self.tx.ops())?;
-			writeln!(f, "total receive operations: {}", self.rx.ops())?;
+			writeln!(f, "total operations:    {op_count}")?;
+			writeln!(f, "total packets:       {packet_count}")?;
+			writeln!(f, "io total:            {} = {} = {}", Bytes(total_bytes), Kilobytes(total_bytes), Megabytes(total_bytes))?;
 			writeln!(f)?;
-			writeln!(f, "total packets sent:       {}", self.tx.packets())?;
-			writeln!(f, "total packets received:   {}", self.rx.packets())?;
+			writeln!(f, "operation rate:      {op_rate:.3} operations/s")?;
+			writeln!(f, "packet rate:         {packet_rate:.3} packets/s")?;
+			writeln!(f, "io rate:             {io_rate_bps:.3} B/s = {io_rate_kbps:.3} kB/s = {io_rate_mbps:.3} MB/s")?;
 			writeln!(f)?;
-			writeln!(f, "tx total: {} B", self.tx.total_bytes())?;
-			writeln!(f, "rx total: {} B", self.rx.total_bytes())?;
-			writeln!(f)?;
-			writeln!(f, "packet send rate:         {:.3} packets/s", packet_send_rate)?;
-			writeln!(f, "packet receive rate:      {:.3} packets/s", packet_recv_rate)?;
-			writeln!(f)?;
-			writeln!(f, "tx rate: {:.3} B/s = {:.3} kB/s = {:.3} MB/s", tx_rate_bps, tx_rate_kbps, tx_rate_mbps)?;
-			writeln!(f, "rx rate: {:.3} B/s = {:.3} kB/s = {:.3} MB/s", rx_rate_bps, rx_rate_kbps, rx_rate_mbps)?;
-			writeln!(f)?;
-			writeln!(f, "average tx packet size:   {:.3} B", avg_tx_packet_size)?;
-			writeln!(f, "average rx packet size:   {:.3} B", avg_rx_packet_size)?;
+			writeln!(f, "average packet size: {avg_packet_size:.3} B")?;
 		};
 
 		Ok(())

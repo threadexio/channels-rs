@@ -1,18 +1,19 @@
+use std::net::TcpStream;
+use std::time::Duration;
+use stress_tests::{time, Data, TestResults};
 use tokio::runtime::Runtime;
 
-#[derive(
-	Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize,
-)]
-struct Data {
-	a: i32,
-	b: usize,
-	c: String,
-}
+type Pair = channels::Pair<
+	Data,
+	TcpStream,
+	TcpStream,
+	channels::serdes::Bincode,
+>;
 
 const ADDR: &str = "127.0.0.1:10002";
 const ITER: usize = 1024;
 
-fn server() {
+fn server() -> (Duration, Pair) {
 	use std::net::TcpListener;
 
 	let listener = TcpListener::bind(ADDR).unwrap();
@@ -20,16 +21,20 @@ fn server() {
 	let (mut tx, mut rx) =
 		channels::channel(s.try_clone().unwrap(), s);
 
-	for i in 0..ITER {
-		let data: Data = rx.recv_blocking().unwrap();
+	time(move || {
+		for i in 0..ITER {
+			let data: Data = rx.recv_blocking().unwrap();
 
-		assert_eq!(
-			data,
-			Data { a: 42, b: i, c: format!("test str #{i}") }
-		);
+			assert_eq!(
+				data,
+				Data { a: 42, b: i, c: format!("test str #{i}") }
+			);
 
-		tx.send_blocking(data).unwrap();
-	}
+			tx.send_blocking(data).unwrap();
+		}
+
+		(tx, rx)
+	})
 }
 
 async fn client() {
@@ -50,7 +55,10 @@ async fn client() {
 
 #[test]
 fn async_with_sync() {
-	stress_tests::spawn_server_client(server, || {
-		Runtime::new().unwrap().block_on(async { client().await })
-	});
+	let ((duration, (tx, _)), _) =
+		stress_tests::spawn_server_client(server, || {
+			Runtime::new().unwrap().block_on(async { client().await })
+		});
+
+	eprintln!("{}", TestResults { duration, stats: tx.statistics() });
 }

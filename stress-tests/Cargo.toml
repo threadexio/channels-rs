@@ -6,9 +6,9 @@ publish = false
 
 [dependencies]
 channels = { workspace = true, features = ["full", "tokio"] }
-
-tokio = { version = "1", features = ["full"] }
+ringbuf = "0.3.3"
 serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 serial_test = "2.0"

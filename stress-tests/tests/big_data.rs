@@ -18,7 +18,7 @@ mod sync_tests {
 		time::Duration,
 	};
 
-	use stress_tests::{spawn_server_client, time, Stats};
+	use stress_tests::{spawn_server_client, time, TestResults};
 
 	type Pair = channels::Pair<
 		Data,
@@ -79,22 +79,15 @@ mod sync_tests {
 	#[serial]
 	#[test]
 	fn big_data() {
-		let (server, client) = spawn_server_client(server, client);
+		let (server, _) = spawn_server_client(server, client);
 
-		let server_stats = Stats {
-			duration: server.0,
-			tx: server.1 .0.statistics(),
-			rx: server.1 .1.statistics(),
-		};
-
-		let client_stats = Stats {
-			duration: client.0,
-			tx: client.1 .0.statistics(),
-			rx: client.1 .1.statistics(),
-		};
-
-		eprintln!("server:\n===============\n{server_stats}\n");
-		eprintln!("client:\n===============\n{client_stats}\n");
+		eprintln!(
+			"{}",
+			TestResults {
+				duration: server.0,
+				stats: server.1 .0.statistics(),
+			}
+		);
 	}
 }
 
