@@ -1,3 +1,57 @@
+//! Channel communication across generic data streams.
+//!
+//! ## Quick start
+//!
+//! ### Async
+//!
+//! ```no_run
+//! use tokio::net::TcpStream;
+//! use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+//!
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+//!     let (r, w) = stream.into_split();
+//!     let (mut tx, mut rx) = channels::channel::<i32, _, _>(r, w);
+//!
+//!     let r = rx.recv().await.unwrap();
+//!     println!("{r}");
+//!     tx.send(r).await.unwrap();
+//! }
+//! ```
+//!
+//! ### Sync
+//!
+//! ```no_run
+//! use std::net::TcpStream;
+//!
+//! let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+//! let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
+//!
+//! let r = rx.recv_blocking().unwrap();
+//! println!("{r}");
+//! tx.send_blocking(r).unwrap();
+//! ```
+//!
+//! ## Examples
+//!
+//! See: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
+//!
+//! ## cargo features
+//!
+//! - `statistics`: Capture statistic data like: total bytes sent/received, number of send/receive operations, etc
+//! - `tokio`: Adds support for sending/receiving types asynchronously with tokio.
+//! - `futures`: Adds support for sending/receiving types asynchronously with futures.
+//! - `bincode`: Support for serializing/deserializing types with `bincode`.
+//! - `cbor`: Support for serializing/deserializing types with `ciborium`.
+//! - `json`: Support for serializing/deserializing types with `serde_json`.
+//!
+//! - `full`: All of the above except `tokio` and `futures`.
+//!
+//! **NOTE:** Because of the subtle differences in the APIs of `tokio` and `futures`,
+//!           it means that these 2 features must be exclusive. You cannot have both
+//!           `tokio` and `futures` enabled at once.
 #![allow(
 	unknown_lints,
 	clippy::new_without_default,
@@ -23,8 +77,6 @@
 	rustdoc::broken_intra_doc_links
 )]
 #![deny(missing_docs)]
-//! asd
-// TODO: add crate docs
 
 extern crate alloc;
 
