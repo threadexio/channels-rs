@@ -26,7 +26,7 @@
 //! ```no_run
 //! use std::net::TcpStream;
 //!
-//! let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+//! let stream = TcpStream::connect("127.0.0.1:8080").unwrap();
 //! let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
 //!
 //! let r = rx.recv_blocking().unwrap();
