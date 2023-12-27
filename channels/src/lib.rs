@@ -1,4 +1,3 @@
-#![doc = include_str!("../README.md")]
 #![allow(
 	unknown_lints,
 	clippy::new_without_default,
@@ -24,6 +23,8 @@
 	rustdoc::broken_intra_doc_links
 )]
 #![deny(missing_docs)]
+//! asd
+// TODO: add crate docs
 
 extern crate alloc;
 

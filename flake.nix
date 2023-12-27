@@ -44,7 +44,13 @@
           # For editing the artwork of the repo.
           # $ nix develop '.#art'
           art = pkgs.mkShell {
-            buildInputs = with pkgs; [ inkscape scour ];
+            buildInputs = with pkgs; [
+              inkscape
+              scour
+
+              # Assets
+              orbitron
+            ];
           };
 
           default = dev;

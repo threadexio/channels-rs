@@ -9,25 +9,17 @@
 [downloads-badge]: https://img.shields.io/crates/d/channels?style=for-the-badge&label=downloads&labelColor=%23000&color=%23ff0089
 
 <div align="center">
-  <!--
-  -->
-  <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/.github/images/logo.transparent.png" alt="logo">
-
-  <!--
-  For testing local changes.
-  <img src=".github/images/logo.transparent.png" alt="logo">
-  -->
+  <img src="assets/logo.transparent.svg" alt="logo" width="640">
 
   <p>
     Easy and fast communication between processes, threads and systems.
   </p>
 
   [![license-badge]][crates-io]
-  [![version-badge]][crates-io]
-  [![downloads-badge]][crates-io]
-
   [![tests-badge]][github-actions]
+  [![version-badge]][crates-io]
   [![docs-badge]][docs-rs]
+  [![downloads-badge]][crates-io]
 
 </div>
 
@@ -41,11 +33,17 @@ Sender/Receiver types for communicating with a channel-like API across generic I
 
 - **Ergonomic**: The API offered empowers you to use your time on building the logic of your application instead of worrying about data transport.
 
-- **Async & sync first**: Channels' natively supports both synchronous and asynchronous operation with no hacky workarounds like spawning threads or running a separate runtime.
+- **Async & sync first**: Channels natively supports both synchronous and asynchronous operation with no hacky workarounds like spawning threads or running a separate runtime.
 
 # In action
 
-```rust no_run
+```toml
+[dependencies.channels]
+version = "0.11.0"
+features = ["full", "tokio"]
+```
+
+```rust
 use tokio::net::TcpStream;
 
 use serde::{Deserialize, Serialize};
@@ -76,7 +74,7 @@ async fn main() {
 }
 ```
 
-For more, see: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
+For more, see: [examples/](./examples)
 
 Some more complete examples:
 
@@ -90,10 +88,10 @@ Channels implements a communication protocol that allows sending and receiving d
 - [`tokio::io::{AsyncRead, AsyncWrite}`](https://docs.rs/tokio/latest/tokio/io)
 - [`futures::io::{AsyncRead, AsyncWrite}`](https://docs.rs/futures/latest/futures/io)
 
-You can find out more about how the underlying communication protocol works [here](https://github.com/threadexio/channels-rs/blob/master/spec/PROTOCOL.md).
+You can find out more about how the underlying communication protocol works [here](./spec/PROTOCOL.md).
 
 # License
 
-- All code in this repository is licensed under the MIT license, a copy of which can be found [here](https://github.com/threadexio/channels-rs/blob/master/LICENSE).
+- All code in this repository is licensed under the MIT license, a copy of which can be found [here](./LICENSE).
 
-- All artwork in this repository is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/). A copy of the license can be found [here](./.github/images/LICENSE).
+- All artwork in this repository is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/). A copy of the license can be found [here](./assets/LICENSE).
