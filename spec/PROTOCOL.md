@@ -22,6 +22,8 @@ The version field indicates what version of the protocol the packet is using. An
 
 In any case, further communication should not be attempted.
 
+This document is the specification of the version `0xfd3f` of the protocol. That is the value the version field must have.
+
 ### Packet Length
 
 This field encodes the length of the entire packet in bytes from the start of the [Version field](#version) to the end of the [Payload](#payload). The value of this field is calculated by summing the length of  the header and the length of the payload. All packets must set this field equal to 8 or more. With 8 being the minimum size of any packet, assuming a zero-size payload.
@@ -47,7 +49,7 @@ If the sender wishes to transmit a payload larger than what the [length field](#
 
 ### Packet ID
 
-This field is a short-lived identification number for the packet. It is used to ensure the correct ordering of packets and in no way a unique identifier of the packet throughout the entire conversation. Such IDs need not be cryptographically secure. The next ID must be able to be predicted by any party, given that they know the previous ID.
+This field is a short-lived identification number for the packet. It is used to ensure the correct ordering of packets and in no way a unique identifier of the packet throughout the entire conversation. Such IDs need not be cryptographically secure. The next ID must be able to be predicted by any party, given that they know the previous ID. Currently the packet ID is simply a wrapping counter that is incremented by one for every packet in the conversation.
 
 ### Payload
 
