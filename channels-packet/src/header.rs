@@ -28,8 +28,6 @@ macro_rules! impl_bounded_num_type {
 			Self(x)
 		}
 
-		/// The safe version of [`new_unchecked`].
-		///
 		/// Returns `None` only if `x` is not contained in the range: `MIN..=MAX`.
 		#[inline]
 		pub const fn new(x: $Repr) -> Option<Self> {
