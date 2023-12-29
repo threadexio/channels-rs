@@ -9,6 +9,8 @@ description = """
 Utilities to serialize/deserialize types.
 """
 categories = ["parsing", "parser-implementations"]
+keywords = ["serde", "serializer", "deserializer"]
+readme = "README.md"
 
 [features]
 bincode = ["dep:serde", "dep:bincode"]
