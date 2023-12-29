@@ -8,8 +8,13 @@
 [docs-badge]: https://img.shields.io/docsrs/channels?style=for-the-badge&logo=docs.rs&labelColor=%23000&color=%23e2009e
 [downloads-badge]: https://img.shields.io/crates/d/channels?style=for-the-badge&label=downloads&labelColor=%23000&color=%23ff0089
 
+[examples]: https://github.com/threadexio/channels-rs/tree/master/examples
+[spec]: https://github.com/threadexio/channels-rs/blob/master/spec/PROTOCOL.md
+[license]: https://github.com/threadexio/channels-rs/blob/master/LICENSE
+[art-license]: https://github.com/threadexio/channels-rs/blob/master/assets/LICENSE
+
 <div align="center">
-  <img src="assets/logo.transparent.svg" alt="logo" width="640">
+  <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/assets/logo.transparent.svg" width="640" alt="logo">
 
   <p>
     Easy and fast communication between processes, threads and systems.
@@ -74,11 +79,7 @@ async fn main() {
 }
 ```
 
-For more, see: [examples/](./examples)
-
-Some more complete examples:
-
-- [chat-app](https://github.com/threadexio/channels-rs/tree/master/examples/chat-app)
+For more, see: [examples/][examples]
 
 # How it works
 
@@ -88,10 +89,10 @@ Channels implements a communication protocol that allows sending and receiving d
 - [`tokio::io::{AsyncRead, AsyncWrite}`](https://docs.rs/tokio/latest/tokio/io)
 - [`futures::io::{AsyncRead, AsyncWrite}`](https://docs.rs/futures/latest/futures/io)
 
-You can find out more about how the underlying communication protocol works [here](./spec/PROTOCOL.md).
+You can find out more about how the underlying communication protocol works [here][spec].
 
 # License
 
-- All code in this repository is licensed under the MIT license, a copy of which can be found [here](./LICENSE).
+- All code in this repository is licensed under the MIT license, a copy of which can be found [here][license].
 
-- All artwork in this repository is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/). A copy of the license can be found [here](./assets/LICENSE).
+- All artwork in this repository is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/). A copy of the license can be found [here][art-license].
