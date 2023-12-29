@@ -8,7 +8,7 @@ use core::task::{ready, Poll};
 use alloc::vec::Vec;
 
 use channels_packet::{Flags, Header, PayloadLength};
-use channels_serdes::{PayloadBuffer, Serializer};
+use channels_serdes::Serializer;
 
 #[allow(unused_imports)]
 use crate::common::{Pcb, Statistics};
@@ -174,12 +174,12 @@ impl<W> Writer<W> {
 	}
 }
 
-struct Packet {
-	header: IoSlice<[u8; Header::SIZE]>,
-	payload: IoSlice<Vec<u8>>,
+struct Packet<'a> {
+	header: &'a mut dyn Buf,
+	payload: &'a mut dyn Buf,
 }
 
-impl Packet {
+impl Packet<'_> {
 	pub fn has_remaining(&self) -> bool {
 		self.header.has_remaining() || self.payload.has_remaining()
 	}
@@ -204,14 +204,17 @@ impl Packet {
 }
 
 enum State {
-	HasPacket { packet: Packet },
-	NoPacket,
+	SendPacket {
+		header: IoSlice<[u8; Header::SIZE]>,
+		payload_left: usize,
+	},
+	NeedsPacket,
 }
 
 struct SendPayload<'a, W> {
 	writer: &'a mut Writer<W>,
 	pcb: &'a mut Pcb,
-	data: PayloadBuffer,
+	data: IoSlice<Vec<u8>>,
 	has_sent_at_least_one: bool,
 	state: State,
 }
@@ -220,14 +223,14 @@ impl<'a, W> SendPayload<'a, W> {
 	fn new(
 		pcb: &'a mut Pcb,
 		writer: &'a mut Writer<W>,
-		data: PayloadBuffer,
+		data: Vec<u8>,
 	) -> Self {
 		Self {
 			pcb,
 			writer,
-			data,
+			data: IoSlice::new(data),
 			has_sent_at_least_one: false,
-			state: State::NoPacket,
+			state: State::NeedsPacket,
 		}
 	}
 
@@ -240,68 +243,96 @@ impl<'a, W> SendPayload<'a, W> {
 	{
 		use Poll::*;
 
+		use core::cmp::min;
+
 		loop {
 			match self.state {
-				State::NoPacket => {
-					let (payload, payload_length) = match (
-						self.data.pop_first(),
+				State::NeedsPacket => {
+					let (payload_length, has_more) = match (
+						self.data.has_remaining(),
 						self.has_sent_at_least_one,
 					) {
-						(Some(payload), _) => {
-							debug_assert!(
-								payload.len()
-									<= PayloadLength::MAX.as_usize()
+						(false, false) => (PayloadLength::MIN, false),
+						(false, true) => return Ready(Ok(())),
+						(true, _) => {
+							let len = min(
+								PayloadLength::MAX.as_usize(),
+								self.data.remaining(),
 							);
 
-							// SAFETY: `payload` comes from `self.data` which
-							//         guarantees that its chunks have length
-							//         `PayloadLength`.
-							let len = payload.len() as u16;
-							let len = unsafe {
-								PayloadLength::new_unchecked(len)
-							};
+							let has_more =
+								self.data.remaining() > len;
 
-							(payload, len)
+							// SAFETY: `len` is capped at `PayloadLength::MAX`,
+							//         so it definitely fits inside a u16 and is
+							//         definitely inside the required range.
+							//         See: `PayloadLength::new`.
+							let len = PayloadLength::new(len as u16)
+								.unwrap();
+
+							(len, has_more)
 						},
-						(None, false) => {
-							(Vec::new(), PayloadLength::MIN)
-						},
-						(None, true) => return Ready(Ok(())),
 					};
 
-					let packet_length =
-						payload_length.to_packet_length();
-
 					let header = Header {
-						length: packet_length,
+						length: payload_length.to_packet_length(),
 						flags: Flags::zero()
-							.set_if(Flags::MORE_DATA, |_| {
-								self.data.chunk_count() > 0
-							}),
+							.set_if(Flags::MORE_DATA, |_| has_more),
 						id: self.pcb.id_gen.next_id(),
-					}
-					.to_bytes();
+					};
 
 					self.has_sent_at_least_one = true;
 
-					self.state = State::HasPacket {
-						packet: Packet {
-							header: IoSlice::new(header),
-							payload: IoSlice::new(payload),
-						},
+					self.state = State::SendPacket {
+						header: IoSlice::new(header.to_bytes()),
+						payload_left: payload_length.as_usize(),
 					};
 				},
-				State::HasPacket { ref mut packet } => {
-					match ready!(write_packet(self.writer, packet)) {
-						Err(e) => return Ready(Err(e)),
-						Ok(_) => {
-							if !packet.has_remaining() {
-								self.state = State::NoPacket;
+				State::SendPacket {
+					ref mut header,
+					ref mut payload_left,
+				} => {
+					struct PayloadBuf<'a> {
+						inner: &'a mut IoSlice<Vec<u8>>,
+						left: &'a mut usize,
+					}
 
-								#[cfg(feature = "statistics")]
-								self.writer.statistics.inc_packets();
+					impl Buf for PayloadBuf<'_> {
+						fn remaining(&self) -> usize {
+							min(self.inner.remaining(), *self.left)
+						}
+
+						fn unfilled(&self) -> &[u8] {
+							match self.inner.unfilled() {
+								s if s.len() > *self.left => {
+									&s[..*self.left]
+								},
+								s => s,
 							}
-						},
+						}
+
+						fn advance(&mut self, n: usize) {
+							let n = min(n, *self.left);
+							*self.left -= n;
+							self.inner.advance(n);
+						}
+					}
+
+					let mut payload = PayloadBuf {
+						inner: &mut self.data,
+						left: payload_left,
+					};
+
+					let mut packet =
+						Packet { header, payload: &mut payload };
+
+					ready!(write_packet(self.writer, &mut packet))?;
+
+					if !packet.has_remaining() {
+						self.state = State::NeedsPacket;
+
+						#[cfg(feature = "statistics")]
+						self.writer.statistics.inc_packets();
 					}
 				},
 			}
@@ -541,7 +572,9 @@ mod sync_impl {
 }
 
 #[inline]
-fn packet_to_iovecs(packet: &mut Packet) -> [std::io::IoSlice; 2] {
+fn packet_to_iovecs<'a>(
+	packet: &'a mut Packet,
+) -> [std::io::IoSlice<'a>; 2] {
 	use std::io::IoSlice;
 
 	[

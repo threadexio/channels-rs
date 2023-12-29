@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use bincode::Options;
 
-use crate::{Deserializer, PayloadBuffer, Serializer};
+use crate::{Deserializer, Serializer};
 
 fn default_bincode_config() -> impl Options {
 	bincode::options()
@@ -43,20 +43,8 @@ where
 {
 	type Error = bincode::Error;
 
-	fn serialize(
-		&mut self,
-
-		t: &T,
-	) -> Result<PayloadBuffer, Self::Error> {
-		let mut buf = PayloadBuffer::new();
-		let bincode = &mut default_bincode_config();
-
-		let size_hint = bincode.serialized_size(t)?;
-		if let Ok(size_hint) = usize::try_from(size_hint) {
-			buf.reserve(size_hint);
-		}
-
-		bincode.serialize_into(&mut buf, t).map(|_| buf)
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
+		default_bincode_config().serialize(t)
 	}
 }
 

@@ -28,10 +28,6 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-mod buf;
-
-pub use self::buf::PayloadBuffer;
-
 /// The [`Serializer`] trait allows converting a type `T` to safe-to-transport
 /// byte sequences.
 ///
@@ -41,10 +37,7 @@ pub trait Serializer<T> {
 	type Error;
 
 	/// Serialize `t` to a buffer.
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<PayloadBuffer, Self::Error>;
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error>;
 }
 
 /// The [`Deserializer`] trait allows converting a byte slice to a type `T`.

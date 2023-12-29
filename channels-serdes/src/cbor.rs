@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::{Deserializer, PayloadBuffer, Serializer};
+use crate::{Deserializer, Serializer};
 
 /// The [`mod@ciborium`] serializer which automatically works with all
 /// types that implement [`serde::Serialize`] and [`serde::Deserialize`].
@@ -20,13 +20,10 @@ where
 {
 	type Error = ciborium::ser::Error<std::io::Error>;
 
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<PayloadBuffer, Self::Error> {
-		let mut buf = PayloadBuffer::new();
-
-		ciborium::into_writer(t, &mut buf).map(|_| buf)
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
+		let mut buf = Vec::new();
+		ciborium::into_writer(t, &mut buf)?;
+		Ok(buf)
 	}
 }
 
