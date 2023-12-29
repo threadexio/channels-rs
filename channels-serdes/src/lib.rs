@@ -1,4 +1,45 @@
 //! Utilities to serialize/deserialize types.
+//!
+//! # Implementing a serializer/deserializer
+//!
+//! ```rust
+//! use std::convert::Infallible;
+//! use channels_serdes::{Serializer, Deserializer};
+//!
+//! struct MyI32;
+//!
+//! #[derive(Debug, PartialEq, Eq)]
+//! enum I32DeserializeError {
+//!     NotEnough,
+//! }
+//!
+//! impl Serializer<i32> for MyI32 {
+//!     type Error = Infallible; // serializing an i32 cannot fail
+//!
+//!     fn serialize(&mut self, t: &i32) -> Result<Vec<u8>, Self::Error> {
+//!         Ok(t.to_be_bytes().to_vec())
+//!     }
+//! }
+//!
+//! impl Deserializer<i32> for MyI32 {
+//!     type Error = I32DeserializeError;
+//!
+//!     fn deserialize(&mut self, buf: &mut Vec<u8>) -> Result<i32, Self::Error> {
+//!         buf.get(..4)
+//!            .map(|slice| -> [u8; 4] { slice.try_into().unwrap() })
+//!            .map(i32::from_be_bytes)
+//!            .ok_or(I32DeserializeError::NotEnough)
+//!     }
+//! }
+//!
+//! let mut sd = MyI32;
+//!
+//! let mut serialized = sd.serialize(&42).unwrap();
+//! assert_eq!(serialized, &[0, 0, 0, 42]);
+//!
+//! let deserialized = sd.deserialize(&mut serialized);
+//! assert_eq!(deserialized, Ok(42));
+//! ```
 #![allow(
 	unknown_lints,
 	clippy::new_without_default,
@@ -23,6 +64,7 @@
 	rustdoc::broken_intra_doc_links
 )]
 #![deny(missing_docs)]
+#![cfg_attr(not(feature = "__std"), no_std)]
 
 extern crate alloc;
 
