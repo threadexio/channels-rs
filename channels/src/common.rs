@@ -46,16 +46,19 @@ impl Statistics {
 
 impl Statistics {
 	/// Returns the number of bytes transferred through this reader/writer.
+	#[must_use]
 	pub fn total_bytes(&self) -> u64 {
 		self.total_bytes
 	}
 
 	/// Returns the number of packets transferred through this reader/writer.
+	#[must_use]
 	pub fn packets(&self) -> u64 {
 		self.packets
 	}
 
 	/// Returns the total number of `send`/`recv` operations.
+	#[must_use]
 	pub fn ops(&self) -> u64 {
 		self.ops
 	}

@@ -22,8 +22,8 @@ impl<Ser: Error, Io: Error> Display for SendError<Ser, Io> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		use SendError as A;
 		match self {
-			A::Serde(e) => write!(f, "{}", e),
-			A::Io(e) => write!(f, "{}", e),
+			A::Serde(e) => Display::fmt(e, f),
+			A::Io(e) => Display::fmt(e, f),
 		}
 	}
 }
@@ -79,14 +79,12 @@ impl From<HeaderReadError> for VerifyError {
 impl fmt::Display for VerifyError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::VersionMismatch => write!(f, "version mismatch"),
-			Self::ChecksumError => write!(f, "corrupted data"),
+			Self::VersionMismatch => f.write_str("version mismatch"),
+			Self::ChecksumError => f.write_str("corrupted data"),
 			Self::OutOfOrder => {
-				write!(f, "data was received out of order")
+				f.write_str("data was received out of order")
 			},
-			Self::InvalidHeader => {
-				write!(f, "invalid packet")
-			},
+			Self::InvalidHeader => f.write_str("invalid packet"),
 		}
 	}
 }
@@ -114,9 +112,9 @@ impl<Ser: Error, Io: Error> Display for RecvError<Ser, Io> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		use RecvError as A;
 		match self {
-			A::Serde(e) => write!(f, "{}", e),
-			A::Io(e) => write!(f, "{}", e),
-			A::Verify(e) => write!(f, "{}", e),
+			A::Serde(e) => Display::fmt(e, f),
+			A::Io(e) => Display::fmt(e, f),
+			A::Verify(e) => Display::fmt(e, f),
 		}
 	}
 }

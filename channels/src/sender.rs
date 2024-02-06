@@ -37,6 +37,7 @@ impl<T> Sender<T, (), ()> {
 	///            .serializer(serializer)
 	///            .build();
 	/// ```
+	#[must_use]
 	pub const fn builder() -> Builder<T, (), ()> {
 		Builder::new()
 	}
@@ -67,7 +68,7 @@ impl<T, W> Sender<T, W, crate::serdes::Bincode> {
 	///
 	/// [`Bincode`]: crate::serdes::Bincode
 	pub fn new(writer: W) -> Self {
-		Self::with_serializer(writer, Default::default())
+		Self::with_serializer(writer, crate::serdes::Bincode::new())
 	}
 }
 
@@ -226,6 +227,19 @@ pub struct Builder<T, W, S> {
 	serializer: S,
 }
 
+impl<T, R, D> fmt::Debug for Builder<T, R, D>
+where
+	R: fmt::Debug,
+	D: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Builder")
+			.field("writer", &self.writer)
+			.field("serializer", &self.serializer)
+			.finish()
+	}
+}
+
 impl<T> Builder<T, (), ()> {
 	/// Create a new [`Builder`] with the default options.
 	///
@@ -240,6 +254,7 @@ impl<T> Builder<T, (), ()> {
 	///            .serializer(serializer)
 	///            .build();
 	/// ```
+	#[must_use]
 	pub const fn new() -> Self {
 		Builder { _marker: PhantomData, serializer: (), writer: () }
 	}
@@ -413,7 +428,7 @@ impl<'a, W> SendPayload<'a, W> {
 	where
 		F: FnMut(&mut Writer<W>, &mut Packet) -> Poll<Result<(), E>>,
 	{
-		use Poll::*;
+		use Poll::Ready;
 
 		use core::cmp::min;
 
@@ -439,8 +454,10 @@ impl<'a, W> SendPayload<'a, W> {
 							//         so it definitely fits inside a u16 and is
 							//         definitely inside the required range.
 							//         See: `PayloadLength::new`.
-							let len = PayloadLength::new(len as u16)
-								.unwrap();
+							#[allow(clippy::cast_possible_truncation)]
+							let len = PayloadLength::new_saturating(
+								len as u16,
+							);
 
 							(len, has_more)
 						},
@@ -519,7 +536,10 @@ core::compile_error!(
 
 #[cfg(any(feature = "tokio", feature = "futures"))]
 mod async_impl {
-	use super::*;
+	use super::{
+		packet_to_iovecs, Borrow, Packet, SendError, SendPayload,
+		Sender, Serializer, Writer,
+	};
 
 	use core::future::Future;
 	use core::pin::{pin, Pin};
@@ -527,7 +547,10 @@ mod async_impl {
 
 	#[cfg(feature = "tokio")]
 	mod imp {
-		use super::*;
+		use super::{
+			packet_to_iovecs, pin, ready, Context, Packet, Poll,
+			Writer,
+		};
 
 		use tokio::io;
 
@@ -542,7 +565,7 @@ mod async_impl {
 			W: AsyncWrite + Unpin,
 		{
 			use io::ErrorKind as E;
-			use Poll::*;
+			use Poll::{Pending, Ready};
 
 			while packet.has_remaining() {
 				let iovecs = packet_to_iovecs(packet);
@@ -653,7 +676,7 @@ mod async_impl {
 
 			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
 				.await
-				.map(|_| {
+				.map(|()| {
 					#[cfg(feature = "statistics")]
 					self.writer.statistics.inc_ops();
 				})
@@ -663,10 +686,13 @@ mod async_impl {
 }
 
 mod sync_impl {
-	use super::*;
+	use super::{
+		packet_to_iovecs, Borrow, Packet, Poll, PollExt, SendError,
+		SendPayload, Sender, Serializer, Writer,
+	};
 
 	mod imp {
-		use super::*;
+		use super::{packet_to_iovecs, Packet, Poll, Writer};
 
 		use std::io;
 
@@ -680,7 +706,7 @@ mod sync_impl {
 			W: Write,
 		{
 			use io::ErrorKind as E;
-			use Poll::*;
+			use Poll::{Pending, Ready};
 
 			while packet.has_remaining() {
 				let iovecs = packet_to_iovecs(packet);
@@ -734,7 +760,7 @@ mod sync_impl {
 			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
 				.advance(write_packet)
 				.unwrap()
-				.map(|_| {
+				.map(|()| {
 					#[cfg(feature = "statistics")]
 					self.writer.statistics.inc_ops();
 				})

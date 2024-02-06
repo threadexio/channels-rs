@@ -53,11 +53,7 @@
 //! **NOTE:** Because of the subtle differences in the APIs of `tokio` and
 //!           `futures`, it means that these 2 features must be exclusive. You
 //!           cannot have both `tokio` and `futures` enabled at once.
-#![allow(
-	unknown_lints,
-	clippy::new_without_default,
-	clippy::needless_doctest_main
-)]
+#![deny(missing_docs)]
 #![warn(
 	clippy::all,
 	clippy::style,
@@ -65,23 +61,27 @@
 	clippy::perf,
 	clippy::correctness,
 	clippy::complexity,
-	clippy::deprecated,
+	clippy::pedantic,
+	clippy::suspicious,
+	arithmetic_overflow,
+	missing_debug_implementations,
 	clippy::cast_lossless,
 	clippy::cast_possible_wrap,
 	clippy::useless_conversion,
-	clippy::wrong_self_convention
-)]
-// Docs
-#![deny(missing_docs)]
-#![warn(
+	clippy::wrong_self_convention,
+	clippy::missing_assert_message,
+	clippy::unwrap_used,
+	// Docs
 	rustdoc::all,
 	rustdoc::broken_intra_doc_links,
 	rustdoc::missing_crate_level_docs,
-	rustdoc::unnecessary_safety_doc,
 	clippy::missing_panics_doc,
 	clippy::missing_safety_doc,
-	clippy::missing_doc_code_examples,
-	clippy::private_intra_doc_links
+)]
+#![allow(
+	clippy::new_without_default,
+	clippy::module_name_repetitions,
+	clippy::missing_errors_doc
 )]
 
 extern crate alloc;

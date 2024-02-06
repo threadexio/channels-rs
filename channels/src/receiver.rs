@@ -36,6 +36,7 @@ impl<T> Receiver<T, (), ()> {
 	///            .deserializer(deserializer)
 	///            .build();
 	/// ```
+	#[must_use]
 	pub const fn builder() -> Builder<T, (), ()> {
 		Builder::new()
 	}
@@ -66,7 +67,7 @@ impl<T, R> Receiver<T, R, crate::serdes::Bincode> {
 	///
 	/// [`Bincode`]: crate::serdes::Bincode
 	pub fn new(reader: R) -> Self {
-		Self::with_deserializer(reader, Default::default())
+		Self::with_deserializer(reader, crate::serdes::Bincode::new())
 	}
 }
 
@@ -262,11 +263,23 @@ pub struct Incoming<'a, T, R, D> {
 }
 
 /// A builder for [`Receiver`].
-#[derive(Debug)]
 pub struct Builder<T, R, D> {
 	_marker: PhantomData<T>,
 	reader: R,
 	deserializer: D,
+}
+
+impl<T, R, D> fmt::Debug for Builder<T, R, D>
+where
+	R: fmt::Debug,
+	D: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Builder")
+			.field("reader", &self.reader)
+			.field("deserializer", &self.deserializer)
+			.finish()
+	}
 }
 
 impl<T> Builder<T, (), ()> {
@@ -283,6 +296,7 @@ impl<T> Builder<T, (), ()> {
 	///            .deserializer(deserializer)
 	///            .build();
 	/// ```
+	#[must_use]
 	pub const fn new() -> Self {
 		Builder { _marker: PhantomData, reader: (), deserializer: () }
 	}
@@ -447,7 +461,7 @@ impl<'a, R> RecvPayload<'a, R> {
 			&mut dyn BufMut,
 		) -> Poll<Result<(), E>>,
 	{
-		use Poll::*;
+		use Poll::Ready;
 
 		/// Grow `vec` by `len` bytes and return the newly-allocated bytes as a slice.
 		fn reserve_slice_in_vec(
@@ -463,13 +477,8 @@ impl<'a, R> RecvPayload<'a, R> {
 		loop {
 			match self.state {
 				State::PartialHeader { ref mut part } => {
-					match ready!(read_all(self.reader, part))
-						.map_err(RecvPayloadError::Io)
-					{
-						Err(e) => {
-							return Ready(Err(e));
-						},
-						Ok(_) => {
+					match ready!(read_all(self.reader, part)) {
+						Ok(()) => {
 							let header = Header::read_from(
 								part.inner_ref(),
 								&mut self.pcb.id_gen,
@@ -488,17 +497,17 @@ impl<'a, R> RecvPayload<'a, R> {
 							self.state =
 								State::PartialPayload { header };
 						},
+						Err(e) => {
+							return Ready(Err(RecvPayloadError::Io(
+								e,
+							)));
+						},
 					}
 				},
 				State::PartialPayload { ref header } => match ready!(
 					read_all(self.reader, &mut self.payload)
-				)
-				.map_err(RecvPayloadError::Io)
-				{
-					Err(e) => {
-						return Ready(Err(e));
-					},
-					Ok(_) => {
+				) {
+					Ok(()) => {
 						#[cfg(feature = "statistics")]
 						self.reader.statistics.inc_packets();
 
@@ -510,6 +519,9 @@ impl<'a, R> RecvPayload<'a, R> {
 							);
 							return Ready(Ok(payload));
 						}
+					},
+					Err(e) => {
+						return Ready(Err(RecvPayloadError::Io(e)));
 					},
 				},
 			}
@@ -524,7 +536,10 @@ core::compile_error!(
 
 #[cfg(any(feature = "tokio", feature = "futures"))]
 mod async_impl {
-	use super::*;
+	use super::{
+		ready, BufMut, Deserializer, Incoming, Poll, Reader,
+		Receiver, RecvError, RecvPayload, RecvPayloadError, Vec,
+	};
 
 	use core::future::Future;
 	use core::pin::{pin, Pin};
@@ -532,7 +547,7 @@ mod async_impl {
 
 	#[cfg(feature = "tokio")]
 	mod imp {
-		use super::*;
+		use super::{pin, ready, BufMut, Context, Poll, Reader};
 
 		use tokio::io;
 
@@ -547,7 +562,7 @@ mod async_impl {
 			R: AsyncRead + Unpin,
 		{
 			use io::ErrorKind as E;
-			use Poll::*;
+			use Poll::{Pending, Ready};
 
 			while buf.has_remaining() {
 				let mut read_buf =
@@ -558,10 +573,10 @@ mod async_impl {
 				{
 					Err(e) if e.kind() == E::Interrupted => continue,
 					Err(e) if e.kind() == E::WouldBlock => {
-						return Poll::Pending
+						return Pending
 					},
 					Err(e) => return Ready(Err(e)),
-					Ok(_) => {
+					Ok(()) => {
 						let l1 = read_buf.filled().len();
 						let dl = l1 - l0;
 
@@ -606,7 +621,7 @@ mod async_impl {
 				{
 					Err(e) if e.kind() == E::Interrupted => continue,
 					Err(e) if e.kind() == E::WouldBlock => {
-						return Poll::Pending
+						return Pending
 					},
 					Err(e) => return Ready(Err(e)),
 					Ok(0) => {
@@ -684,12 +699,15 @@ mod async_impl {
 }
 
 mod sync_impl {
-	use super::*;
+	use super::{
+		BufMut, Deserializer, Incoming, Poll, Reader, Receiver,
+		RecvError, RecvPayload,
+	};
 
 	use crate::util::PollExt;
 
 	mod imp {
-		use super::*;
+		use super::{BufMut, Poll, Reader};
 
 		use std::io;
 
@@ -703,7 +721,7 @@ mod sync_impl {
 			R: Read,
 		{
 			use io::ErrorKind as E;
-			use Poll::*;
+			use Poll::{Pending, Ready};
 
 			while buf.has_remaining() {
 				match reader.inner.read(buf.unfilled_mut()) {

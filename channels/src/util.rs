@@ -127,7 +127,7 @@ impl<T: Buf + ?Sized> Buf for &mut T {
 	}
 
 	fn advance(&mut self, n: usize) {
-		(**self).advance(n)
+		(**self).advance(n);
 	}
 
 	fn has_remaining(&self) -> bool {
@@ -218,7 +218,10 @@ impl<T> IoSlice<T> {
 	where
 		T: Bytes,
 	{
-		assert!(self.pos <= self.data.as_bytes().len());
+		assert!(
+			self.pos <= self.data.as_bytes().len(),
+			"buffer cursor cannot point outside the buffer"
+		);
 		self.pos = pos;
 	}
 }
@@ -233,7 +236,10 @@ impl<T: Bytes> Buf for IoSlice<T> {
 	}
 
 	fn advance(&mut self, n: usize) {
-		assert!(n <= self.remaining());
+		assert!(
+			n <= self.remaining(),
+			"n must be less than the remaining space in the buffer"
+		);
 		self.pos += n;
 	}
 }
