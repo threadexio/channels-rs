@@ -40,18 +40,19 @@
 //!
 //! ## cargo features
 //!
-//! - `statistics`: Capture statistic data like: total bytes sent/received, number of send/receive operations, etc
-//! - `tokio`: Adds support for sending/receiving types asynchronously with tokio.
-//! - `futures`: Adds support for sending/receiving types asynchronously with futures.
-//! - `bincode`: Support for serializing/deserializing types with `bincode`.
-//! - `cbor`: Support for serializing/deserializing types with `ciborium`.
-//! - `json`: Support for serializing/deserializing types with `serde_json`.
+//! |   Feature    | Description                                                                                     |
+//! | :----------: | :---------------------------------------------------------------------------------------------- |
+//! | `statistics` | Capture statistic data like: total bytes sent/received, number of send/receive operations, etc. |
+//! | `tokio`      | Adds support for sending/receiving types asynchronously with tokio.                             |
+//! | `futures`    | Adds support for sending/receiving types asynchronously with futures.                           |
+//! | `bincode`    | Support for serializing/deserializing types with `bincode`.                                     |
+//! | `cbor`       | Support for serializing/deserializing types with `ciborium`.                                    |
+//! | `json`       | Support for serializing/deserializing types with `serde_json`.                                  |
+//! | `full`       | All of the above except `tokio` and `futures`.                                                  |
 //!
-//! - `full`: All of the above except `tokio` and `futures`.
-//!
-//! **NOTE:** Because of the subtle differences in the APIs of `tokio` and `futures`,
-//!           it means that these 2 features must be exclusive. You cannot have both
-//!           `tokio` and `futures` enabled at once.
+//! **NOTE:** Because of the subtle differences in the APIs of `tokio` and
+//!           `futures`, it means that these 2 features must be exclusive. You
+//!           cannot have both `tokio` and `futures` enabled at once.
 #![allow(
 	unknown_lints,
 	clippy::new_without_default,
@@ -65,18 +66,23 @@
 	clippy::correctness,
 	clippy::complexity,
 	clippy::deprecated,
-	clippy::missing_doc_code_examples,
-	clippy::missing_panics_doc,
-	clippy::missing_safety_doc,
-	clippy::missing_doc_code_examples,
 	clippy::cast_lossless,
 	clippy::cast_possible_wrap,
 	clippy::useless_conversion,
-	clippy::wrong_self_convention,
-	rustdoc::all,
-	rustdoc::broken_intra_doc_links
+	clippy::wrong_self_convention
 )]
+// Docs
 #![deny(missing_docs)]
+#![warn(
+	rustdoc::all,
+	rustdoc::broken_intra_doc_links,
+	rustdoc::missing_crate_level_docs,
+	rustdoc::unnecessary_safety_doc,
+	clippy::missing_panics_doc,
+	clippy::missing_safety_doc,
+	clippy::missing_doc_code_examples,
+	clippy::private_intra_doc_links
+)]
 
 extern crate alloc;
 

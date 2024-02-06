@@ -14,10 +14,7 @@ use crate::common::{Pcb, Statistics};
 use crate::error::{RecvError, VerifyError};
 use crate::util::{BufMut, IoSlice};
 
-/// The receiving-half of the channel. This is the same as [`std::sync::mpsc::Receiver`],
-/// except for a [few key differences](crate).
-///
-/// See [crate-level documentation](crate).
+/// The receiving-half of the channel.
 pub struct Receiver<T, R, D> {
 	_marker: PhantomData<T>,
 	reader: Reader<R>,
@@ -27,6 +24,18 @@ pub struct Receiver<T, R, D> {
 
 impl<T> Receiver<T, (), ()> {
 	/// Create a new builder.
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// let reader = std::io::empty();
+	/// let deserializer = channels::serdes::Bincode::new();
+	///
+	/// let rx = channels::Receiver::<i32, _, _>::builder()
+	///            .reader(reader)
+	///            .deserializer(deserializer)
+	///            .build();
+	/// ```
 	pub const fn builder() -> Builder<T, (), ()> {
 		Builder::new()
 	}
@@ -35,6 +44,27 @@ impl<T> Receiver<T, (), ()> {
 #[cfg(feature = "bincode")]
 impl<T, R> Receiver<T, R, crate::serdes::Bincode> {
 	/// Creates a new [`Receiver`] from `reader`.
+	///
+	/// This constructor is a shorthand for calling [`Receiver::builder()`] with
+	/// `reader` and the default deserializer, which is [`Bincode`].
+	///
+	/// # Example
+	///
+	/// Synchronously:
+	///
+	/// ```no_run
+	/// let reader = std::io::empty();
+	/// let rx = channels::Receiver::<i32, _, _>::new(reader);
+	/// ```
+	///
+	/// Asynchronously:
+	///
+	/// ```no_run
+	/// let reader = tokio::io::empty();
+	/// let rx = channels::Receiver::<i32, _, _>::new(reader);
+	/// ```
+	///
+	/// [`Bincode`]: crate::serdes::Bincode
 	pub fn new(reader: R) -> Self {
 		Self::with_deserializer(reader, Default::default())
 	}
@@ -42,6 +72,35 @@ impl<T, R> Receiver<T, R, crate::serdes::Bincode> {
 
 impl<T, R, D> Receiver<T, R, D> {
 	/// Create a new [`Receiver`] from `reader` that uses `deserializer`.
+	///
+	/// This constructor is a shorthand for calling [`Receiver::builder()`] with
+	/// `reader` and `deserializer`.
+	///
+	/// # Example
+	///
+	/// Synchronously:
+	///
+	/// ```no_run
+	/// let deserializer = channels::serdes::Bincode::new();
+	/// let reader = std::io::empty();
+	///
+	/// let rx = channels::Receiver::<i32, _, _>::with_deserializer(
+	///     reader,
+	///     deserializer
+	/// );
+	/// ```
+	///
+	/// Asynchronously:
+	///
+	/// ```no_run
+	/// let deserializer = channels::serdes::Bincode::new();
+	/// let reader = tokio::io::empty();
+	///
+	/// let rx = channels::Receiver::<i32, _, _>::with_deserializer(
+	///     reader,
+	///     deserializer
+	/// );
+	/// ```
 	pub fn with_deserializer(reader: R, deserializer: D) -> Self {
 		Receiver::builder()
 			.reader(reader)
@@ -50,22 +109,119 @@ impl<T, R, D> Receiver<T, R, D> {
 	}
 
 	/// Get a reference to the underlying reader.
+	///
+	/// # Example
+	///
+	/// ```
+	/// use std::io;
+	///
+	/// struct MyReader {
+	///     count: usize
+	/// }
+	///
+	/// impl io::Read for MyReader {
+	///     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+	///         self.count += 1;
+	///         Ok(buf.len())
+	///     }
+	/// }
+	///
+	/// let rx = channels::Receiver::<i32, _, _>::new(MyReader { count: 42 });
+	///
+	/// let r: &MyReader = rx.get();
+	/// assert_eq!(r.count, 42);
+	/// ```
 	pub fn get(&self) -> &R {
 		&self.reader.inner
 	}
 
-	/// Get a mutable reference to the underlying writer. Directly writing to
+	/// Get a mutable reference to the underlying reader. Directly reading from
 	/// the stream is not advised.
+	///
+	/// # Example
+	///
+	/// ```
+	/// use std::io;
+	///
+	/// struct MyReader {
+	///     count: usize
+	/// }
+	///
+	/// impl io::Read for MyReader {
+	///     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+	///         self.count += 1;
+	///         Ok(buf.len())
+	///     }
+	/// }
+	///
+	/// let mut rx = channels::Receiver::<i32, _, _>::new(MyReader { count: 42 });
+	///
+	/// let r: &mut MyReader = rx.get_mut();
+	/// r.count += 10;
+	/// assert_eq!(r.count, 52);
+	/// ```
 	pub fn get_mut(&mut self) -> &mut R {
 		&mut self.reader.inner
 	}
 
 	/// Get an iterator over incoming messages.
+	///
+	/// # Example
+	///
+	/// Synchronously:
+	///
+	/// ```no_run
+	/// let reader = std::io::empty();
+	/// let mut rx = channels::Receiver::<i32, _, _>::new(reader);
+	///
+	/// for message in rx.incoming() {
+	///     match message {
+	///         Ok(message) => println!("received: {message}"),
+	///         Err(err) => eprintln!("failed to receive message: {err}"),
+	///     }
+	/// }
+	/// ```
+	///
+	/// Asynchronously:
+	///
+	/// ```no_run
+	/// #[tokio::main]
+	/// async fn main() {
+	///     let reader = tokio::io::empty();
+	///     let mut rx = channels::Receiver::<i32, _, _>::new(reader);
+	///
+	///     let mut incoming = rx.incoming();
+	///
+	///     loop {
+	///         tokio::select! {
+	///             message = incoming.next_async() => {
+	///                 match message {
+	///                     Ok(message) => println!("received: {message}"),
+	///                     Err(err) => eprintln!("failed to receive message: {err}"),
+	///                 }
+	///             }
+	///             // ...
+	///         }
+	///     }
+	/// }
+	/// ```
 	pub fn incoming(&mut self) -> Incoming<'_, T, R, D> {
 		Incoming { receiver: self }
 	}
 
 	/// Get statistics on this receiver.
+	///
+	/// # Example
+	///
+	/// ```
+	/// let reader = std::io::empty();
+	/// let rx = channels::Receiver::<i32, _, _>::new(reader);
+	///
+	/// let stats = rx.statistics();
+	/// assert_eq!(stats.total_bytes(), 0);
+	/// assert_eq!(stats.packets(), 0);
+	/// assert_eq!(stats.ops(), 0);
+	/// ```
 	#[cfg(feature = "statistics")]
 	pub fn statistics(&self) -> &Statistics {
 		&self.reader.statistics
@@ -105,7 +261,7 @@ pub struct Incoming<'a, T, R, D> {
 	receiver: &'a mut Receiver<T, R, D>,
 }
 
-/// A builder that when completed will return a [`Receiver`].
+/// A builder for [`Receiver`].
 #[derive(Debug)]
 pub struct Builder<T, R, D> {
 	_marker: PhantomData<T>,
@@ -115,6 +271,18 @@ pub struct Builder<T, R, D> {
 
 impl<T> Builder<T, (), ()> {
 	/// Create a new [`Builder`] with the default options.
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// let reader = std::io::empty();
+	/// let deserializer = channels::serdes::Bincode::new();
+	///
+	/// let rx = channels::receiver::Builder::<i32, _, _>::new()
+	///            .reader(reader)
+	///            .deserializer(deserializer)
+	///            .build();
+	/// ```
 	pub const fn new() -> Self {
 		Builder { _marker: PhantomData, reader: (), deserializer: () }
 	}
@@ -127,7 +295,25 @@ impl<T> Default for Builder<T, (), ()> {
 }
 
 impl<T, D> Builder<T, (), D> {
-	/// Use this synchronous reader.
+	/// Sets the reader of the [`Receiver`].
+	///
+	/// This function accepts both synchronous and asynchronous readers.
+	///
+	/// # Example
+	///
+	/// Synchronously:
+	///
+	/// ```no_run
+	/// let builder = channels::Receiver::<i32, _, _>::builder()
+	///                 .reader(std::io::empty());
+	/// ```
+	///
+	/// Asynchronously:
+	///
+	/// ```no_run
+	/// let builder = channels::Receiver::<i32, _, _>::builder()
+	///                 .reader(tokio::io::empty());
+	/// ```
 	pub fn reader<R>(self, reader: R) -> Builder<T, R, D> {
 		Builder {
 			_marker: PhantomData,
@@ -138,7 +324,16 @@ impl<T, D> Builder<T, (), D> {
 }
 
 impl<T, R> Builder<T, R, ()> {
-	/// Use this deserializer.
+	/// Sets the deserializer of the [`Receiver`].
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// let deserializer = channels::serdes::Bincode::new();
+	///
+	/// let builder = channels::Receiver::<i32, _, _>::builder()
+	///                 .deserializer(deserializer);
+	/// ```
 	pub fn deserializer<D>(
 		self,
 		deserializer: D,
@@ -152,7 +347,16 @@ impl<T, R> Builder<T, R, ()> {
 }
 
 impl<T, R, D> Builder<T, R, D> {
-	/// Finalize the builder and build a [`Receiver`]
+	/// Build a [`Receiver`].
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// let rx: channels::Receiver<i32, _, _> = channels::Receiver::builder()
+	///            .reader(std::io::empty())
+	///            .deserializer(channels::serdes::Bincode::new())
+	///            .build();
+	/// ```
 	pub fn build(self) -> Receiver<T, R, D> {
 		Receiver {
 			_marker: PhantomData,
