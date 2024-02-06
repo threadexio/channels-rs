@@ -26,7 +26,11 @@ pub unsafe fn slice_to_array<T, const N: usize>(
 	slice: &[T],
 ) -> &[T; N] {
 	assert!(slice.len() >= N, "slice is smaller than N");
-	slice.as_ptr().cast::<[T; N]>().as_ref().unwrap()
+	slice
+		.as_ptr()
+		.cast::<[T; N]>()
+		.as_ref()
+		.expect("failed to cast N-sized slice to N-sized array")
 }
 
 /// Convert a `&mut [T]` to a `&mut [T; N]`.
@@ -43,5 +47,9 @@ pub unsafe fn slice_to_array_mut<T, const N: usize>(
 	slice: &mut [T],
 ) -> &mut [T; N] {
 	assert!(slice.len() >= N, "slice is smaller than N");
-	slice.as_mut_ptr().cast::<[T; N]>().as_mut().unwrap()
+	slice
+		.as_mut_ptr()
+		.cast::<[T; N]>()
+		.as_mut()
+		.expect("failed to cast N-sized slice to N-sized array")
 }

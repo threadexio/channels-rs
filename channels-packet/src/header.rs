@@ -23,6 +23,7 @@ macro_rules! impl_bounded_num_type {
 		/// The caller must ensure `x` is contained in the range: `MIN..=MAX`.
 		#[inline]
 		#[track_caller]
+		#[must_use]
 		pub const unsafe fn new_unchecked(x: $Repr) -> Self {
 			assert!(Self::MIN.0 <= x && x <= Self::MAX.0);
 			Self(x)
@@ -30,6 +31,7 @@ macro_rules! impl_bounded_num_type {
 
 		/// Returns `None` only if `x` is not contained in the range: `MIN..=MAX`.
 		#[inline]
+		#[must_use]
 		pub const fn new(x: $Repr) -> Option<Self> {
 			if (Self::MIN.0 <= x) && (x <= Self::MAX.0) {
 				Some(unsafe { Self::new_unchecked(x) })
@@ -41,6 +43,7 @@ macro_rules! impl_bounded_num_type {
 		/// Returns the `MAX` if `x` is greater than `MAX` and `MIN` if `x` is
 		/// less than `MIN`.
 		#[inline]
+		#[must_use]
 		pub const fn new_saturating(mut x: $Repr) -> Self {
 			if x < Self::MIN.0 {
 				x = Self::MIN.0;
@@ -72,6 +75,7 @@ impl PacketLength {
 
 	/// Get the length as a [`usize`].
 	#[inline]
+	#[must_use]
 	pub const fn as_usize(&self) -> usize {
 		// SAFETY: usize is always greater or equal to u16
 		self.0 as usize
@@ -79,12 +83,14 @@ impl PacketLength {
 
 	/// Get the length as a [`u16`].
 	#[inline]
+	#[must_use]
 	pub const fn as_u16(&self) -> u16 {
 		self.0
 	}
 
 	/// Convert this packet length to a payload length.
 	#[inline]
+	#[must_use]
 	pub const fn to_payload_length(&self) -> PayloadLength {
 		unsafe {
 			// SAFETY: PacketLength::MIN <= self <= PacketLength::MAX
@@ -115,6 +121,7 @@ impl PayloadLength {
 
 	/// Get the length as a [`usize`].
 	#[inline]
+	#[must_use]
 	pub const fn as_usize(&self) -> usize {
 		// SAFETY: usize is always greater or equal to u16
 		self.0 as usize
@@ -122,12 +129,14 @@ impl PayloadLength {
 
 	/// Get the length as a [`u16`].
 	#[inline]
+	#[must_use]
 	pub const fn as_u16(&self) -> u16 {
 		self.0
 	}
 
 	/// Convert this payload length to a packet length.
 	#[inline]
+	#[must_use]
 	pub const fn to_packet_length(&self) -> PacketLength {
 		unsafe {
 			// SAFETY: PayloadLength::MIN <= self <= PayloadLength::MAX
@@ -154,12 +163,14 @@ impl Flags {
 impl Flags {
 	/// Create an empty [`Flags`] structure.
 	#[inline]
+	#[must_use]
 	pub const fn zero() -> Self {
 		Self(0)
 	}
 
 	/// Check whether all bits of `flags` are currently set.
 	#[inline]
+	#[must_use]
 	pub const fn is_set(&self, flags: Self) -> bool {
 		(self.0 & flags.0) ^ flags.0 == 0
 	}
@@ -178,6 +189,7 @@ impl Flags {
 
 	/// Conditionally set `flags` if _f_ returns true.
 	#[inline]
+	#[must_use]
 	pub fn set_if<F>(mut self, flags: Self, f: F) -> Self
 	where
 		F: FnOnce(Self) -> bool,
@@ -225,6 +237,7 @@ pub struct IdGenerator {
 
 impl IdGenerator {
 	/// Create a new [`IdGenerator`].
+	#[must_use]
 	pub const fn new() -> Self {
 		Self { current: Wrapping(0) }
 	}
@@ -264,6 +277,7 @@ pub struct Checksum {
 
 impl Checksum {
 	/// Create a new empty checksum.
+	#[must_use]
 	pub const fn new() -> Self {
 		Self { state: 0 }
 	}
@@ -274,6 +288,7 @@ impl Checksum {
 	}
 
 	/// Same as [`Checksum::update_u16`] but for use with the builder pattern.
+	#[must_use]
 	pub fn chain_update_u16(mut self, w: u16) -> Self {
 		self.update_u16(w);
 		self
@@ -285,7 +300,11 @@ impl Checksum {
 		let mut iter = data.chunks_exact(2);
 
 		(&mut iter)
-			.map(|x| -> [u8; 2] { x.try_into().unwrap() })
+			.map(|x| -> [u8; 2] {
+				x.try_into().expect(
+					"chunks_exact() returned non N-sized chunk",
+				)
+			})
 			.map(u16::from_be_bytes)
 			.for_each(|w| self.update_u16(w));
 
@@ -295,12 +314,15 @@ impl Checksum {
 	}
 
 	/// Same as [`Checksum::update`] but for use with the builder pattern.
+	#[must_use]
 	pub fn chain_update(mut self, data: &[u8]) -> Self {
 		self.update(data);
 		self
 	}
 
 	/// Finalize the checksum.
+	#[must_use]
+	#[allow(clippy::cast_possible_truncation)]
 	pub fn finalize(mut self) -> u16 {
 		while (self.state >> 16) != 0 {
 			self.state = (self.state >> 16) + (self.state & 0xffff);
@@ -312,6 +334,7 @@ impl Checksum {
 	/// Calculate the checksum of `data`.
 	///
 	/// Equivalent to: `Checksum::new().chain_update(data).finalize()`.
+	#[must_use]
 	pub fn checksum(data: &[u8]) -> u16 {
 		Self::new().chain_update(data).finalize()
 	}
@@ -360,6 +383,7 @@ impl Header {
 	const ID_SHIFT: u64 = 0;
 
 	/// Convert the header to its raw format.
+	#[must_use]
 	#[allow(clippy::cast_lossless)]
 	pub fn to_bytes(&self) -> [u8; Self::SIZE] {
 		const fn combine_u8(a: u8, b: u8) -> u16 {
@@ -410,6 +434,7 @@ impl Header {
 	/// an array.
 	///
 	/// [`slice_to_array`]: crate::util::slice_to_array
+	#[allow(clippy::cast_possible_truncation)]
 	pub fn read_from(
 		buf: &[u8; Self::SIZE],
 		gen: &mut IdGenerator,
@@ -422,7 +447,6 @@ impl Header {
 		if version != Self::VERSION {
 			return Err(E::VersionMismatch);
 		}
-
 		let checksum = Checksum::new()
 			.chain_update_u16(raw as u16)
 			.chain_update_u16((raw >> (2 * 8)) as u16)
@@ -442,10 +466,10 @@ impl Header {
 			PacketLength::new(length).ok_or(E::InvalidLength)?;
 
 		let id = Id(id);
-		if gen.current() != id {
-			return Err(E::OutOfOrder);
-		} else {
+		if gen.current() == id {
 			let _ = gen.next_id();
+		} else {
+			return Err(E::OutOfOrder);
 		}
 
 		let flags = Flags(flags);
@@ -509,7 +533,9 @@ mod tests {
 	fn test_header_write() {
 		assert_eq!(
 			Header {
-				length: PacketLength::new(1234).unwrap(),
+				length: PacketLength::new(1234).expect(
+					"1234 should be inside the range of PacketLength"
+				),
 				flags: Flags::zero(),
 				id: Id(42),
 			}
@@ -519,7 +545,9 @@ mod tests {
 
 		assert_eq!(
 			Header {
-				length: PacketLength::new(42).unwrap(),
+				length: PacketLength::new(42).expect(
+					"42 should be inside the range of PacketLength"
+				),
 				flags: Flags::MORE_DATA,
 				id: Id(0),
 			}
@@ -537,9 +565,11 @@ mod tests {
 				&[0xfd, 0x3f, 0x04, 0xd2, 0xfd, 0xed, 0x00, 0x00],
 				&mut gen
 			)
-			.unwrap(),
+			.expect("failed to read header from hardcoded bytes"),
 			Header {
-				length: PacketLength::new(1234).unwrap(),
+				length: PacketLength::new(1234).expect(
+					"1234 should be inside the range of PacketLength"
+				),
 				flags: Flags::zero(),
 				id: Id(0),
 			}
@@ -550,9 +580,11 @@ mod tests {
 				&[0xfd, 0x3f, 0x00, 0x2a, 0x82, 0x94, 0x80, 0x01],
 				&mut gen
 			)
-			.unwrap(),
+			.expect("failed to read header from hardcoded bytes"),
 			Header {
-				length: PacketLength::new(42).unwrap(),
+				length: PacketLength::new(42).expect(
+					"1234 should be inside the range of PacketLength"
+				),
 				flags: Flags::MORE_DATA,
 				id: Id(1),
 			}
