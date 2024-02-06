@@ -5,48 +5,47 @@ on:
   pull_request:
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fmt --check --all
+      - run: cargo check --workspace
+      - run: cargo clippy --all
+
   test:
     strategy:
       fail-fast: false
       matrix:
-        job:
-          - { os: ubuntu-latest,  toolchain: stable  }
-          - { os: windows-latest, toolchain: stable  }
-          - { os: macos-latest,   toolchain: stable  }
-
-          - { os: ubuntu-latest,  toolchain: nightly }
-          - { os: windows-latest, toolchain: nightly }
-          - { os: macos-latest,   toolchain: nightly }
-
-    runs-on: ${{ matrix.job.os }}
-
-    name: Test on ${{ matrix.job.os }} with ${{ matrix.job.toolchain }}
-
+        os: [ubuntu, windows, macos]
+    runs-on: ${{ matrix.os }}-latest
+    name: Test on ${{ matrix.os }}-latest
+    timeout-minutes: 45
     steps:
-      - name: Setup toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace --features full,tokio
+
+  doc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: ${{ matrix.job.toolchain }}
-          default: true
-          override: true
-          profile: minimal
-          components: rustfmt, clippy
+          toolchain: nightly
+      - uses: dtolnay/install@cargo-docs-rs
+      - run: cargo +nightly docs-rs -p channels
+      - run: cargo +nightly docs-rs -p channels-serdes
+      - run: cargo +nightly docs-rs -p channels-packet
 
-      - name: Build info
-        run: |
-          rustc --version
-          cargo --version
-          rustup --version
-
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Check
-        run: |
-          cargo fmt --check --all
-          cargo check --workspace
-          cargo clippy --all
-
-      - name: Test
-        run: |
-          cargo test
+  miri:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@miri
+      - run: cargo +nightly miri setup
+      - run: cargo +nightly miri test --all-features -p channels-packet
