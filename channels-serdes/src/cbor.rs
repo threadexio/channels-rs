@@ -9,6 +9,7 @@ pub struct Cbor {}
 
 impl Cbor {
 	/// Create a new [`Cbor`].
+	#[must_use]
 	pub fn new() -> Self {
 		Self {}
 	}

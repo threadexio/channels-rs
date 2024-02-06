@@ -40,30 +40,36 @@
 //! let deserialized = sd.deserialize(&mut serialized);
 //! assert_eq!(deserialized, Ok(42));
 //! ```
-#![allow(
-	unknown_lints,
-	clippy::new_without_default,
-	clippy::needless_doctest_main
-)]
+#![deny(missing_docs)]
 #![warn(
 	clippy::all,
 	clippy::style,
+	clippy::cargo,
 	clippy::perf,
 	clippy::correctness,
 	clippy::complexity,
-	clippy::deprecated,
-	clippy::missing_doc_code_examples,
-	clippy::missing_panics_doc,
-	clippy::missing_safety_doc,
-	clippy::missing_doc_code_examples,
+	clippy::pedantic,
+	clippy::suspicious,
+	arithmetic_overflow,
+	missing_debug_implementations,
 	clippy::cast_lossless,
 	clippy::cast_possible_wrap,
 	clippy::useless_conversion,
 	clippy::wrong_self_convention,
+	clippy::missing_assert_message,
+	clippy::unwrap_used,
+	// Docs
 	rustdoc::all,
-	rustdoc::broken_intra_doc_links
+	rustdoc::broken_intra_doc_links,
+	rustdoc::missing_crate_level_docs,
+	clippy::missing_panics_doc,
+	clippy::missing_safety_doc,
 )]
-#![deny(missing_docs)]
+#![allow(
+	clippy::new_without_default,
+	clippy::module_name_repetitions,
+	clippy::missing_errors_doc
+)]
 #![cfg_attr(not(feature = "__std"), no_std)]
 
 extern crate alloc;

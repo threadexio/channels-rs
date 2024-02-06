@@ -32,6 +32,7 @@ pub struct Bincode {}
 
 impl Bincode {
 	/// Create a new [`Bincode`] with the default options.
+	#[must_use]
 	pub fn new() -> Self {
 		Self {}
 	}

@@ -14,6 +14,7 @@ pub struct Json {}
 
 impl Json {
 	/// Create a new [`Json`].
+	#[must_use]
 	pub fn new() -> Self {
 		Self {}
 	}
