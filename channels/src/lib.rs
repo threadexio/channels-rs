@@ -101,6 +101,7 @@ pub use self::common::Statistics;
 pub use self::receiver::Receiver;
 pub use self::sender::Sender;
 
+#[doc(inline)]
 pub use channels_serdes as serdes;
 
 /// A tuple containing a [`Sender`] and a [`Receiver`].
