@@ -35,3 +35,7 @@ version = "1.0"
 default-features = false
 features = ["alloc"]
 optional = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = ["--cfg", "channels_nightly"]

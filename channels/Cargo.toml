@@ -32,3 +32,8 @@ futures = ["dep:futures"]
 bincode = ["channels-serdes/bincode", "dep:serde"]
 cbor = ["channels-serdes/cbor"]
 json = ["channels-serdes/json"]
+
+[package.metadata.docs.rs]
+features = ["full", "tokio"]
+all-features = false
+rustc-args = ["--cfg", "channels_nightly"]

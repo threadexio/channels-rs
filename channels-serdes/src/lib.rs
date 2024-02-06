@@ -71,6 +71,7 @@
 	clippy::missing_errors_doc
 )]
 #![cfg_attr(not(feature = "__std"), no_std)]
+#![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 
 extern crate alloc;
 
