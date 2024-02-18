@@ -39,10 +39,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly
-      - uses: dtolnay/install@cargo-docs-rs
-      - run: cargo +nightly docs-rs -p channels
-      - run: cargo +nightly docs-rs -p channels-serdes
-      - run: cargo +nightly docs-rs -p channels-packet
+      - run: cargo +nightly doc --workspace --no-deps --features full,tokio
 
   miri:
     runs-on: ubuntu-latest
