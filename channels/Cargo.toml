@@ -13,8 +13,8 @@ categories = ["network-programming"]
 rust-version = "1.64.0"
 
 [dependencies]
-channels-packet = { version = "0.1", path = "../channels-packet" }
-channels-serdes = { version = "0.1", path = "../channels-serdes" }
+channels-packet = { version = "0.1.1", path = "../channels-packet" }
+channels-serdes = { version = "0.1.2", path = "../channels-serdes" }
 
 serde = { version = "1.0", default-features = false, optional = true }
 
