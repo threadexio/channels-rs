@@ -45,3 +45,4 @@ json = ["channels-serdes/json"]
 features = ["full", "tokio"]
 all-features = false
 rustc-args = ["--cfg", "channels_nightly"]
+rustdoc-args = ["--cfg", "channels_nightly"]
