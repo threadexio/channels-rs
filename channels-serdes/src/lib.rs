@@ -70,7 +70,7 @@
 	clippy::module_name_repetitions,
 	clippy::missing_errors_doc
 )]
-#![cfg_attr(not(feature = "__std"), no_std)]
+#![cfg_attr(not(needs_std), no_std)]
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 
 extern crate alloc;
@@ -126,5 +126,12 @@ cfg_if! {
 	if #[cfg(feature = "json")] {
 		mod json;
 		pub use self::json::Json;
+	}
+}
+
+cfg_if! {
+	if #[cfg(feature = "borsh")] {
+		mod borsh;
+		pub use self::borsh::Borsh;
 	}
 }
