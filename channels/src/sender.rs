@@ -563,9 +563,8 @@ mod async_impl {
 	mod imp {
 		use super::{pin, ready, Context, Packet, Poll, Writer};
 
-		use tokio::io;
-
-		pub use io::{AsyncWrite, Error};
+		use tokio::io::{self, AsyncWriteExt};
+		pub use tokio::io::{AsyncWrite, Error};
 
 		pub fn poll_write_packet<W>(
 			writer: &mut Writer<W>,
@@ -601,16 +600,26 @@ mod async_impl {
 
 			Ready(Ok(()))
 		}
+
+		pub async fn flush<W>(
+			writer: &mut Writer<W>,
+		) -> io::Result<()>
+		where
+			W: AsyncWrite + Unpin,
+		{
+			writer.inner.flush().await
+		}
 	}
 
 	#[cfg(feature = "futures")]
 	mod imp {
-		use super::*;
+		use super::{pin, ready, Context, Packet, Poll, Writer};
 
 		use std::io;
+		pub use std::io::Error;
 
 		pub use futures::AsyncWrite;
-		pub use io::Error;
+		use futures::AsyncWriteExt;
 
 		pub fn poll_write_packet<W>(
 			writer: &mut Writer<W>,
@@ -621,10 +630,10 @@ mod async_impl {
 			W: AsyncWrite + Unpin,
 		{
 			use io::ErrorKind as E;
-			use Poll::*;
+			use Poll::{Pending, Ready};
 
 			while packet.has_remaining() {
-				let iovecs = packet_to_iovecs(packet);
+				let iovecs = packet.as_iovecs();
 
 				match ready!(pin!(&mut writer.inner)
 					.poll_write_vectored(cx, &iovecs))
@@ -646,9 +655,18 @@ mod async_impl {
 
 			Ready(Ok(()))
 		}
+
+		pub async fn flush<W>(
+			writer: &mut Writer<W>,
+		) -> io::Result<()>
+		where
+			W: AsyncWrite + Unpin,
+		{
+			writer.inner.flush().await
+		}
 	}
 
-	use self::imp::{poll_write_packet, AsyncWrite, Error};
+	use self::imp::{flush, poll_write_packet, AsyncWrite, Error};
 
 	impl<W> Future for SendPayload<'_, W>
 	where
@@ -685,9 +703,17 @@ mod async_impl {
 				.serialize(data.borrow())
 				.map_err(SendError::Serde)?;
 
-			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
-				.await
-				.map_err(SendError::Io)
+			SendPayload::new(
+				&mut self.pcb,
+				&mut self.writer,
+				payload,
+			)
+			.await
+			.map_err(SendError::Io)?;
+
+			flush(&mut self.writer).await.map_err(SendError::Io)?;
+
+			Ok(())
 		}
 	}
 }
@@ -734,9 +760,16 @@ mod sync_impl {
 
 			Ready(Ok(()))
 		}
+
+		pub fn flush<W>(writer: &mut Writer<W>) -> io::Result<()>
+		where
+			W: Write,
+		{
+			writer.inner.flush()
+		}
 	}
 
-	use self::imp::{write_packet, Error, Write};
+	use self::imp::{flush, write_packet, Error, Write};
 
 	impl<T, W, S> Sender<T, W, S>
 	where
@@ -764,10 +797,18 @@ mod sync_impl {
 				.serialize(data.borrow())
 				.map_err(SendError::Serde)?;
 
-			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
-				.advance(write_packet)
-				.unwrap()
-				.map_err(SendError::Io)
+			SendPayload::new(
+				&mut self.pcb,
+				&mut self.writer,
+				payload,
+			)
+			.advance(write_packet)
+			.unwrap()
+			.map_err(SendError::Io)?;
+
+			flush(&mut self.writer).map_err(SendError::Io)?;
+
+			Ok(())
 		}
 	}
 }

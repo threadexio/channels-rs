@@ -601,7 +601,7 @@ mod async_impl {
 
 	#[cfg(feature = "futures")]
 	mod imp {
-		use super::*;
+		use super::{pin, ready, BufMut, Context, Poll, Reader};
 
 		use std::io;
 
@@ -617,7 +617,7 @@ mod async_impl {
 			R: AsyncRead + Unpin,
 		{
 			use io::ErrorKind as E;
-			use Poll::*;
+			use Poll::{Pending, Ready};
 
 			while buf.has_remaining() {
 				match ready!(pin!(&mut reader.inner)

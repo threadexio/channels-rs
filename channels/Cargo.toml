@@ -9,7 +9,7 @@ repository = "https://github.com/threadexio/channels-rs"
 documentation = "https://docs.rs/channels"
 readme = "README.md"
 keywords = ["client", "networking", "server", "stream", "channel"]
-categories = ["no-std", "network-programming"]
+categories = ["network-programming"]
 rust-version = "1.64.0"
 
 [dependencies]
@@ -17,8 +17,16 @@ channels-packet = { version = "0.1", path = "../channels-packet" }
 channels-serdes = { version = "0.1", path = "../channels-serdes" }
 
 serde = { version = "1.0", default-features = false, optional = true }
-tokio = { version = "1", default-features = false, optional = true }
-futures = { version = "0.3", optional = true }
+
+[dependencies.tokio]
+version = "1"
+default-features = false
+features = ["io-util"]
+optional = true
+
+[dependencies.futures]
+version = "0.3"
+optional = true
 
 [features]
 default = ["bincode"]
