@@ -6,14 +6,17 @@ on:
 
 jobs:
   check:
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ["full", "full,tokio", "full,futures"]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo fmt --check --all
-      - run: cargo check --workspace
-      - run: cargo clippy --all
+      - run: cargo clippy --package channels --no-default-features --features ${{ matrix.features }}
 
   test:
     strategy:
