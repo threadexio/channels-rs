@@ -517,6 +517,10 @@ impl<'a, R> RecvPayload<'a, R> {
 							let payload = core::mem::take(
 								self.payload.inner_mut(),
 							);
+
+							#[cfg(feature = "statistics")]
+							self.reader.statistics.inc_ops();
+
 							return Ready(Ok(payload));
 						}
 					},
@@ -668,13 +672,7 @@ mod async_impl {
 		) -> Result<T, RecvError<D::Error, Error>> {
 			let mut payload =
 				RecvPayload::new(&mut self.pcb, &mut self.reader)
-					.await
-					.map(|x| {
-						#[cfg(feature = "statistics")]
-						self.reader.statistics.inc_ops();
-
-						x
-					})?;
+					.await?;
 
 			self.deserializer
 				.deserialize(&mut payload)
@@ -766,13 +764,7 @@ mod sync_impl {
 			let mut payload =
 				RecvPayload::new(&mut self.pcb, &mut self.reader)
 					.advance(read)
-					.unwrap()
-					.map(|x| {
-						#[cfg(feature = "statistics")]
-						self.reader.statistics.inc_ops();
-
-						x
-					})?;
+					.unwrap()?;
 
 			self.deserializer
 				.deserialize(&mut payload)

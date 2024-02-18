@@ -388,6 +388,15 @@ impl Packet<'_> {
 
 		let _ = n;
 	}
+
+	pub fn as_iovecs(&mut self) -> [std::io::IoSlice; 2] {
+		use std::io::IoSlice;
+
+		[
+			IoSlice::new(self.header.unfilled()),
+			IoSlice::new(self.payload.unfilled()),
+		]
+	}
 }
 
 enum State {
@@ -440,7 +449,12 @@ impl<'a, W> SendPayload<'a, W> {
 						self.has_sent_at_least_one,
 					) {
 						(false, false) => (PayloadLength::MIN, false),
-						(false, true) => return Ready(Ok(())),
+						(false, true) => {
+							#[cfg(feature = "statistics")]
+							self.writer.statistics.inc_ops();
+
+							return Ready(Ok(()));
+						},
 						(true, _) => {
 							let len = min(
 								PayloadLength::MAX.as_usize(),
@@ -537,8 +551,8 @@ core::compile_error!(
 #[cfg(any(feature = "tokio", feature = "futures"))]
 mod async_impl {
 	use super::{
-		packet_to_iovecs, Borrow, Packet, SendError, SendPayload,
-		Sender, Serializer, Writer,
+		Borrow, Packet, SendError, SendPayload, Sender, Serializer,
+		Writer,
 	};
 
 	use core::future::Future;
@@ -547,10 +561,7 @@ mod async_impl {
 
 	#[cfg(feature = "tokio")]
 	mod imp {
-		use super::{
-			packet_to_iovecs, pin, ready, Context, Packet, Poll,
-			Writer,
-		};
+		use super::{pin, ready, Context, Packet, Poll, Writer};
 
 		use tokio::io;
 
@@ -568,7 +579,7 @@ mod async_impl {
 			use Poll::{Pending, Ready};
 
 			while packet.has_remaining() {
-				let iovecs = packet_to_iovecs(packet);
+				let iovecs = packet.as_iovecs();
 
 				match ready!(pin!(&mut writer.inner)
 					.poll_write_vectored(cx, &iovecs))
@@ -676,10 +687,6 @@ mod async_impl {
 
 			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
 				.await
-				.map(|()| {
-					#[cfg(feature = "statistics")]
-					self.writer.statistics.inc_ops();
-				})
 				.map_err(SendError::Io)
 		}
 	}
@@ -687,12 +694,12 @@ mod async_impl {
 
 mod sync_impl {
 	use super::{
-		packet_to_iovecs, Borrow, Packet, Poll, PollExt, SendError,
-		SendPayload, Sender, Serializer, Writer,
+		Borrow, Packet, Poll, PollExt, SendError, SendPayload,
+		Sender, Serializer, Writer,
 	};
 
 	mod imp {
-		use super::{packet_to_iovecs, Packet, Poll, Writer};
+		use super::{Packet, Poll, Writer};
 
 		use std::io;
 
@@ -709,7 +716,7 @@ mod sync_impl {
 			use Poll::{Pending, Ready};
 
 			while packet.has_remaining() {
-				let iovecs = packet_to_iovecs(packet);
+				let iovecs = packet.as_iovecs();
 
 				match writer.inner.write_vectored(&iovecs) {
 					Err(e) if e.kind() == E::Interrupted => continue,
@@ -760,23 +767,7 @@ mod sync_impl {
 			SendPayload::new(&mut self.pcb, &mut self.writer, payload)
 				.advance(write_packet)
 				.unwrap()
-				.map(|()| {
-					#[cfg(feature = "statistics")]
-					self.writer.statistics.inc_ops();
-				})
 				.map_err(SendError::Io)
 		}
 	}
-}
-
-#[inline]
-fn packet_to_iovecs<'a>(
-	packet: &'a mut Packet,
-) -> [std::io::IoSlice<'a>; 2] {
-	use std::io::IoSlice;
-
-	[
-		IoSlice::new(packet.header.unfilled()),
-		IoSlice::new(packet.payload.unfilled()),
-	]
 }
