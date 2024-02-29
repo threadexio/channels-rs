@@ -30,6 +30,7 @@
 	clippy::module_name_repetitions,
 	clippy::missing_errors_doc
 )]
+#![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 
 mod header;
 mod util;

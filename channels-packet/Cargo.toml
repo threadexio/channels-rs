@@ -13,3 +13,8 @@ keywords = ["paser", "binary", "packet"]
 readme = "README.md"
 
 [dependencies]
+
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = ["--cfg", "channels_nightly"]
+rustdoc-args = ["--cfg", "channels_nightly"]
