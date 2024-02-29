@@ -21,14 +21,14 @@
           # $ nix develop
           dev = pkgs.mkShell {
             packages = with pkgs; [
-              rustup
+              cargo
+              rustc
 
               gdb
               lldb
               valgrind
               linuxPackages.perf
 
-              # For tools/header.py
               python311Packages.virtualenv
             ];
 
