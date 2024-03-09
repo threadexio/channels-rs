@@ -3,6 +3,7 @@ members = [
 	"channels",
 	"channels-packet",
 	"channels-serdes",
+	"channels-io",
 	"benches",
 	"stress-tests",
 	"tests-integration",

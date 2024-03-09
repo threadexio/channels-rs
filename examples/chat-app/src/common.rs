@@ -22,7 +22,11 @@ type Serdes = channels::serdes::Bincode;
 
 #[derive(Debug)]
 pub struct ClientSide {
-	tx: channels::Sender<ClientNetMessage, OwnedWriteHalf, Serdes>,
+	tx: channels::Sender<
+		ClientNetMessage,
+		channels::io::Tokio<OwnedWriteHalf>,
+		Serdes,
+	>,
 	rx: channels::Receiver<ServerNetMessage, OwnedReadHalf, Serdes>,
 }
 
@@ -58,7 +62,11 @@ impl ClientSide {
 }
 
 pub struct ServerSide {
-	tx: channels::Sender<ServerNetMessage, OwnedWriteHalf, Serdes>,
+	tx: channels::Sender<
+		ServerNetMessage,
+		channels::io::Tokio<OwnedWriteHalf>,
+		Serdes,
+	>,
 	rx: channels::Receiver<ClientNetMessage, OwnedReadHalf, Serdes>,
 }
 

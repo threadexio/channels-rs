@@ -81,7 +81,8 @@
 #![allow(
 	clippy::new_without_default,
 	clippy::module_name_repetitions,
-	clippy::missing_errors_doc
+	clippy::missing_errors_doc,
+	clippy::wildcard_imports
 )]
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 
@@ -101,7 +102,7 @@ pub use self::common::Statistics;
 pub use self::receiver::Receiver;
 pub use self::sender::Sender;
 
-#[doc(inline)]
+pub use channels_io as io;
 pub use channels_serdes as serdes;
 
 /// A tuple containing a [`Sender`] and a [`Receiver`].
@@ -142,7 +143,7 @@ pub type Pair<T, R, W, Sd> = (Sender<T, W, Sd>, Receiver<T, R, Sd>);
 /// ```
 pub fn channel<T, R, W>(
 	r: R,
-	w: W,
+	w: impl io::IntoWriter<W>,
 ) -> Pair<T, R, W, channels_serdes::Bincode>
 where
 	for<'de> T: serde::Serialize + serde::Deserialize<'de>,

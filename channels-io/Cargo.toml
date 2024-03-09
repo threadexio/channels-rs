@@ -1,0 +1,34 @@
+[package]
+name = "channels-io"
+version = "0.1.0"
+edition = "2021"
+authors = ["1337"]
+license = "MIT"
+repository = "https://github.com/threadexio/channels-rs"
+description = """
+Async agnostic/Sync IO & buffer management abstractions
+"""
+categories = [
+	"asynchronous",
+	"network-programming",
+	"no-std",
+	"no-std::no-alloc",
+]
+keywords = ["io"]
+readme = "README.md"
+
+[dependencies]
+futures = { version = "0.3", optional = true }
+tokio = { version = "1", features = ["io-util"], optional = true }
+
+[features]
+alloc = []
+std = ["alloc"]
+tokio = ["dep:tokio", "std"]
+futures = ["dep:futures", "std"]
+
+[package.metadata.docs.rs]
+features = ["full", "tokio"]
+all-features = false
+rustc-args = ["--cfg", "channels_nightly"]
+rustdoc-args = ["--cfg", "channels_nightly"]

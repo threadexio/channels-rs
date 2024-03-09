@@ -6,7 +6,7 @@ use tokio::runtime::Runtime;
 type Pair = channels::Pair<
 	Data,
 	TcpStream,
-	TcpStream,
+	channels::io::Std<TcpStream>,
 	channels::serdes::Bincode,
 >;
 

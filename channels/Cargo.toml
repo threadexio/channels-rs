@@ -10,11 +10,11 @@ documentation = "https://docs.rs/channels"
 readme = "README.md"
 keywords = ["client", "networking", "server", "stream", "channel"]
 categories = ["network-programming"]
-rust-version = "1.64.0"
 
 [dependencies]
 channels-packet = { version = "0.1.1", path = "../channels-packet" }
 channels-serdes = { version = "0.1.2", path = "../channels-serdes" }
+channels-io = { version = "0.1.0", path = "../channels-io" }
 
 serde = { version = "1.0", default-features = false, optional = true }
 
@@ -30,12 +30,14 @@ optional = true
 
 [features]
 default = ["bincode"]
+
+# TODO: add `tokio` and `futures` and remove the NOTE in README and lib docs
 full = ["statistics", "bincode", "cbor", "json", "borsh"]
 
 statistics = []
 
-tokio = ["dep:tokio"]
-futures = ["dep:futures"]
+tokio = ["channels-io/tokio", "dep:tokio"]
+futures = ["channels-io/futures", "dep:futures"]
 
 bincode = ["channels-serdes/bincode", "dep:serde"]
 cbor = ["channels-serdes/cbor"]

@@ -14,7 +14,7 @@ fn conformance_sender() {
 
 	let mut s = Sender::builder()
 		.serializer(channels::serdes::Bincode::new())
-		.writer(&mut buf)
+		.writer(&mut buf[..])
 		.build();
 
 	s.send_blocking(()).unwrap();

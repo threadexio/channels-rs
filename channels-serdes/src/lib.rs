@@ -77,6 +77,8 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
+// TODO: Redo the Serializer and Deserializer traits to use channels_io::{Buf, BufMut} and friends
+
 /// The [`Serializer`] trait allows converting a type `T` to safe-to-transport
 /// byte sequences.
 ///

@@ -23,7 +23,7 @@ mod sync_tests {
 	type Pair = channels::Pair<
 		Data,
 		TcpStream,
-		TcpStream,
+		channels::io::Std<TcpStream>,
 		channels::serdes::Bincode,
 	>;
 
