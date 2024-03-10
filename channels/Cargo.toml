@@ -14,7 +14,9 @@ categories = ["network-programming"]
 [dependencies]
 channels-packet = { version = "0.1.1", path = "../channels-packet" }
 channels-serdes = { version = "0.1.2", path = "../channels-serdes" }
-channels-io = { version = "0.1.0", path = "../channels-io" }
+channels-io = { version = "0.1.0", path = "../channels-io", features = [
+	"alloc",
+] }
 
 serde = { version = "1.0", default-features = false, optional = true }
 
@@ -29,13 +31,14 @@ version = "0.3"
 optional = true
 
 [features]
-default = ["bincode"]
+default = ["std", "bincode"]
 
 # TODO: add `tokio` and `futures` and remove the NOTE in README and lib docs
-full = ["statistics", "bincode", "cbor", "json", "borsh"]
+full = ["std", "statistics", "bincode", "cbor", "json", "borsh"]
 
 statistics = []
 
+std = ["channels-io/std"]
 tokio = ["channels-io/tokio", "dep:tokio"]
 futures = ["channels-io/futures", "dep:futures"]
 

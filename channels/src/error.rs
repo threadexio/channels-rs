@@ -89,6 +89,7 @@ impl fmt::Display for VerifyError {
 	}
 }
 
+#[cfg(feature = "std")]
 impl<Ser: Error, Io: Error> std::error::Error for SendError<Ser, Io> {}
 
 /// The error type returned by [`Receiver`](crate::Receiver).
@@ -119,4 +120,5 @@ impl<Ser: Error, Io: Error> Display for RecvError<Ser, Io> {
 	}
 }
 
+#[cfg(feature = "std")]
 impl<Ser: Error, Io: Error> std::error::Error for RecvError<Ser, Io> {}

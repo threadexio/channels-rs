@@ -85,6 +85,7 @@
 	clippy::wildcard_imports
 )]
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 

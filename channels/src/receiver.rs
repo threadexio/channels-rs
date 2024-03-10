@@ -697,6 +697,7 @@ mod async_impl {
 	}
 }
 
+#[cfg(feature = "std")]
 mod sync_impl {
 	use super::{
 		BufMut, Deserializer, Incoming, Poll, Reader, Receiver,
