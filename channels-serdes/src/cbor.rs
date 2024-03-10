@@ -1,6 +1,4 @@
-use alloc::vec::Vec;
-
-use crate::{Deserializer, Serializer};
+use crate::{Contiguous, Deserializer, Serializer, Walkable};
 
 /// The [`mod@ciborium`] serializer which automatically works with all
 /// types that implement [`serde::Serialize`] and [`serde::Deserialize`].
@@ -21,10 +19,14 @@ where
 {
 	type Error = ciborium::ser::Error<std::io::Error>;
 
-	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
+	fn serialize(
+		&mut self,
+		t: &T,
+	) -> Result<impl Walkable, Self::Error> {
 		let mut buf = Vec::new();
 		ciborium::into_writer(t, &mut buf)?;
-		Ok(buf)
+
+		Ok(channels_io::Cursor::new(buf))
 	}
 }
 
@@ -36,8 +38,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: &mut Vec<u8>,
+		buf: impl Contiguous,
 	) -> Result<T, Self::Error> {
-		ciborium::from_reader(buf.as_slice())
+		ciborium::from_reader(buf.chunk())
 	}
 }

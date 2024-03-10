@@ -1,6 +1,4 @@
-use alloc::vec::Vec;
-
-use crate::{Deserializer, Serializer};
+use crate::{Contiguous, Deserializer, Serializer, Walkable};
 
 /// The [`mod@serde_json`] serializer which automatically works with all
 /// types that implement [`serde::Serialize`] and [`serde::Deserialize`].
@@ -26,8 +24,12 @@ where
 {
 	type Error = serde_json::Error;
 
-	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
-		serde_json::to_vec(t)
+	fn serialize(
+		&mut self,
+		t: &T,
+	) -> Result<impl Walkable, Self::Error> {
+		let vec = serde_json::to_vec(t)?;
+		Ok(channels_io::Cursor::new(vec))
 	}
 }
 
@@ -39,8 +41,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: &mut Vec<u8>,
+		buf: impl Contiguous,
 	) -> Result<T, Self::Error> {
-		serde_json::from_slice(buf)
+		serde_json::from_slice(buf.chunk())
 	}
 }

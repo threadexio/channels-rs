@@ -73,11 +73,7 @@
 #![cfg_attr(not(needs_std), no_std)]
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 
-extern crate alloc;
-
-use alloc::vec::Vec;
-
-// TODO: Redo the Serializer and Deserializer traits to use channels_io::{Buf, BufMut} and friends
+use channels_io::{Contiguous, Walkable};
 
 /// The [`Serializer`] trait allows converting a type `T` to safe-to-transport
 /// byte sequences.
@@ -88,7 +84,10 @@ pub trait Serializer<T> {
 	type Error;
 
 	/// Serialize `t` to a buffer.
-	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error>;
+	fn serialize(
+		&mut self,
+		t: &T,
+	) -> Result<impl Walkable, Self::Error>;
 }
 
 /// The [`Deserializer`] trait allows converting a byte slice to a type `T`.
@@ -104,7 +103,7 @@ pub trait Deserializer<T> {
 	/// in-place modification of the data if needed.
 	fn deserialize(
 		&mut self,
-		buf: &mut Vec<u8>,
+		buf: impl Contiguous,
 	) -> Result<T, Self::Error>;
 }
 

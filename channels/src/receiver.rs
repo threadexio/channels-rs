@@ -670,12 +670,13 @@ mod async_impl {
 		pub async fn recv(
 			&mut self,
 		) -> Result<T, RecvError<D::Error, Error>> {
-			let mut payload =
+			let payload =
 				RecvPayload::new(&mut self.pcb, &mut self.reader)
 					.await?;
+			let payload = crate::io::Cursor::new(payload);
 
 			self.deserializer
-				.deserialize(&mut payload)
+				.deserialize(payload)
 				.map_err(RecvError::Serde)
 		}
 	}
@@ -761,13 +762,14 @@ mod sync_impl {
 		pub fn recv_blocking(
 			&mut self,
 		) -> Result<T, RecvError<D::Error, Error>> {
-			let mut payload =
+			let payload =
 				RecvPayload::new(&mut self.pcb, &mut self.reader)
 					.advance(read)
 					.unwrap()?;
+			let payload = crate::io::Cursor::new(payload);
 
 			self.deserializer
-				.deserialize(&mut payload)
+				.deserialize(payload)
 				.map_err(RecvError::Serde)
 		}
 	}

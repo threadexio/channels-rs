@@ -19,11 +19,24 @@ mod sync_tests {
 		channels::serdes::Bincode,
 	>;
 
+	fn make_pair(stream: TcpStream) -> Pair {
+		let tx = channels::Sender::builder()
+			.writer(stream.try_clone().unwrap())
+			.serializer(Default::default())
+			.build();
+
+		let rx = channels::Receiver::builder()
+			.reader(stream)
+			.deserializer(Default::default())
+			.build();
+
+		(tx, rx)
+	}
+
 	fn server() -> (Duration, Pair) {
 		let listener = TcpListener::bind(ADDR).unwrap();
 		let (s, _) = listener.accept().unwrap();
-		let (mut tx, mut rx) =
-			channels::channel(s.try_clone().unwrap(), s);
+		let (mut tx, mut rx) = make_pair(s);
 
 		time(move || {
 			for i in 0..ITER {
@@ -43,8 +56,7 @@ mod sync_tests {
 
 	fn client() -> (Duration, Pair) {
 		let s = TcpStream::connect(ADDR).unwrap();
-		let (mut tx, mut rx) =
-			channels::channel(s.try_clone().unwrap(), s);
+		let (mut tx, mut rx) = make_pair(s);
 
 		time(move || {
 			for i in 0..ITER {

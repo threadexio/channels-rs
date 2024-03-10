@@ -1,8 +1,6 @@
-use alloc::vec::Vec;
-
 use bincode::Options;
 
-use crate::{Deserializer, Serializer};
+use crate::{Contiguous, Deserializer, Serializer, Walkable};
 
 fn default_bincode_config() -> impl Options {
 	bincode::options()
@@ -44,8 +42,12 @@ where
 {
 	type Error = bincode::Error;
 
-	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
-		default_bincode_config().serialize(t)
+	fn serialize(
+		&mut self,
+		t: &T,
+	) -> Result<impl Walkable, Self::Error> {
+		let vec = default_bincode_config().serialize(t)?;
+		Ok(channels_io::Cursor::new(vec))
 	}
 }
 
@@ -57,8 +59,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: &mut Vec<u8>,
+		buf: impl Contiguous,
 	) -> Result<T, Self::Error> {
-		default_bincode_config().deserialize(buf)
+		default_bincode_config().deserialize(buf.chunk())
 	}
 }

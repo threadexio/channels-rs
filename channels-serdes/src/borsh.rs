@@ -1,8 +1,6 @@
-use alloc::vec::Vec;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{Deserializer, Serializer};
+use crate::{Contiguous, Deserializer, Serializer, Walkable};
 
 /// The [`mod@borsh`] serializer which automatically works with all
 /// types that implement [`borsh::BorshSerialize`] and [`borsh::BorshDeserialize`].
@@ -23,8 +21,12 @@ where
 {
 	type Error = borsh::io::Error;
 
-	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
-		borsh::to_vec(t)
+	fn serialize(
+		&mut self,
+		t: &T,
+	) -> Result<impl Walkable, Self::Error> {
+		let vec = borsh::to_vec(t)?;
+		Ok(channels_io::Cursor::new(vec))
 	}
 }
 
@@ -36,8 +38,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: &mut Vec<u8>,
+		buf: impl Contiguous,
 	) -> Result<T, Self::Error> {
-		borsh::from_slice(buf)
+		borsh::from_slice(buf.chunk())
 	}
 }
