@@ -1,4 +1,4 @@
-use channels::{Receiver, Sender};
+use channels::{io::Std, Receiver, Sender};
 
 const PACKET: &[u8] = &[
 	0xfd, 0x3f, // version
@@ -10,15 +10,15 @@ const PACKET: &[u8] = &[
 
 #[test]
 fn conformance_sender() {
-	let mut buf: Vec<u8> = Vec::with_capacity(32);
+	let buf: Vec<u8> = Vec::with_capacity(32);
 
-	let mut s = Sender::builder()
+	let mut s: Sender<(), Std<_>, _> = Sender::builder()
 		.serializer(channels::serdes::Bincode::new())
-		.writer(&mut buf[..])
+		.writer(buf)
 		.build();
 
 	s.send_blocking(()).unwrap();
-	assert_eq!(&s.get()[..], PACKET);
+	assert_eq!(s.get(), PACKET);
 }
 
 #[test]
