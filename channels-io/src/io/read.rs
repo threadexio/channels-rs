@@ -77,6 +77,5 @@ forward_impl_all_read! { &mut T }
 mod alloc_impls {
 	use super::*;
 
-	extern crate alloc;
 	forward_impl_all_read! { alloc::boxed::Box<T> }
 }

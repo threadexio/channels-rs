@@ -22,6 +22,10 @@ macro_rules! forward_buf_impl {
 		fn has_remaining(&self) -> bool {
 			(**self).has_remaining()
 		}
+
+		fn copy_to_slice(&mut self, slice: &mut [u8]) -> usize {
+			(**self).copy_to_slice(slice)
+		}
 	};
 }
 
@@ -51,6 +55,10 @@ macro_rules! forward_bufmut_impl {
 
 		fn has_remaining_mut(&self) -> bool {
 			(**self).has_remaining_mut()
+		}
+
+		fn copy_from_slice(&mut self, slice: &[u8]) -> usize {
+			(**self).copy_from_slice(slice)
 		}
 	};
 }
@@ -189,8 +197,6 @@ impl<const N: usize> AsBytesMut for [u8; N] {
 #[cfg(feature = "alloc")]
 mod alloc_impls {
 	use super::*;
-
-	extern crate alloc;
 
 	#[allow(unused_imports)]
 	use alloc::{boxed::Box, vec::Vec};

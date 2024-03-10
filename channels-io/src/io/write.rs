@@ -92,6 +92,5 @@ forward_impl_all_write! { &mut T }
 mod alloc_impls {
 	use super::*;
 
-	extern crate alloc;
 	forward_impl_all_write! { alloc::boxed::Box<T> }
 }
