@@ -54,7 +54,7 @@ pub trait Buf {
 
 	/// Copy this buffer to a new buffer that is [`Contiguous`].
 	#[cfg(feature = "alloc")]
-	fn copy_to_contiguous(mut self) -> impl Contiguous
+	fn copy_to_contiguous<'a>(mut self) -> impl Contiguous + 'a
 	where
 		Self: Sized,
 	{
@@ -102,7 +102,10 @@ pub trait Buf {
 ///
 /// If this trait is implemented, then the slice returned by [`Buf::chunk`] MUST
 /// be of length [`Buf::remaining`].
-pub unsafe trait Contiguous: Buf {}
+pub unsafe trait Contiguous:
+	Buf + for<'a> Walkable<'a>
+{
+}
 
 /// A non-contiguous buffer whose chunks can be iterated over.
 pub trait Walkable<'chunk>: Buf {
@@ -190,7 +193,10 @@ pub trait BufMut {
 ///
 /// If this trait is implemented, then the slice returned by [`BufMut::chunk_mut`]
 /// MUST be of length [`BufMut::remaining_mut`].
-pub unsafe trait ContiguousMut: BufMut {}
+pub unsafe trait ContiguousMut:
+	BufMut + for<'a> WalkableMut<'a>
+{
+}
 
 /// A non-contiguous mutable buffer whose chunks can be iterated over.
 pub trait WalkableMut<'chunk>: BufMut {
