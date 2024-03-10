@@ -218,7 +218,6 @@ where
 			.serializer
 			.serialize(data.borrow())
 			.map_err(SendError::Serde)?;
-		let payload = Cursor::new(payload);
 
 		send::send_async(&mut self.pcb, &mut self.writer, payload)
 			.await
@@ -250,7 +249,6 @@ where
 			.serializer
 			.serialize(data.borrow())
 			.map_err(SendError::Serde)?;
-		let payload = Cursor::new(payload);
 
 		send::send(&mut self.pcb, &mut self.writer, payload)
 			.map_err(SendError::Io)?;
@@ -581,10 +579,10 @@ mod send {
 				let payload_length =
 					header.length.to_payload_length().as_usize();
 
-				let packet = Cursor::new(header.to_bytes());
-				let mut packet = packet.chain(
-					self.payload.by_ref().take(payload_length),
-				);
+				let header = Cursor::new(header.to_bytes());
+				let payload =
+					self.payload.by_ref().take(payload_length);
+				let mut packet = channels_io::chain(header, payload);
 
 				let mut packet = copy_to_contiguous(&mut packet);
 				self.writer.write(&mut packet)?;
@@ -592,6 +590,9 @@ mod send {
 				#[cfg(feature = "statistics")]
 				self.writer.statistics.inc_packets();
 			}
+
+			#[cfg(feature = "statistics")]
+			self.writer.statistics.inc_ops();
 
 			Ok(())
 		}
@@ -609,10 +610,10 @@ mod send {
 				let payload_length =
 					header.length.to_payload_length().as_usize();
 
-				let packet = Cursor::new(header.to_bytes());
-				let mut packet = packet.chain(
-					self.payload.by_ref().take(payload_length),
-				);
+				let header = Cursor::new(header.to_bytes());
+				let payload =
+					self.payload.by_ref().take(payload_length);
+				let mut packet = channels_io::chain(header, payload);
 
 				let mut packet = copy_to_contiguous(&mut packet);
 				self.writer.write(&mut packet).await?;
@@ -620,6 +621,9 @@ mod send {
 				#[cfg(feature = "statistics")]
 				self.writer.statistics.inc_packets();
 			}
+
+			#[cfg(feature = "statistics")]
+			self.writer.statistics.inc_ops();
 
 			Ok(())
 		}
