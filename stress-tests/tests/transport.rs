@@ -14,7 +14,7 @@ mod sync_tests {
 
 	type Pair = channels::Pair<
 		Data,
-		TcpStream,
+		channels::io::Std<TcpStream>,
 		channels::io::Std<TcpStream>,
 		channels::serdes::Bincode,
 	>;

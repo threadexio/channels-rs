@@ -4,18 +4,15 @@ use core::borrow::Borrow;
 use core::fmt;
 use core::marker::PhantomData;
 
-#[allow(unused_imports)]
-use crate::common::{Pcb, Statistics};
 use crate::error::SendError;
-use crate::io::{
-	AsyncWrite, Buf, Contiguous, Cursor, IntoWriter, Write, Writer,
-};
+use crate::io::{AsyncWrite, IntoWriter, Write, Writer};
 use crate::serdes::Serializer;
+use crate::util::{Pcb, StatIO, Statistics};
 
 /// The sending-half of the channel.
 pub struct Sender<T, W, S> {
 	_marker: PhantomData<T>,
-	writer: StatWriter<W>,
+	writer: StatIO<W>,
 	serializer: S,
 	pcb: Pcb,
 }
@@ -109,6 +106,24 @@ impl<T, W, S> Sender<T, W, S> {
 			.serializer(serializer)
 			.build()
 	}
+
+	/// Get statistics on this sender.
+	///
+	/// # Example
+	///
+	/// ```
+	/// let writer = std::io::sink();
+	/// let tx = channels::Sender::<i32, _, _>::new(writer);
+	///
+	/// let stats = tx.statistics();
+	/// assert_eq!(stats.total_bytes(), 0);
+	/// assert_eq!(stats.packets(), 0);
+	/// assert_eq!(stats.ops(), 0);
+	/// ```
+	#[cfg(feature = "statistics")]
+	pub fn statistics(&self) -> &Statistics {
+		&self.writer.statistics
+	}
 }
 
 impl<T, W, S> Sender<T, W, S>
@@ -178,24 +193,6 @@ where
 	pub fn get_mut(&mut self) -> &mut W::Inner {
 		self.writer.inner.get_mut()
 	}
-
-	/// Get statistics on this sender.
-	///
-	/// # Example
-	///
-	/// ```
-	/// let writer = std::io::sink();
-	/// let tx = channels::Sender::<i32, _, _>::new(writer);
-	///
-	/// let stats = tx.statistics();
-	/// assert_eq!(stats.total_bytes(), 0);
-	/// assert_eq!(stats.packets(), 0);
-	/// assert_eq!(stats.ops(), 0);
-	/// ```
-	#[cfg(feature = "statistics")]
-	pub fn statistics(&self) -> &Statistics {
-		&self.writer.statistics
-	}
 }
 
 impl<T, W, S> Sender<T, W, S>
@@ -219,9 +216,13 @@ where
 			.serialize(data.borrow())
 			.map_err(SendError::Serde)?;
 
-		send::send_async(&mut self.pcb, &mut self.writer, payload)
-			.await
-			.map_err(SendError::Io)?;
+		crate::protocol::send_async(
+			&mut self.pcb,
+			&mut self.writer,
+			payload,
+		)
+		.await
+		.map_err(SendError::Io)?;
 
 		self.writer.flush().await.map_err(SendError::Io)?;
 
@@ -250,8 +251,12 @@ where
 			.serialize(data.borrow())
 			.map_err(SendError::Serde)?;
 
-		send::send(&mut self.pcb, &mut self.writer, payload)
-			.map_err(SendError::Io)?;
+		crate::protocol::send(
+			&mut self.pcb,
+			&mut self.writer,
+			payload,
+		)
+		.map_err(SendError::Io)?;
 
 		self.writer.flush().map_err(SendError::Io)?;
 
@@ -261,7 +266,7 @@ where
 
 impl<T, W, S> fmt::Debug for Sender<T, W, S>
 where
-	StatWriter<W>: fmt::Debug,
+	StatIO<W>: fmt::Debug,
 	S: fmt::Debug,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -274,14 +279,14 @@ where
 
 unsafe impl<T, W, S> Send for Sender<T, W, S>
 where
-	StatWriter<W>: Send,
+	StatIO<W>: Send,
 	S: Send,
 {
 }
 
 unsafe impl<T, W, S> Sync for Sender<T, W, S>
 where
-	StatWriter<W>: Sync,
+	StatIO<W>: Sync,
 	S: Sync,
 {
 }
@@ -398,234 +403,9 @@ impl<T, W, S> Builder<T, W, S> {
 	pub fn build(self) -> Sender<T, W, S> {
 		Sender {
 			_marker: PhantomData,
-			writer: StatWriter::new(self.writer),
+			writer: StatIO::new(self.writer),
 			serializer: self.serializer,
 			pcb: Pcb::new(),
-		}
-	}
-}
-
-#[derive(Debug, Clone)]
-struct StatWriter<W> {
-	inner: W,
-
-	#[cfg(feature = "statistics")]
-	pub(crate) statistics: Statistics,
-}
-
-impl<W> StatWriter<W> {
-	pub fn new(writer: W) -> Self {
-		Self {
-			inner: writer,
-
-			#[cfg(feature = "statistics")]
-			statistics: Statistics::new(),
-		}
-	}
-
-	#[allow(unused_variables)]
-	fn on_write(&mut self, n: u64) {
-		#[cfg(feature = "statistics")]
-		self.statistics.add_total_bytes(n);
-	}
-}
-
-impl<W: Write> Write for StatWriter<W> {
-	type Error = W::Error;
-
-	fn write<B>(&mut self, mut buf: B) -> Result<(), Self::Error>
-	where
-		B: Contiguous,
-	{
-		let l0 = buf.remaining();
-		self.inner.write(&mut buf)?;
-		let l1 = buf.remaining();
-
-		let dl = usize::abs_diff(l0, l1);
-		self.on_write(dl as u64);
-		Ok(())
-	}
-
-	fn flush(&mut self) -> Result<(), Self::Error> {
-		self.inner.flush()
-	}
-}
-
-impl<W: AsyncWrite> AsyncWrite for StatWriter<W> {
-	type Error = W::Error;
-
-	async fn write<B>(
-		&mut self,
-		mut buf: B,
-	) -> Result<(), Self::Error>
-	where
-		B: Contiguous,
-	{
-		let l0 = buf.remaining();
-		self.inner.write(&mut buf).await?;
-		let l1 = buf.remaining();
-
-		let dl = usize::abs_diff(l0, l1);
-		self.on_write(dl as u64);
-		Ok(())
-	}
-
-	async fn flush(&mut self) -> Result<(), Self::Error> {
-		self.inner.flush().await
-	}
-}
-
-mod send {
-	use super::*;
-
-	use channels_packet::{
-		Flags, Header, PacketLength, PayloadLength,
-	};
-
-	pub fn send<'a, W, B>(
-		pcb: &'a mut Pcb,
-		writer: &'a mut StatWriter<W>,
-		payload: B,
-	) -> Result<(), W::Error>
-	where
-		W: Write,
-		B: Buf,
-	{
-		SendPayload::new(pcb, writer, payload).run()
-	}
-
-	pub async fn send_async<'a, W, B>(
-		pcb: &'a mut Pcb,
-		writer: &'a mut StatWriter<W>,
-		payload: B,
-	) -> Result<(), W::Error>
-	where
-		W: AsyncWrite,
-		B: Buf,
-	{
-		SendPayload::new(pcb, writer, payload).run_async().await
-	}
-
-	struct SendPayload<'a, W, B> {
-		pcb: &'a mut Pcb,
-		writer: &'a mut StatWriter<W>,
-		payload: B,
-		has_sent_one_packet: bool,
-	}
-
-	impl<'a, W, B> SendPayload<'a, W, B> {
-		pub fn new(
-			pcb: &'a mut Pcb,
-			writer: &'a mut StatWriter<W>,
-			payload: B,
-		) -> Self {
-			Self { pcb, writer, payload, has_sent_one_packet: false }
-		}
-	}
-
-	impl<'a, W, B> SendPayload<'a, W, B>
-	where
-		B: Buf,
-	{
-		/// Get the header for the next packet.
-		///
-		/// Returns [`Some`] with the header of the next packet that should be
-		/// sent or [`None`] if no packet should be sent.
-		fn next_header(&mut self) -> Option<Header> {
-			match (self.payload.remaining(), self.has_sent_one_packet)
-			{
-				// If there is no more data and we have already sent
-				// one packet, then exit.
-				(0, true) => None,
-				// If there is no more data and we have not sent any
-				// packets, then send one packet with no payload.
-				(0, false) => Some(Header {
-					length: PacketLength::MIN,
-					flags: Flags::zero(),
-					id: self.pcb.id_gen.next_id(),
-				}),
-				// If the remaining data is more than what fits inside
-				// one packet, return a header for a full packet.
-				(rem, _) if rem > PayloadLength::MAX.as_usize() => {
-					Some(Header {
-						length: PayloadLength::MAX.to_packet_length(),
-						flags: Flags::MORE_DATA,
-						id: self.pcb.id_gen.next_id(),
-					})
-				},
-				// If the remaining data is equal or less than what
-				// fits inside one packet, return a header for exactly
-				// that amount of data.
-				#[allow(clippy::cast_possible_truncation)]
-				(rem, _) => Some(Header {
-					length: PayloadLength::new_saturating(rem as u16)
-						.to_packet_length(),
-					flags: Flags::zero(),
-					id: self.pcb.id_gen.next_id(),
-				}),
-			}
-		}
-	}
-
-	impl<'a, W, B> SendPayload<'a, W, B>
-	where
-		W: Write,
-		B: Buf,
-	{
-		pub fn run(mut self) -> Result<(), W::Error> {
-			while let Some(header) = self.next_header() {
-				self.has_sent_one_packet = true;
-
-				let payload_length =
-					header.length.to_payload_length().as_usize();
-
-				let header = Cursor::new(header.to_bytes());
-				let payload =
-					self.payload.by_ref().take(payload_length);
-				let packet = channels_io::chain(header, payload);
-
-				let mut packet = packet.copy_to_contiguous();
-				self.writer.write(&mut packet)?;
-
-				#[cfg(feature = "statistics")]
-				self.writer.statistics.inc_packets();
-			}
-
-			#[cfg(feature = "statistics")]
-			self.writer.statistics.inc_ops();
-
-			Ok(())
-		}
-	}
-
-	impl<'a, W, B> SendPayload<'a, W, B>
-	where
-		W: AsyncWrite,
-		B: Buf,
-	{
-		pub async fn run_async(mut self) -> Result<(), W::Error> {
-			while let Some(header) = self.next_header() {
-				self.has_sent_one_packet = true;
-
-				let payload_length =
-					header.length.to_payload_length().as_usize();
-
-				let header = Cursor::new(header.to_bytes());
-				let payload =
-					self.payload.by_ref().take(payload_length);
-				let packet = channels_io::chain(header, payload);
-
-				let mut packet = packet.copy_to_contiguous();
-				self.writer.write(&mut packet).await?;
-
-				#[cfg(feature = "statistics")]
-				self.writer.statistics.inc_packets();
-			}
-
-			#[cfg(feature = "statistics")]
-			self.writer.statistics.inc_ops();
-
-			Ok(())
 		}
 	}
 }

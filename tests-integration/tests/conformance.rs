@@ -23,7 +23,7 @@ fn conformance_sender() {
 
 #[test]
 fn conformance_receiver() {
-	let mut r = Receiver::builder()
+	let mut r: Receiver<(), Std<_>, _> = Receiver::builder()
 		.deserializer(channels::serdes::Bincode::new())
 		.reader(PACKET)
 		.build();

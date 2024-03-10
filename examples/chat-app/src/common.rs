@@ -27,7 +27,11 @@ pub struct ClientSide {
 		channels::io::Tokio<OwnedWriteHalf>,
 		Serdes,
 	>,
-	rx: channels::Receiver<ServerNetMessage, OwnedReadHalf, Serdes>,
+	rx: channels::Receiver<
+		ServerNetMessage,
+		channels::io::Tokio<OwnedReadHalf>,
+		Serdes,
+	>,
 }
 
 impl ClientSide {
@@ -67,7 +71,11 @@ pub struct ServerSide {
 		channels::io::Tokio<OwnedWriteHalf>,
 		Serdes,
 	>,
-	rx: channels::Receiver<ClientNetMessage, OwnedReadHalf, Serdes>,
+	rx: channels::Receiver<
+		ClientNetMessage,
+		channels::io::Tokio<OwnedReadHalf>,
+		Serdes,
+	>,
 }
 
 impl ServerSide {

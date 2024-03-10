@@ -43,16 +43,23 @@
 //! |   Feature    | Description                                                                                     |
 //! | :----------: | :---------------------------------------------------------------------------------------------- |
 //! | `statistics` | Capture statistic data like: total bytes sent/received, number of send/receive operations, etc. |
-//! | `tokio`      | Adds support for sending/receiving types asynchronously with tokio.                             |
-//! | `futures`    | Adds support for sending/receiving types asynchronously with futures.                           |
-//! | `bincode`    | Support for serializing/deserializing types with `bincode`.                                     |
-//! | `cbor`       | Support for serializing/deserializing types with `ciborium`.                                    |
-//! | `json`       | Support for serializing/deserializing types with `serde_json`.                                  |
-//! | `full`       | All of the above except `tokio` and `futures`.                                                  |
+//! | `std`        | Adds support for sending/receiving types over [`Read`] and [`Write`].                           |
+//! | `tokio`      | Adds support for sending/receiving types asynchronously with [`tokio`].                             |
+//! | `futures`    | Adds support for sending/receiving types asynchronously with [`futures`].                           |
+//! | `bincode`    | Support for serializing/deserializing types with [`bincode`].                                     |
+//! | `cbor`       | Support for serializing/deserializing types with [`ciborium`].                                    |
+//! | `json`       | Support for serializing/deserializing types with [`serde_json`].                                  |
+//! | `borsh`      | Support for serializing/deserializing types with [`borsh`].
+//! | `full`       | All of the above.                                                                               |
 //!
-//! **NOTE:** Because of the subtle differences in the APIs of `tokio` and
-//!           `futures`, it means that these 2 features must be exclusive. You
-//!           cannot have both `tokio` and `futures` enabled at once.
+//! [`bincode`]: https://docs.rs/bincode
+//! [`ciborium`]: https://docs.rs/ciborium
+//! [`serde_json`]: https://docs.rs/serde_json
+//! [`borsh`]: https://docs.rs/borsh
+//! [`tokio`]: https://docs.rs/tokio
+//! [`futures`]: https://docs.rs/futures
+//! [`Read`]: std::io::Read
+//! [`Write`]: std::io::Write
 #![deny(missing_docs)]
 #![warn(
 	clippy::all,
@@ -89,7 +96,7 @@
 
 extern crate alloc;
 
-mod common;
+mod protocol;
 mod util;
 
 pub mod error;
@@ -98,7 +105,7 @@ pub mod receiver;
 pub mod sender;
 
 #[cfg(feature = "statistics")]
-pub use self::common::Statistics;
+pub use self::util::Statistics;
 
 pub use self::receiver::Receiver;
 pub use self::sender::Sender;
@@ -143,7 +150,7 @@ pub type Pair<T, R, W, Sd> = (Sender<T, W, Sd>, Receiver<T, R, Sd>);
 /// }
 /// ```
 pub fn channel<T, R, W>(
-	r: R,
+	r: impl io::IntoReader<R>,
 	w: impl io::IntoWriter<W>,
 ) -> Pair<T, R, W, channels_serdes::Bincode>
 where

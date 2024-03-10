@@ -20,32 +20,35 @@ channels-io = { version = "0.1.0", path = "../channels-io", features = [
 
 serde = { version = "1.0", default-features = false, optional = true }
 
-[dependencies.tokio]
-version = "1"
-default-features = false
-features = ["io-util"]
-optional = true
-
-[dependencies.futures]
-version = "0.3"
-optional = true
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+futures = { version = "0.3" }
 
 [features]
-default = ["std", "bincode"]
-
-# TODO: add `tokio` and `futures` and remove the NOTE in README and lib docs
-full = ["std", "statistics", "bincode", "cbor", "json", "borsh"]
-
 statistics = []
 
 std = ["channels-io/std"]
-tokio = ["channels-io/tokio", "dep:tokio"]
-futures = ["channels-io/futures", "dep:futures"]
+tokio = ["channels-io/tokio"]
+futures = ["channels-io/futures"]
 
 bincode = ["channels-serdes/bincode", "dep:serde"]
 cbor = ["channels-serdes/cbor"]
 json = ["channels-serdes/json"]
 borsh = ["channels-serdes/borsh"]
+
+full = [
+	"statistics",
+	"std",
+	"tokio",
+	"futures",
+	"bincode",
+	"cbor",
+	"json",
+	"borsh",
+]
+
+default = ["std", "bincode"]
+
 
 [package.metadata.docs.rs]
 features = ["full", "tokio"]
