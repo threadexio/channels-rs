@@ -6,17 +6,13 @@ on:
 
 jobs:
   check:
-    strategy:
-      fail-fast: false
-      matrix:
-        features: ["full", "full,tokio", "full,futures"]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo fmt --check --all
-      - run: cargo clippy --package channels --no-default-features --features ${{ matrix.features }}
+      - run: cargo clippy --package channels --all-features
 
   test:
     strategy:
@@ -29,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace --features full,tokio
+      - run: cargo test --workspace --all-features
 
   doc:
     runs-on: ubuntu-latest
@@ -39,7 +35,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly
-      - run: cargo +nightly doc --workspace --no-deps --features full,tokio
+      - run: cargo +nightly doc --workspace --no-deps --all-features
 
   miri:
     runs-on: ubuntu-latest
