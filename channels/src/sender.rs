@@ -582,9 +582,9 @@ mod send {
 				let header = Cursor::new(header.to_bytes());
 				let payload =
 					self.payload.by_ref().take(payload_length);
-				let mut packet = channels_io::chain(header, payload);
+				let packet = channels_io::chain(header, payload);
 
-				let mut packet = copy_to_contiguous(&mut packet);
+				let mut packet = packet.copy_to_contiguous();
 				self.writer.write(&mut packet)?;
 
 				#[cfg(feature = "statistics")]
@@ -613,9 +613,9 @@ mod send {
 				let header = Cursor::new(header.to_bytes());
 				let payload =
 					self.payload.by_ref().take(payload_length);
-				let mut packet = channels_io::chain(header, payload);
+				let packet = channels_io::chain(header, payload);
 
-				let mut packet = copy_to_contiguous(&mut packet);
+				let mut packet = packet.copy_to_contiguous();
 				self.writer.write(&mut packet).await?;
 
 				#[cfg(feature = "statistics")]
@@ -628,17 +628,4 @@ mod send {
 			Ok(())
 		}
 	}
-}
-
-/// Copy the contents of `buf` to a contiguous buffer.
-fn copy_to_contiguous<B: Buf>(mut buf: B) -> impl Contiguous {
-	let mut vec = Vec::with_capacity(buf.remaining());
-
-	while buf.has_remaining() {
-		let x = buf.chunk();
-		vec.extend_from_slice(x);
-		buf.advance(x.len());
-	}
-
-	Cursor::new(vec)
 }
