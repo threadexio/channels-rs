@@ -23,8 +23,8 @@ tokio = { version = "1", features = ["io-util"], optional = true }
 
 [dev-dependencies]
 async-std = { version = "1" }
-futures = {}
-tokio = { features = ["full"] }
+futures = { version = "0.3" }
+tokio = { version = "1", features = ["full"] }
 
 [features]
 alloc = []
