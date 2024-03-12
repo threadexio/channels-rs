@@ -2,10 +2,10 @@ mod traits;
 
 mod impls;
 
-pub mod chain;
-pub mod cursor;
-pub mod limit;
-pub mod take;
+mod chain;
+mod cursor;
+mod limit;
+mod take;
 
 pub use self::chain::{chain, Chain};
 pub use self::cursor::Cursor;
