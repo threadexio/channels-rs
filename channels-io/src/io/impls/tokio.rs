@@ -2,7 +2,10 @@ use super::prelude::*;
 
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
-newtype! { Tokio }
+newtype! {
+	/// Wrapper IO type for [`tokio::io::AsyncRead`] and [`tokio::io::AsyncWrite`].
+	Tokio
+}
 
 impl_newtype_read! { Tokio: ::tokio::io::AsyncRead + Unpin + Send }
 

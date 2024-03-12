@@ -21,6 +21,11 @@ readme = "README.md"
 futures = { version = "0.3", optional = true }
 tokio = { version = "1", features = ["io-util"], optional = true }
 
+[dev-dependencies]
+async-std = { version = "1" }
+futures = {}
+tokio = { features = ["full"] }
+
 [features]
 alloc = []
 std = ["alloc"]

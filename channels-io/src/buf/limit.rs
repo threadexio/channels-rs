@@ -1,32 +1,41 @@
 use super::{BufMut, ContiguousMut, WalkableMut};
 
+/// An adapter for [`BufMut`] that will allow writing only up to a specific
+/// number of bytes.
 #[derive(Debug)]
 pub struct Limit<B> {
 	buf: B,
 	left: usize,
 }
 
+/// Create a new [`Limit`] adapter that will be able to write at most `limit`
+/// bytes.
 pub fn limit<B>(buf: B, limit: usize) -> Limit<B> {
 	Limit { buf, left: limit }
 }
 
 impl<B> Limit<B> {
+	/// Get a reference to the internal buffer.
 	pub fn get(&self) -> &B {
 		&self.buf
 	}
 
+	/// Get a mutable reference to the internal buffer.
 	pub fn get_mut(&mut self) -> &mut B {
 		&mut self.buf
 	}
 
+	/// Destruct the adapter and get back the internal buffer.
 	pub fn into_inner(self) -> B {
 		self.buf
 	}
 
+	/// Get the maximum number of bytes this adapter allows to be written.
 	pub fn limit(&self) -> usize {
 		self.left
 	}
 
+	/// Set the maximum number of bytes this adapter allows to be written.
 	pub fn set_limit(&mut self, limit: usize) {
 		self.left = limit;
 	}

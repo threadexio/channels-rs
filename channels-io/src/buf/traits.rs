@@ -6,18 +6,20 @@ use super::{
 
 /// A type that holds a contiguous slice of bytes.
 pub trait AsBytes {
+	/// Get the slice of bytes this type holds.
 	fn as_bytes(&self) -> &[u8];
 }
 
-/// A buffer with [`Cursor`] functionality.
+/// An immutable buffer.
 ///
-/// This trait does not guaranteed that the internal representation of the buffer
+/// This trait does not guarantee that the internal representation of the buffer
 /// is a contiguous region of memory.
 pub trait Buf {
 	/// Get the remaining part of the buffer.
 	///
-	/// A call to [`chunk`] may return a slice shorter than what [`remaining`]
-	/// says. This allows for non-contiguous representation of the buffer.
+	/// A call to [`Buf::chunk()`] may return a slice shorter than what
+	/// [`Buf::remaining()`] returns. This allows for non-contiguous
+	/// representation of the buffer.
 	fn chunk(&self) -> &[u8];
 
 	/// Get the number of bytes remaining in this buffer.
@@ -26,6 +28,10 @@ pub trait Buf {
 	/// Advance the start of the buffer by `cnt` bytes.
 	///
 	/// `cnt` must be in the range `[0, self.remaining()]`.
+	///
+	/// # Panics
+	///
+	/// May panic if `cnt` is not in that range.
 	fn advance(&mut self, cnt: usize);
 
 	/// Check whether the buffer has any remaining bytes left.
@@ -96,12 +102,12 @@ pub trait Buf {
 	}
 }
 
-/// A marker trait that describes the behavior of [`Buf::chunk`].
+/// A marker trait that describes the behavior of [`Buf::chunk()`].
 ///
 /// # Safety
 ///
-/// If this trait is implemented, then the slice returned by [`Buf::chunk`] MUST
-/// be of length [`Buf::remaining`].
+/// If this trait is implemented, then the slice returned by [`Buf::chunk()`] MUST
+/// be of length [`Buf::remaining()`].
 pub unsafe trait Contiguous:
 	Buf + for<'a> Walkable<'a>
 {
@@ -109,25 +115,32 @@ pub unsafe trait Contiguous:
 
 /// A non-contiguous buffer whose chunks can be iterated over.
 pub trait Walkable<'chunk>: Buf {
+	/// Chunk iterator type.
 	type Iter: Iterator<Item = &'chunk [u8]>;
 
+	/// Walk each chunk of the buffer in order.
+	///
+	/// This function returns an [`Iterator`] that will iterate over all chunks
+	/// of the buffer in order.
 	fn walk_chunks(&'chunk self) -> Self::Iter;
 }
 
 /// A type that holds a contiguous slice of mutable bytes.
 pub trait AsBytesMut: AsBytes {
+	/// Get the mutable slice of bytes this type holds.
 	fn as_bytes_mut(&mut self) -> &mut [u8];
 }
 
-/// A mutable buffer with [`Cursor`] functionality.
+/// A mutable buffer.
 ///
 /// This trait does not guarantee that the internal representation of the buffer
 /// is a contiguous region of memory.
 pub trait BufMut {
 	/// Get the remaining part of the buffer.
 	///
-	/// A call to [`chunk_mut`] may return a slice shorter than what [`remaining_mut`]
-	/// says. This allows for non-contiguous representation of the buffer.
+	/// A call to [`BufMut::chunk_mut()`] may return a slice shorter than what
+	/// [`BufMut::remaining_mut()`] returns. This allows for non-contiguous
+	/// representation of the buffer.
 	fn chunk_mut(&mut self) -> &mut [u8];
 
 	/// Get the number of bytes remaining in this buffer.
@@ -136,6 +149,10 @@ pub trait BufMut {
 	/// Advance the start of the buffer by `cnt` bytes.
 	///
 	/// `cnt` must be in the range `[0, self.remaining_mut()]`.
+	///
+	/// # Panics
+	///
+	/// May panic if `cnt` is not in that range.
 	fn advance_mut(&mut self, cnt: usize);
 
 	/// Check whether the buffer has any remaining bytes left.
@@ -187,12 +204,12 @@ pub trait BufMut {
 	}
 }
 
-/// A marker trait that describes the behavior of [`BufMut::chunk_mut`].
+/// A marker trait that describes the behavior of [`BufMut::chunk_mut()`].
 ///
 /// # Safety
 ///
-/// If this trait is implemented, then the slice returned by [`BufMut::chunk_mut`]
-/// MUST be of length [`BufMut::remaining_mut`].
+/// If this trait is implemented, then the slice returned by [`BufMut::chunk_mut()`]
+/// MUST be of length [`BufMut::remaining_mut()`].
 pub unsafe trait ContiguousMut:
 	BufMut + for<'a> WalkableMut<'a>
 {
@@ -200,8 +217,13 @@ pub unsafe trait ContiguousMut:
 
 /// A non-contiguous mutable buffer whose chunks can be iterated over.
 pub trait WalkableMut<'chunk>: BufMut {
+	/// Chunk iterator type.
 	type Iter: Iterator<Item = &'chunk mut [u8]>;
 
+	/// Walk each chunk of the buffer in order.
+	///
+	/// This function returns an [`Iterator`] that will iterate over all chunks
+	/// of the buffer in order.
 	fn walk_chunks_mut(&'chunk mut self) -> Self::Iter;
 }
 

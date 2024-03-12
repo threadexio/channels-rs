@@ -1,6 +1,9 @@
 use super::prelude::*;
 
-newtype! { Std }
+newtype! {
+	/// Wrapper IO type for [`std::io::Read`] and [`std::io::Write`].
+	Std
+}
 
 impl_newtype_read! { Std: ::std::io::Read }
 

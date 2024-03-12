@@ -2,7 +2,10 @@ use super::prelude::*;
 
 use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
-newtype! { Futures }
+newtype! {
+	/// Wrapper IO type for [`futures::AsyncRead`] and [`futures::AsyncWrite`].
+	Futures
+}
 
 impl_newtype_read! { Futures: ::futures::io::AsyncRead + Unpin + Send }
 

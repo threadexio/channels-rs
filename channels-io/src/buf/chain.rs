@@ -1,32 +1,39 @@
 use super::{Buf, BufMut, Walkable, WalkableMut};
 
+/// An adapter that will "chain" 2 buffers together making them act as one.
 #[derive(Debug)]
 pub struct Chain<A, B> {
 	a: A,
 	b: B,
 }
 
+/// Create a new [`Chain`] adapter by chaining `a` and `b`.
 pub fn chain<A, B>(a: A, b: B) -> Chain<A, B> {
 	Chain { a, b }
 }
 
 impl<A, B> Chain<A, B> {
+	/// Get a reference to the first buffer in the chain.
 	pub fn first(&self) -> &A {
 		&self.a
 	}
 
+	/// Get a mutable reference to the first buffer in the chain.
 	pub fn first_mut(&mut self) -> &mut A {
 		&mut self.a
 	}
 
+	/// Get a reference to the last buffer in the chain.
 	pub fn last(&self) -> &B {
 		&self.b
 	}
 
+	/// Get a mutable reference to the last buffer in the chain.
 	pub fn last_mut(&mut self) -> &mut B {
 		&mut self.b
 	}
 
+	/// Destruct the adapter and get back the chained buffers.
 	pub fn into_inner(self) -> (A, B) {
 		(self.a, self.b)
 	}

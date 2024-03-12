@@ -1,11 +1,14 @@
 use super::{Buf, Contiguous, Walkable};
 
+/// An adapter for [`Buf`] that will allow reading up to a specific number of
+/// bytes.
 #[derive(Debug)]
 pub struct Take<B> {
 	buf: B,
 	left: usize,
 }
 
+/// Create a [`Take`] adapter that will "see" up to `limit` bytes of `buf`.
 pub fn take<B>(buf: B, limit: usize) -> Take<B>
 where
 	B: Buf,
@@ -14,22 +17,27 @@ where
 }
 
 impl<B> Take<B> {
+	/// Get a reference to the internal buffer.
 	pub fn get(&self) -> &B {
 		&self.buf
 	}
 
+	/// Get a mutable reference to the internal buffer.
 	pub fn get_mut(&mut self) -> &mut B {
 		&mut self.buf
 	}
 
+	/// Destruct the adapter and get back the internal buffer.
 	pub fn into_inner(self) -> B {
 		self.buf
 	}
 
+	/// Get the maximum number of bytes this adapter will "see".
 	pub fn limit(&self) -> usize {
 		self.left
 	}
 
+	/// Set the maximum number of bytes this adapter will "see".
 	pub fn set_limit(&mut self, limit: usize) {
 		self.left = limit;
 	}

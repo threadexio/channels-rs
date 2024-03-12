@@ -5,6 +5,7 @@ use super::{
 	Walkable, WalkableMut,
 };
 
+/// Add [`Buf`]/[`BufMut`] functionality to types that do not support it.
 #[derive(Debug)]
 pub struct Cursor<T> {
 	buf: T,
@@ -12,26 +13,35 @@ pub struct Cursor<T> {
 }
 
 impl<T> Cursor<T> {
+	/// Create a new [`Cursor`] from `buf`.
 	pub fn new(buf: T) -> Self {
 		Self { buf, pos: 0 }
 	}
 
+	/// Get a reference to the buffer.
 	pub fn get(&self) -> &T {
 		&self.buf
 	}
 
+	/// Get a mutable reference to the buffer.
 	pub fn get_mut(&mut self) -> &mut T {
 		&mut self.buf
 	}
 
+	/// Destruct the [`Cursor`] and get back the buffer.
 	pub fn into_inner(self) -> T {
 		self.buf
 	}
 
+	/// Get the cursor position inside the buffer.
 	pub fn get_pos(&self) -> usize {
 		self.pos
 	}
 
+	/// Set the cursor position inside the buffer.
+	///
+	/// Care must be taken to avoid making the cursor position go out-of-bounds.
+	///
 	/// # Safety
 	///
 	/// `pos` must not be greater than the length of the underlying buffer.
