@@ -1,3 +1,6 @@
+//! An adapter for [`Buf`] that will allow reading up to a specific number of
+//! bytes.
+
 use super::{Buf, Contiguous, Walkable};
 
 /// An adapter for [`Buf`] that will allow reading up to a specific number of
@@ -82,6 +85,7 @@ where
 	}
 }
 
+/// [`Take`] walk iterator.
 #[derive(Debug)]
 pub struct Walk<'a, B>
 where

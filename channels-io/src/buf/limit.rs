@@ -1,3 +1,6 @@
+//! An adapter for [`BufMut`] that will allow writing only up to a specific
+//! number of bytes.
+
 use super::{BufMut, ContiguousMut, WalkableMut};
 
 /// An adapter for [`BufMut`] that will allow writing only up to a specific
@@ -81,6 +84,7 @@ where
 	}
 }
 
+/// [`Limit`] walk iterator.
 #[derive(Debug)]
 pub struct Walk<'a, B>
 where

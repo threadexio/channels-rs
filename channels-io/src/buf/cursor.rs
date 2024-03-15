@@ -1,3 +1,5 @@
+//! Add [`Buf`]/[`BufMut`] functionality to types that do not support it.
+
 use core::iter::{once, Once};
 
 use super::{

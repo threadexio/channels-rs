@@ -1,3 +1,5 @@
+//! An adapter that will "chain" 2 buffers together making them act as one.
+
 use super::{Buf, BufMut, Walkable, WalkableMut};
 
 /// An adapter that will "chain" 2 buffers together making them act as one.
@@ -88,6 +90,7 @@ where
 	}
 }
 
+/// [`Chain`] walk iterator.
 #[derive(Debug)]
 pub struct Walk<'a, A, B>
 where
@@ -182,6 +185,7 @@ where
 	}
 }
 
+/// [`Chain`] walk iterator.
 #[derive(Debug)]
 pub struct WalkMut<'a, A, B>
 where
