@@ -62,6 +62,11 @@ where
 			return;
 		}
 
+		assert!(
+			cnt <= self.remaining(),
+			"tried to advance past end of chain"
+		);
+
 		macro_rules! advance_buf {
 			($buf:expr, $cnt:expr) => {{
 				let x = core::cmp::min($cnt, $buf.remaining());
@@ -157,6 +162,11 @@ where
 			return;
 		}
 
+		assert!(
+			cnt <= self.remaining_mut(),
+			"tried to advance past end of chain"
+		);
+
 		macro_rules! advance_buf {
 			($buf:expr, $cnt:expr) => {{
 				let x = core::cmp::min($cnt, $buf.remaining_mut());
@@ -228,5 +238,258 @@ where
 		}
 
 		get_chunk(&mut self.a).or_else(|| get_chunk(&mut self.b))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	mod buf_impl {
+		use super::{chain, Buf, Walkable};
+
+		type Chain<'a> = super::Chain<&'a [u8], &'a [u8]>;
+
+		#[test]
+		fn basic() {
+			let mut chain: Chain =
+				chain(&[0, 1, 2, 3], &[4, 5, 6, 7, 8, 9]);
+
+			assert_eq!(chain.remaining(), 10);
+			assert_eq!(chain.chunk(), &[0, 1, 2, 3]);
+			assert!(chain.walk_chunks().eq([
+				[0, 1, 2, 3].as_slice(),
+				[4, 5, 6, 7, 8, 9].as_slice()
+			]));
+
+			chain.advance(3);
+			assert_eq!(chain.remaining(), 7);
+			assert_eq!(chain.chunk(), [3]);
+			assert!(chain
+				.walk_chunks()
+				.eq([[3].as_slice(), [4, 5, 6, 7, 8, 9].as_slice()]));
+
+			chain.advance(4);
+			assert_eq!(chain.remaining(), 3);
+			assert_eq!(chain.chunk(), [7, 8, 9]);
+			assert!(chain.walk_chunks().eq([[7, 8, 9].as_slice()]));
+		}
+
+		#[test]
+		fn empty_a() {
+			let mut chain: Chain = chain(&[], &[4, 5, 6, 7, 8, 9]);
+
+			assert_eq!(chain.remaining(), 6);
+			assert_eq!(chain.chunk(), [4, 5, 6, 7, 8, 9]);
+			assert!(chain
+				.walk_chunks()
+				.eq([[4, 5, 6, 7, 8, 9].as_slice()]));
+
+			chain.advance(3);
+			assert_eq!(chain.remaining(), 3);
+			assert_eq!(chain.chunk(), [7, 8, 9]);
+			assert!(chain.walk_chunks().eq([[7, 8, 9].as_slice()]));
+		}
+
+		#[test]
+		fn empty_b() {
+			let mut chain: Chain = chain(&[0, 1, 2, 3], &[]);
+
+			assert_eq!(chain.remaining(), 4);
+			assert_eq!(chain.chunk(), [0, 1, 2, 3]);
+			assert!(chain
+				.walk_chunks()
+				.eq([[0, 1, 2, 3].as_slice()]));
+
+			chain.advance(3);
+			assert_eq!(chain.remaining(), 1);
+			assert_eq!(chain.chunk(), [3]);
+			assert!(chain.walk_chunks().eq([[3].as_slice()]));
+		}
+
+		#[test]
+		fn empty() {
+			let chain: Chain = chain(&[], &[]);
+
+			assert_eq!(chain.remaining(), 0);
+			assert_eq!(chain.chunk(), &[]);
+			assert!(chain.walk_chunks().eq::<[&[u8]; 0]>([]));
+		}
+
+		#[test]
+		fn advance_all() {
+			let mut chain: Chain =
+				chain(&[0, 1, 2, 3], &[4, 5, 6, 7, 8, 9]);
+
+			chain.advance(10);
+			assert_eq!(chain.remaining(), 0);
+			assert_eq!(chain.chunk(), &[]);
+		}
+
+		#[test]
+		fn advance_to_between() {
+			let mut chain: Chain =
+				chain(&[0, 1, 2, 3], &[4, 5, 6, 7, 8, 9]);
+
+			assert_eq!(chain.remaining(), 10);
+			assert_eq!(chain.chunk(), [0, 1, 2, 3]);
+
+			chain.advance(4);
+			assert_eq!(chain.remaining(), 6);
+			assert_eq!(chain.chunk(), [4, 5, 6, 7, 8, 9]);
+			assert!(chain
+				.walk_chunks()
+				.eq([[4, 5, 6, 7, 8, 9].as_slice()]));
+
+			chain.advance(2);
+			assert_eq!(chain.remaining(), 4);
+			assert_eq!(chain.chunk(), [6, 7, 8, 9]);
+			assert!(chain
+				.walk_chunks()
+				.eq([[6, 7, 8, 9].as_slice()]));
+		}
+
+		#[test]
+		#[should_panic(
+			expected = "tried to advance past end of chain"
+		)]
+		fn panic_on_advance_out_of_bounds() {
+			let mut chain: Chain =
+				chain(&[0, 1, 2, 3], &[4, 5, 6, 7, 8, 9]);
+
+			chain.advance(11);
+		}
+	}
+
+	mod bufmut_impl {
+		use super::{chain, BufMut, WalkableMut};
+
+		type Chain<'a> = super::Chain<&'a mut [u8], &'a mut [u8]>;
+
+		#[test]
+		fn basic() {
+			let mut a = [0, 1, 2, 3];
+			let mut b = [4, 5, 6, 7, 8, 9];
+			let mut chain: Chain = chain(&mut a, &mut b);
+
+			assert_eq!(chain.remaining_mut(), 10);
+			assert_eq!(chain.chunk_mut(), [0, 1, 2, 3]);
+			assert!(chain.walk_chunks_mut().eq([
+				[0, 1, 2, 3].as_slice(),
+				[4, 5, 6, 7, 8, 9].as_slice()
+			]));
+
+			chain.advance_mut(3);
+			assert_eq!(chain.remaining_mut(), 7);
+			assert_eq!(chain.chunk_mut(), [3]);
+			assert!(chain
+				.walk_chunks_mut()
+				.eq([[3].as_slice(), [4, 5, 6, 7, 8, 9].as_slice()]));
+
+			chain.advance_mut(4);
+			assert_eq!(chain.remaining_mut(), 3);
+			assert_eq!(chain.chunk_mut(), [7, 8, 9]);
+		}
+
+		#[test]
+		fn empty_a() {
+			let mut a = [];
+			let mut b = [4, 5, 6, 7, 8, 9];
+			let mut chain: Chain = chain(&mut a, &mut b);
+
+			assert_eq!(chain.remaining_mut(), 6);
+			assert_eq!(chain.chunk_mut(), [4, 5, 6, 7, 8, 9]);
+			assert!(chain
+				.walk_chunks_mut()
+				.eq([[4, 5, 6, 7, 8, 9].as_slice()]));
+
+			chain.advance_mut(3);
+			assert_eq!(chain.remaining_mut(), 3);
+			assert_eq!(chain.chunk_mut(), [7, 8, 9]);
+			assert!(chain
+				.walk_chunks_mut()
+				.eq([[7, 8, 9].as_slice()]));
+		}
+
+		#[test]
+		fn empty_b() {
+			let mut a = [0, 1, 2, 3];
+			let mut b = [];
+			let mut chain: Chain = chain(&mut a, &mut b);
+
+			assert_eq!(chain.remaining_mut(), 4);
+			assert_eq!(chain.chunk_mut(), [0, 1, 2, 3]);
+			assert!(chain
+				.walk_chunks_mut()
+				.eq([[0, 1, 2, 3].as_slice()]));
+
+			chain.advance_mut(3);
+			assert_eq!(chain.remaining_mut(), 1);
+			assert_eq!(chain.chunk_mut(), [3]);
+			assert!(chain.walk_chunks_mut().eq([[3].as_slice()]));
+		}
+
+		#[test]
+		fn empty() {
+			let mut a = [];
+			let mut b = [];
+			let mut chain: Chain = chain(&mut a, &mut b);
+
+			assert_eq!(chain.remaining_mut(), 0);
+			assert_eq!(chain.chunk_mut(), &[]);
+			assert!(chain.walk_chunks_mut().eq::<[&[u8]; 0]>([]));
+		}
+
+		#[test]
+		fn advance_all() {
+			let mut a = [0, 1, 2, 3];
+			let mut b = [4, 5, 6, 7, 8, 9];
+			let mut chain: Chain = chain(&mut a, &mut b);
+
+			chain.advance_mut(10);
+			assert_eq!(chain.remaining_mut(), 0);
+			assert_eq!(chain.chunk_mut(), &[]);
+			assert!(chain.walk_chunks_mut().eq::<[&[u8]; 0]>([]));
+		}
+
+		#[test]
+		fn advance_to_between() {
+			let mut a = [0, 1, 2, 3];
+			let mut b = [4, 5, 6, 7, 8, 9];
+			let mut chain: Chain = chain(&mut a, &mut b);
+
+			assert_eq!(chain.remaining_mut(), 10);
+			assert_eq!(chain.chunk_mut(), [0, 1, 2, 3]);
+			assert!(chain.walk_chunks_mut().eq([
+				[0, 1, 2, 3].as_slice(),
+				[4, 5, 6, 7, 8, 9].as_slice()
+			]));
+
+			chain.advance_mut(4);
+			assert_eq!(chain.remaining_mut(), 6);
+			assert_eq!(chain.chunk_mut(), [4, 5, 6, 7, 8, 9]);
+			assert!(chain
+				.walk_chunks_mut()
+				.eq([[4, 5, 6, 7, 8, 9].as_slice()]));
+
+			chain.advance_mut(2);
+			assert_eq!(chain.remaining_mut(), 4);
+			assert_eq!(chain.chunk_mut(), [6, 7, 8, 9]);
+			assert!(chain
+				.walk_chunks_mut()
+				.eq([[6, 7, 8, 9].as_slice()]));
+		}
+
+		#[test]
+		#[should_panic(
+			expected = "tried to advance past end of chain"
+		)]
+		fn panic_on_advance_out_of_bounds() {
+			let mut a = [0, 1, 2, 3];
+			let mut b = [4, 5, 6, 7, 8, 9];
+			let mut chain: Chain = chain(&mut a, &mut b);
+
+			chain.advance_mut(11);
+		}
 	}
 }
