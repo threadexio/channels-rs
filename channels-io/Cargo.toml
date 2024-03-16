@@ -33,7 +33,6 @@ tokio = ["dep:tokio", "std"]
 futures = ["dep:futures", "std"]
 
 [package.metadata.docs.rs]
-features = ["full", "tokio"]
-all-features = false
+all-features = true
 rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
