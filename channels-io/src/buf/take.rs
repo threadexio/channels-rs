@@ -36,12 +36,12 @@ impl<B> Take<B> {
 	}
 
 	/// Get the maximum number of bytes this adapter will "see".
-	pub fn limit(&self) -> usize {
+	pub fn left(&self) -> usize {
 		self.left
 	}
 
 	/// Set the maximum number of bytes this adapter will "see".
-	pub fn set_limit(&mut self, limit: usize) {
+	pub fn set_left(&mut self, limit: usize) {
 		self.left = limit;
 	}
 }
@@ -111,11 +111,9 @@ where
 	type Item = &'a [u8];
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.left == 0 {
-			return None;
-		}
-
 		match self.chunks.next()? {
+			[] => None,
+			_ if self.left == 0 => None,
 			chunk if chunk.len() > self.left => {
 				let ret = &chunk[..self.left];
 				self.left = 0;
@@ -126,5 +124,80 @@ where
 				Some(chunk)
 			},
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{take, Buf, Walkable};
+
+	type Take<'a> = super::Take<&'a [u8]>;
+
+	#[test]
+	fn more_than_left() {
+		let mut take: Take = take(&[0, 1, 2, 3, 4, 5, 6, 7], 5);
+
+		assert_eq!(take.left(), 5);
+		assert_eq!(take.remaining(), 5);
+		assert_eq!(take.chunk(), [0, 1, 2, 3, 4]);
+		assert!(take.walk_chunks().eq([[0, 1, 2, 3, 4].as_slice()]));
+
+		take.advance(3);
+		assert_eq!(take.left(), 2);
+		assert_eq!(take.remaining(), 2);
+		assert_eq!(take.chunk(), [3, 4]);
+		assert!(take.walk_chunks().eq([[3, 4].as_slice()]));
+
+		take.advance(2);
+		assert_eq!(take.left(), 0);
+		assert_eq!(take.remaining(), 0);
+		assert_eq!(take.chunk(), []);
+		assert_eq!(take.walk_chunks().next(), None);
+
+		take.set_left(2);
+		assert_eq!(take.left(), 2);
+		assert_eq!(take.remaining(), 2);
+		assert_eq!(take.chunk(), [5, 6]);
+		assert!(take.walk_chunks().eq([[5, 6].as_slice()]));
+	}
+
+	#[test]
+	fn less_than_left() {
+		let mut take: Take = take(&[0, 1, 2], 5);
+
+		assert_eq!(take.left(), 5);
+		assert_eq!(take.remaining(), 3);
+		assert_eq!(take.chunk(), [0, 1, 2]);
+		assert!(take.walk_chunks().eq([[0, 1, 2].as_slice()]));
+
+		take.advance(3);
+		assert_eq!(take.left(), 2);
+		assert_eq!(take.remaining(), 0);
+		assert_eq!(take.chunk(), []);
+		assert_eq!(take.walk_chunks().next(), None);
+	}
+
+	#[test]
+	fn equal_to_left() {
+		let mut take: Take = take(&[0, 1, 2], 3);
+
+		assert_eq!(take.left(), 3);
+		assert_eq!(take.remaining(), 3);
+		assert_eq!(take.chunk(), [0, 1, 2]);
+		assert!(take.walk_chunks().eq([[0, 1, 2].as_slice()]));
+
+		take.advance(3);
+		assert_eq!(take.left(), 0);
+		assert_eq!(take.remaining(), 0);
+		assert_eq!(take.chunk(), []);
+		assert_eq!(take.walk_chunks().next(), None);
+	}
+
+	#[test]
+	#[should_panic(expected = "tried to advance past end of take")]
+	fn advance_out_of_bounds() {
+		let mut take: Take = take(&[0, 1, 2, 3, 4, 5, 6, 7], 5);
+
+		take.advance(7);
 	}
 }
