@@ -34,12 +34,12 @@ impl<B> Limit<B> {
 	}
 
 	/// Get the maximum number of bytes this adapter allows to be written.
-	pub fn limit(&self) -> usize {
+	pub fn left(&self) -> usize {
 		self.left
 	}
 
 	/// Set the maximum number of bytes this adapter allows to be written.
-	pub fn set_limit(&mut self, limit: usize) {
+	pub fn set_left(&mut self, limit: usize) {
 		self.left = limit;
 	}
 }
@@ -110,11 +110,9 @@ where
 	type Item = &'a mut [u8];
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.left == 0 {
-			return None;
-		}
-
 		match self.chunks.next()? {
+			[] => None,
+			_ if self.left == 0 => None,
 			chunk if chunk.len() > self.left => {
 				let ret = &mut chunk[..self.left];
 				self.left = 0;
@@ -125,5 +123,86 @@ where
 				Some(chunk)
 			},
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{limit, BufMut, WalkableMut};
+
+	type Limit<'a> = super::Limit<&'a mut [u8]>;
+
+	#[test]
+	fn more_than_left() {
+		let mut a = [0, 1, 2, 3, 4, 5, 6, 7];
+		let mut limit: Limit = limit(&mut a, 5);
+
+		assert_eq!(limit.left(), 5);
+		assert_eq!(limit.remaining_mut(), 5);
+		assert_eq!(limit.chunk_mut(), [0, 1, 2, 3, 4]);
+		assert!(limit
+			.walk_chunks_mut()
+			.eq([[0, 1, 2, 3, 4].as_slice()]));
+
+		limit.advance_mut(3);
+		assert_eq!(limit.left(), 2);
+		assert_eq!(limit.remaining_mut(), 2);
+		assert_eq!(limit.chunk_mut(), [3, 4]);
+		assert!(limit.walk_chunks_mut().eq([[3, 4].as_slice()]));
+
+		limit.advance_mut(2);
+		assert_eq!(limit.left(), 0);
+		assert_eq!(limit.remaining_mut(), 0);
+		assert_eq!(limit.chunk_mut(), []);
+		assert_eq!(limit.walk_chunks_mut().next(), None);
+
+		limit.set_left(2);
+		assert_eq!(limit.left(), 2);
+		assert_eq!(limit.remaining_mut(), 2);
+		assert_eq!(limit.chunk_mut(), [5, 6]);
+		assert!(limit.walk_chunks_mut().eq([[5, 6].as_slice()]));
+	}
+
+	#[test]
+	fn less_than_left() {
+		let mut a = [0, 1, 2];
+		let mut limit: Limit = limit(&mut a, 5);
+
+		assert_eq!(limit.left(), 5);
+		assert_eq!(limit.remaining_mut(), 3);
+		assert_eq!(limit.chunk_mut(), [0, 1, 2]);
+		assert!(limit.walk_chunks_mut().eq([[0, 1, 2].as_slice()]));
+
+		limit.advance_mut(3);
+		assert_eq!(limit.left(), 2);
+		assert_eq!(limit.remaining_mut(), 0);
+		assert_eq!(limit.chunk_mut(), []);
+		assert_eq!(limit.walk_chunks_mut().next(), None);
+	}
+
+	#[test]
+	fn equal_to_left() {
+		let mut a = [0, 1, 2];
+		let mut limit: Limit = limit(&mut a, 3);
+
+		assert_eq!(limit.left(), 3);
+		assert_eq!(limit.remaining_mut(), 3);
+		assert_eq!(limit.chunk_mut(), [0, 1, 2]);
+		assert!(limit.walk_chunks_mut().eq([[0, 1, 2].as_slice()]));
+
+		limit.advance_mut(3);
+		assert_eq!(limit.left(), 0);
+		assert_eq!(limit.remaining_mut(), 0);
+		assert_eq!(limit.chunk_mut(), []);
+		assert_eq!(limit.walk_chunks_mut().next(), None);
+	}
+
+	#[test]
+	#[should_panic(expected = "tried to advance past end of limit")]
+	fn advance_out_of_bounds() {
+		let mut a = [0, 1, 2, 3, 4, 5, 6, 7];
+		let mut limit: Limit = limit(&mut a, 5);
+
+		limit.advance_mut(7);
 	}
 }
