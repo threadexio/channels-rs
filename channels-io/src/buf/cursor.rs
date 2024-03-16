@@ -52,6 +52,22 @@ impl<T> Cursor<T> {
 	}
 }
 
+impl<T> Cursor<T> {
+	#[inline]
+	fn _remaining(&self, len: usize) -> usize {
+		usize::saturating_sub(len, self.pos)
+	}
+
+	#[inline]
+	fn _advance(&mut self, cnt: usize, remaining: usize) {
+		assert!(
+			cnt <= remaining,
+			"tried to advance past end of cursor"
+		);
+		self.pos += cnt;
+	}
+}
+
 impl<T> Buf for Cursor<T>
 where
 	T: AsBytes,
@@ -61,15 +77,11 @@ where
 	}
 
 	fn remaining(&self) -> usize {
-		usize::saturating_sub(self.buf.as_bytes().len(), self.pos)
+		self._remaining(self.buf.as_bytes().len())
 	}
 
 	fn advance(&mut self, cnt: usize) {
-		assert!(
-			cnt <= self.remaining(),
-			"tried to advance past end of cursor"
-		);
-		self.pos += cnt;
+		self._advance(cnt, self.remaining());
 	}
 }
 
@@ -95,15 +107,11 @@ where
 	}
 
 	fn remaining_mut(&self) -> usize {
-		usize::saturating_sub(self.buf.as_bytes().len(), self.pos)
+		self._remaining(self.buf.as_bytes().len())
 	}
 
 	fn advance_mut(&mut self, cnt: usize) {
-		assert!(
-			cnt <= self.remaining(),
-			"tried to advance past end of cursor"
-		);
-		self.pos += cnt;
+		self._advance(cnt, self.remaining_mut());
 	}
 }
 
