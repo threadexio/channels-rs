@@ -196,33 +196,36 @@ impl<const N: usize> AsBytesMut for [u8; N] {
 
 #[cfg(feature = "alloc")]
 mod alloc_impls {
-	use super::*;
+	use super::{
+		AsBytes, AsBytesMut, Buf, BufMut, Contiguous, ContiguousMut,
+		Walkable, WalkableMut,
+	};
 
 	#[allow(unused_imports)]
 	use alloc::{boxed::Box, vec::Vec};
 
 	impl<B: Buf> Buf for Box<B> {
-		forward_buf_impl!();
+		super::forward_buf_impl!();
 	}
 	unsafe impl<B: Contiguous> Contiguous for Box<B> {}
 	impl<'a, B: Walkable<'a>> Walkable<'a> for Box<B> {
-		forward_walkable_impl!(B, 'a);
+		super::forward_walkable_impl!(B, 'a);
 	}
 
 	impl<B: BufMut> BufMut for Box<B> {
-		forward_bufmut_impl!();
+		super::forward_bufmut_impl!();
 	}
 	unsafe impl<B: ContiguousMut> ContiguousMut for Box<B> {}
 	impl<'a, B: WalkableMut<'a>> WalkableMut<'a> for Box<B> {
-		forward_walkable_mut_impl!(B, 'a);
+		super::forward_walkable_mut_impl!(B, 'a);
 	}
 
 	impl<B: AsBytes> AsBytes for Box<B> {
-		forward_as_bytes_impl!();
+		super::forward_as_bytes_impl!();
 	}
 
 	impl<B: AsBytesMut> AsBytesMut for Box<B> {
-		forward_as_bytes_mut_impl!();
+		super::forward_as_bytes_mut_impl!();
 	}
 
 	impl AsBytes for Vec<u8> {

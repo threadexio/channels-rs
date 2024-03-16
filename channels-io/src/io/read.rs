@@ -248,11 +248,11 @@ macro_rules! forward_impl_async_read {
 
 macro_rules! forward_impl_all_read {
 	($typ:ty) => {
-		impl<T: Read> Read for $typ {
+		impl<T: $crate::Read> $crate::Read for $typ {
 			forward_impl_read!(T);
 		}
 
-		impl<T: AsyncRead> AsyncRead for $typ {
+		impl<T: $crate::AsyncRead> $crate::AsyncRead for $typ {
 			forward_impl_async_read!(T);
 		}
 	};
@@ -261,8 +261,4 @@ macro_rules! forward_impl_all_read {
 forward_impl_all_read! { &mut T }
 
 #[cfg(feature = "alloc")]
-mod alloc_impls {
-	use super::*;
-
-	forward_impl_all_read! { alloc::boxed::Box<T> }
-}
+forward_impl_all_read! { alloc::boxed::Box<T> }

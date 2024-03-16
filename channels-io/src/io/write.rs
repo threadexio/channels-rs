@@ -274,11 +274,11 @@ macro_rules! forward_impl_async_write {
 
 macro_rules! forward_impl_all_write {
 	($typ:ty) => {
-		impl<T: Write> Write for $typ {
+		impl<T: $crate::Write> $crate::Write for $typ {
 			forward_impl_write!(T);
 		}
 
-		impl<T: AsyncWrite> AsyncWrite for $typ {
+		impl<T: $crate::AsyncWrite> $crate::AsyncWrite for $typ {
 			forward_impl_async_write!(T);
 		}
 	};
@@ -287,8 +287,4 @@ macro_rules! forward_impl_all_write {
 forward_impl_all_write! { &mut T }
 
 #[cfg(feature = "alloc")]
-mod alloc_impls {
-	use super::*;
-
-	forward_impl_all_write! { alloc::boxed::Box<T> }
-}
+forward_impl_all_write! { alloc::boxed::Box<T> }
