@@ -119,3 +119,121 @@ where
 		once(self.chunk_mut())
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	mod buf_impl {
+		use super::{Buf, Cursor, Walkable};
+
+		#[test]
+		fn basic() {
+			let mut cursor = Cursor::new([0u8, 1, 2, 3, 4, 5, 6, 7]);
+
+			assert_eq!(cursor.remaining(), 8);
+			assert_eq!(cursor.chunk(), [0, 1, 2, 3, 4, 5, 6, 7]);
+			assert!(cursor
+				.walk_chunks()
+				.eq([[0, 1, 2, 3, 4, 5, 6, 7].as_slice()]));
+
+			cursor.advance(4);
+			assert_eq!(cursor.remaining(), 4);
+			assert_eq!(cursor.chunk(), [4, 5, 6, 7]);
+			assert!(cursor
+				.walk_chunks()
+				.eq([[4, 5, 6, 7].as_slice()]));
+		}
+
+		#[test]
+		fn empty() {
+			let cursor = Cursor::new([]);
+
+			assert_eq!(cursor.remaining(), 0);
+			assert_eq!(cursor.chunk(), []);
+			assert!(cursor.walk_chunks().eq([[].as_slice()]));
+		}
+
+		#[test]
+		fn advance_max() {
+			let mut cursor = Cursor::new([0u8, 1, 2, 3, 4, 5, 6, 7]);
+
+			cursor.advance(8);
+			assert_eq!(cursor.remaining(), 0);
+			assert_eq!(cursor.chunk(), []);
+			assert!(cursor.walk_chunks().eq([[].as_slice()]));
+		}
+
+		#[test]
+		#[should_panic(
+			expected = "tried to advance past end of cursor"
+		)]
+		fn advance_out_of_bounds() {
+			let mut cursor = Cursor::new([0u8, 1, 2, 3, 4, 5, 6, 7]);
+			cursor.advance(9);
+		}
+	}
+
+	mod bufmut_impl {
+		use super::{BufMut, Cursor, WalkableMut};
+
+		#[test]
+		fn basic() {
+			let mut cursor = Cursor::new([0u8, 1, 2, 3, 4, 5, 6, 7]);
+
+			assert_eq!(cursor.remaining_mut(), 8);
+			assert_eq!(cursor.chunk_mut(), [0, 1, 2, 3, 4, 5, 6, 7]);
+			assert!(cursor
+				.walk_chunks_mut()
+				.eq([[0, 1, 2, 3, 4, 5, 6, 7].as_slice()]));
+
+			cursor.advance_mut(4);
+			assert_eq!(cursor.remaining_mut(), 4);
+			assert_eq!(cursor.chunk_mut(), [4, 5, 6, 7]);
+			assert!(cursor
+				.walk_chunks_mut()
+				.eq([[4, 5, 6, 7].as_slice()]));
+		}
+
+		#[test]
+		fn empty() {
+			let mut cursor = Cursor::new([]);
+
+			assert_eq!(cursor.remaining_mut(), 0);
+			assert_eq!(cursor.chunk_mut(), []);
+			assert!(cursor.walk_chunks_mut().eq([[].as_slice()]));
+		}
+
+		#[test]
+		fn advance_mut_max() {
+			let mut cursor = Cursor::new([0u8, 1, 2, 3, 4, 5, 6, 7]);
+
+			cursor.advance_mut(8);
+			assert_eq!(cursor.remaining_mut(), 0);
+			assert_eq!(cursor.chunk_mut(), []);
+			assert!(cursor.walk_chunks_mut().eq([[].as_slice()]));
+		}
+
+		#[test]
+		#[should_panic(
+			expected = "tried to advance past end of cursor"
+		)]
+		fn advance_mut_out_of_bounds() {
+			let mut cursor = Cursor::new([0u8, 1, 2, 3, 4, 5, 6, 7]);
+			cursor.advance_mut(9);
+		}
+	}
+
+	#[test]
+	fn get_pos() {
+		let mut cursor = Cursor::new([0u8, 1, 2, 3, 4, 5, 6, 7]);
+
+		assert_eq!(cursor.get_pos(), 0);
+
+		cursor.advance(4);
+		assert_eq!(cursor.get_pos(), 4);
+
+		cursor.advance(4);
+		assert_eq!(cursor.get_pos(), 8);
+	}
+}
