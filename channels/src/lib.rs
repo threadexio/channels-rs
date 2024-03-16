@@ -44,12 +44,12 @@
 //! | :----------: | :---------------------------------------------------------------------------------------------- |
 //! | `statistics` | Capture statistic data like: total bytes sent/received, number of send/receive operations, etc. |
 //! | `std`        | Adds support for sending/receiving types over [`Read`] and [`Write`].                           |
-//! | `tokio`      | Adds support for sending/receiving types asynchronously with [`tokio`].                             |
-//! | `futures`    | Adds support for sending/receiving types asynchronously with [`futures`].                           |
-//! | `bincode`    | Support for serializing/deserializing types with [`bincode`].                                     |
-//! | `cbor`       | Support for serializing/deserializing types with [`ciborium`].                                    |
-//! | `json`       | Support for serializing/deserializing types with [`serde_json`].                                  |
-//! | `borsh`      | Support for serializing/deserializing types with [`borsh`].
+//! | `tokio`      | Adds support for sending/receiving types asynchronously with [`tokio`].                         |
+//! | `futures`    | Adds support for sending/receiving types asynchronously with [`futures`].                       |
+//! | `bincode`    | Support for serializing/deserializing types with [`bincode`].                                   |
+//! | `cbor`       | Support for serializing/deserializing types with [`ciborium`].                                  |
+//! | `json`       | Support for serializing/deserializing types with [`serde_json`].                                |
+//! | `borsh`      | Support for serializing/deserializing types with [`borsh`].                                     |
 //! | `full`       | All of the above.                                                                               |
 //!
 //! [`bincode`]: https://docs.rs/bincode
