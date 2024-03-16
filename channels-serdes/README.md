@@ -3,6 +3,7 @@
 [`bincode`]: https://github.com/bincode-org/bincode
 [`ciborium`]: https://github.com/enarx/ciborium
 [`serde_json`]: https://github.com/serde-rs/json
+[`borsh`]: https://github.com/near/borsh-rs
 
 # channels-serdes
 
@@ -17,5 +18,6 @@ The crate contains 3 reference implementations that are all usable under [`chann
 | `Bincode` |  [`bincode`]   |  `bincode`   |
 | `Cbor`    |  [`ciborium`]  |    `cbor`    |
 | `Json`    | [`serde_json`] |    `json`    |
+| `Borsh`   |   [`borsh`]    |   `borsh`    |
 
 `Bincode` is the default implementation used by [`channels`].
