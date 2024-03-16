@@ -1,6 +1,5 @@
-use crate::buf::ContiguousMut;
-
-use super::future;
+use crate::util::Future;
+use crate::ContiguousMut;
 
 /// This trait allows reading bytes from a source.
 ///
@@ -39,7 +38,7 @@ pub trait AsyncRead: Send {
 	fn read<B>(
 		&mut self,
 		buf: B,
-	) -> future! { Result<(), Self::Error> }
+	) -> impl Future<Output = Result<(), Self::Error>>
 	where
 		B: ContiguousMut;
 }

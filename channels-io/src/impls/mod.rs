@@ -11,7 +11,7 @@ macro_rules! newtype {
 
 macro_rules! impl_newtype_read {
     ($name:ident: $($bounds:tt)*) => {
-			impl<T> $crate::io::Reader for $name<T>
+			impl<T> $crate::Reader for $name<T>
 			where
 				T: $($bounds)*
 			{
@@ -30,7 +30,7 @@ macro_rules! impl_newtype_read {
 				}
 			}
 
-			impl<T> $crate::io::IntoReader<$name<T>> for T
+			impl<T> $crate::IntoReader<$name<T>> for T
 			where
 				T: $($bounds)*
 			{
@@ -43,7 +43,7 @@ macro_rules! impl_newtype_read {
 
 macro_rules! impl_newtype_write {
 	($name:ident: $($bounds:tt)*) => {
-		impl<T> $crate::io::Writer for $name<T>
+		impl<T> $crate::Writer for $name<T>
 		where
 			T: $($bounds)*
 		{
@@ -62,7 +62,7 @@ macro_rules! impl_newtype_write {
 			}
 		}
 
-		impl<T> $crate::io::IntoWriter<$name<T>> for T
+		impl<T> $crate::IntoWriter<$name<T>> for T
 		where
 			T: $($bounds)*
 		{
@@ -82,7 +82,7 @@ mod prelude {
 		super::read::*, super::write::*, impl_newtype_read,
 		impl_newtype_write, newtype,
 	};
-	pub(super) use crate::buf::{Contiguous, ContiguousMut};
+	pub(super) use crate::{Contiguous, ContiguousMut};
 }
 
 macro_rules! declare_impl {

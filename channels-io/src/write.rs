@@ -1,6 +1,5 @@
 use crate::buf::Contiguous;
-
-use super::future;
+use crate::util::Future;
 
 /// This trait allows writing bytes to a writer.
 ///
@@ -46,7 +45,7 @@ pub trait AsyncWrite {
 	fn write<B>(
 		&mut self,
 		buf: B,
-	) -> future! { Result<(), Self::Error> }
+	) -> impl Future<Output = Result<(), Self::Error>>
 	where
 		B: Contiguous;
 
@@ -56,7 +55,9 @@ pub trait AsyncWrite {
 	/// it returns a [`Future`] that must be `.await`ed.
 	///
 	/// [`Future`]: core::future::Future
-	fn flush(&mut self) -> future! { Result<(), Self::Error> };
+	fn flush(
+		&mut self,
+	) -> impl Future<Output = Result<(), Self::Error>>;
 }
 
 /// This trait should be implemented for every "newtype" that implements either
