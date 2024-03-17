@@ -25,6 +25,7 @@ pub struct Statistics {
 	ops: u64,
 }
 
+#[allow(dead_code)]
 impl Statistics {
 	pub(crate) const fn new() -> Self {
 		Self { total_bytes: 0, packets: 0, ops: 0 }
@@ -46,6 +47,7 @@ impl Statistics {
 	}
 }
 
+#[allow(dead_code)]
 impl Statistics {
 	/// Returns the number of bytes transferred through this reader/writer.
 	#[must_use]
@@ -84,6 +86,7 @@ pub struct StatIO<R> {
 	pub(crate) statistics: Statistics,
 }
 
+#[allow(unused_variables, clippy::unused_self)]
 impl<R> StatIO<R> {
 	pub fn new(reader: R) -> Self {
 		Self {
@@ -94,13 +97,11 @@ impl<R> StatIO<R> {
 		}
 	}
 
-	#[allow(unused_variables)]
 	fn on_read(&mut self, n: u64) {
 		#[cfg(feature = "statistics")]
 		self.statistics.add_total_bytes(n);
 	}
 
-	#[allow(unused_variables)]
 	fn on_write(&mut self, n: u64) {
 		#[cfg(feature = "statistics")]
 		self.statistics.add_total_bytes(n);

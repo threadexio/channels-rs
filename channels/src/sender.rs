@@ -7,7 +7,10 @@ use core::marker::PhantomData;
 use crate::error::SendError;
 use crate::io::{AsyncWrite, IntoWriter, Write, Writer};
 use crate::serdes::Serializer;
-use crate::util::{Pcb, StatIO, Statistics};
+use crate::util::{Pcb, StatIO};
+
+#[allow(unused_imports)]
+use crate::util::Statistics;
 
 /// The sending-half of the channel.
 pub struct Sender<T, W, S> {

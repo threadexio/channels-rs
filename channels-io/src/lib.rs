@@ -115,4 +115,5 @@ pub use self::write::{AsyncWrite, IntoWriter, Write, Writer};
 
 mod impls;
 
+#[allow(unused_imports)]
 pub use self::impls::*;

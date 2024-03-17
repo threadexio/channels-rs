@@ -1,3 +1,5 @@
+#![allow(unused_macros)]
+
 macro_rules! newtype {
     (
 		$(#[$attr:meta])*
@@ -77,6 +79,7 @@ use impl_newtype_read;
 use impl_newtype_write;
 use newtype;
 
+#[allow(unused_imports)]
 mod prelude {
 	pub(super) use super::{
 		super::read::*, super::write::*, impl_newtype_read,

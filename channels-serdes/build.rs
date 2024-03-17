@@ -5,6 +5,7 @@ fn set_cfg(cfg: &str, value: Option<&str>) {
 	}
 }
 
+#[allow(dead_code)]
 fn needs_std() {
 	set_cfg("needs_std", None);
 }

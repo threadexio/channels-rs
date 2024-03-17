@@ -6,7 +6,10 @@ use core::marker::PhantomData;
 use crate::error::RecvError;
 use crate::io::{AsyncRead, IntoReader, Read, Reader};
 use crate::serdes::Deserializer;
-use crate::util::{Pcb, StatIO, Statistics};
+use crate::util::{Pcb, StatIO};
+
+#[allow(unused_imports)]
+use crate::util::Statistics;
 
 /// The receiving-half of the channel.
 pub struct Receiver<T, R, D> {
