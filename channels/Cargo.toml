@@ -17,6 +17,7 @@ channels-serdes = { version = "0.1.2", path = "../channels-serdes" }
 channels-io = { version = "0.1.0", path = "../channels-io", features = [
 	"alloc",
 ] }
+channels-macros = { version = "0.1.0", path = "../channels-macros" }
 
 serde = { version = "1.0", default-features = false, optional = true }
 

@@ -267,8 +267,10 @@ where
 	pub fn recv_blocking(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let payload =
-			crate::protocol::recv(&mut self.pcb, &mut self.reader)?;
+		let payload = crate::protocol::recv_sync(
+			&mut self.pcb,
+			&mut self.reader,
+		)?;
 
 		self.deserializer
 			.deserialize(payload)

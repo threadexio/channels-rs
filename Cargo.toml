@@ -4,6 +4,7 @@ members = [
 	"channels-packet",
 	"channels-serdes",
 	"channels-io",
+	"channels-macros",
 	"benches",
 	"stress-tests",
 	"tests-integration",

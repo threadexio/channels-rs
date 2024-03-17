@@ -6,50 +6,6 @@ use crate::io::{
 };
 use crate::util::{Pcb, StatIO};
 
-pub fn send<'a, W, B>(
-	pcb: &'a mut Pcb,
-	writer: &'a mut StatIO<W>,
-	payload: B,
-) -> Result<(), W::Error>
-where
-	W: Write,
-	B: Buf,
-{
-	SendPayload::new(pcb, writer, payload).run()
-}
-
-pub async fn send_async<'a, W, B>(
-	pcb: &'a mut Pcb,
-	writer: &'a mut StatIO<W>,
-	payload: B,
-) -> Result<(), W::Error>
-where
-	W: AsyncWrite,
-	B: Buf,
-{
-	SendPayload::new(pcb, writer, payload).run_async().await
-}
-
-pub fn recv<'a, R>(
-	pcb: &'a mut Pcb,
-	reader: &'a mut StatIO<R>,
-) -> Result<impl Contiguous, RecvPayloadError<R::Error>>
-where
-	R: Read,
-{
-	RecvPayload::new(pcb, reader).run()
-}
-
-pub async fn recv_async<'a, R>(
-	pcb: &'a mut Pcb,
-	reader: &'a mut StatIO<R>,
-) -> Result<impl Contiguous, RecvPayloadError<R::Error>>
-where
-	R: AsyncRead,
-{
-	RecvPayload::new(pcb, reader).run_async().await
-}
-
 struct SendPayload<'a, W, B> {
 	pcb: &'a mut Pcb,
 	writer: &'a mut StatIO<W>,
@@ -110,66 +66,6 @@ where
 	}
 }
 
-impl<'a, W, B> SendPayload<'a, W, B>
-where
-	W: Write,
-	B: Buf,
-{
-	pub fn run(mut self) -> Result<(), W::Error> {
-		while let Some(header) = self.next_header() {
-			self.has_sent_one_packet = true;
-
-			let payload_length =
-				header.length.to_payload_length().as_usize();
-
-			let header = Cursor::new(header.to_bytes());
-			let payload = self.payload.by_ref().take(payload_length);
-			let packet = channels_io::chain(header, payload);
-
-			let mut packet = packet.copy_to_contiguous();
-			self.writer.write(&mut packet)?;
-
-			#[cfg(feature = "statistics")]
-			self.writer.statistics.inc_packets();
-		}
-
-		#[cfg(feature = "statistics")]
-		self.writer.statistics.inc_ops();
-
-		Ok(())
-	}
-}
-
-impl<'a, W, B> SendPayload<'a, W, B>
-where
-	W: AsyncWrite,
-	B: Buf,
-{
-	pub async fn run_async(mut self) -> Result<(), W::Error> {
-		while let Some(header) = self.next_header() {
-			self.has_sent_one_packet = true;
-
-			let payload_length =
-				header.length.to_payload_length().as_usize();
-
-			let header = Cursor::new(header.to_bytes());
-			let payload = self.payload.by_ref().take(payload_length);
-			let packet = channels_io::chain(header, payload);
-
-			let mut packet = packet.copy_to_contiguous();
-			self.writer.write(&mut packet).await?;
-
-			#[cfg(feature = "statistics")]
-			self.writer.statistics.inc_packets();
-		}
-
-		#[cfg(feature = "statistics")]
-		self.writer.statistics.inc_ops();
-
-		Ok(())
-	}
-}
-
 #[derive(Debug)]
 pub enum RecvPayloadError<Io> {
 	Verify(VerifyError),
@@ -199,11 +95,88 @@ impl<'a, R> RecvPayload<'a, R> {
 	}
 }
 
+channels_macros::replace! {
+	replace: {
+		// Synchronous version
+		[
+			(async =>)
+			(await =>)
+			(send  => send_sync)
+			(recv  => recv_sync)
+			(Write => Write)
+			(Read  => Read)
+			(run   => run_sync)
+		]
+		// Asynchronous version
+		[
+			(async => async)
+			(await => .await)
+			(send => send_async)
+			(recv => recv_async)
+			(Write => AsyncWrite)
+			(Read => AsyncRead)
+			(run => run_async)
+		]
+	}
+	code: {
+
+pub async fn send<'a, W, B>(
+	pcb: &'a mut Pcb,
+	writer: &'a mut StatIO<W>,
+	payload: B,
+) -> Result<(), W::Error>
+where
+	W: Write,
+	B: Buf,
+{
+	SendPayload::new(pcb, writer, payload).run() await
+}
+
+impl<'a, W, B> SendPayload<'a, W, B>
+where
+	W: Write,
+	B: Buf,
+{
+	pub async fn run(mut self) -> Result<(), W::Error> {
+		while let Some(header) = self.next_header() {
+			self.has_sent_one_packet = true;
+
+			let payload_length =
+				header.length.to_payload_length().as_usize();
+
+			let header = Cursor::new(header.to_bytes());
+			let payload = self.payload.by_ref().take(payload_length);
+			let packet = channels_io::chain(header, payload);
+
+			let mut packet = packet.copy_to_contiguous();
+			self.writer.write(&mut packet) await?;
+
+			#[cfg(feature = "statistics")]
+			self.writer.statistics.inc_packets();
+		}
+
+		#[cfg(feature = "statistics")]
+		self.writer.statistics.inc_ops();
+
+		Ok(())
+	}
+}
+
+pub async fn recv<'a, R>(
+	pcb: &'a mut Pcb,
+	reader: &'a mut StatIO<R>,
+) -> Result<impl Contiguous, RecvPayloadError<R::Error>>
+where
+	R: Read,
+{
+	RecvPayload::new(pcb, reader).run() await
+}
+
 impl<'a, R> RecvPayload<'a, R>
 where
 	R: Read,
 {
-	pub fn run(
+	pub async fn run(
 		self,
 	) -> Result<impl Contiguous, RecvPayloadError<R::Error>> {
 		let mut full_payload = alloc::vec::Vec::new();
@@ -211,7 +184,7 @@ where
 		loop {
 			let mut header = [0u8; Header::SIZE];
 			self.reader
-				.read(&mut header[..])
+				.read(&mut header[..]) await
 				.map_err(RecvPayloadError::Io)?;
 
 			let header =
@@ -227,7 +200,7 @@ where
 			full_payload.resize(payload_start + payload_length, 0);
 
 			self.reader
-				.read(&mut full_payload[payload_start..])
+				.read(&mut full_payload[payload_start..]) await
 				.map_err(RecvPayloadError::Io)?;
 
 			if !(header.flags & Flags::MORE_DATA) {
@@ -239,44 +212,5 @@ where
 	}
 }
 
-impl<'a, R> RecvPayload<'a, R>
-where
-	R: AsyncRead,
-{
-	pub async fn run_async(
-		self,
-	) -> Result<impl Contiguous, RecvPayloadError<R::Error>> {
-		let mut full_payload = alloc::vec::Vec::new();
-
-		loop {
-			let mut header = [0u8; Header::SIZE];
-			self.reader
-				.read(&mut header[..])
-				.await
-				.map_err(RecvPayloadError::Io)?;
-
-			let header =
-				Header::read_from(&header, &mut self.pcb.id_gen)
-					.map_err(VerifyError::from)
-					.map_err(RecvPayloadError::Verify)?;
-
-			let payload_start = full_payload.len();
-			let payload_length =
-				header.length.to_payload_length().as_usize();
-
-			full_payload.reserve_exact(payload_length);
-			full_payload.resize(payload_start + payload_length, 0);
-
-			self.reader
-				.read(&mut full_payload[payload_start..])
-				.await
-				.map_err(RecvPayloadError::Io)?;
-
-			if !(header.flags & Flags::MORE_DATA) {
-				break;
-			}
-		}
-
-		Ok(Cursor::new(full_payload))
 	}
 }

@@ -251,7 +251,7 @@ where
 			.serialize(data.borrow())
 			.map_err(SendError::Serde)?;
 
-		crate::protocol::send(
+		crate::protocol::send_sync(
 			&mut self.pcb,
 			&mut self.writer,
 			payload,

@@ -1,0 +1,19 @@
+[package]
+name = "channels-macros"
+description = "Procedural macros for channels"
+version = "0.1.0"
+edition = "2021"
+authors = ["1337"]
+license = "MIT"
+repository = "https://github.com/threadexio/channels-rs"
+readme = "README.md"
+keywords = ["sync", "async", "macro", "procedural"]
+categories = ["development-tools"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
