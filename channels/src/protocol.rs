@@ -154,15 +154,19 @@ where
 		while let Some(header) = self.next_header() {
 			self.has_sent_one_packet = true;
 
-			let payload_length =
-				header.length.to_payload_length().as_usize();
+			let mut header_buf = Cursor::new(header.to_bytes());
 
-			let header = Cursor::new(header.to_bytes());
-			let payload = self.payload.by_ref().take(payload_length);
-			let packet = channels_io::chain(header, payload);
-
-			let mut packet = packet.copy_to_contiguous();
-			self.writer.write(&mut packet) await?;
+			match header.length.to_payload_length().as_usize() {
+				0 => {
+					self.writer.write(&mut header_buf) await?;
+				}
+				payload_length => {
+					let payload = self.payload.by_ref().take(payload_length);
+					let packet = header_buf.chain(payload);
+					let mut packet = packet.copy_to_contiguous();
+					self.writer.write(&mut packet) await?;
+				}
+			};
 
 			#[cfg(feature = "statistics")]
 			self.writer.statistics.inc_packets();
