@@ -11,7 +11,9 @@ use crate::io::{
 use crate::util::StatIO;
 
 #[derive(Clone)]
-pub struct SendConfig {}
+pub struct SendConfig {
+	pub flush_on_send: bool,
+}
 
 #[derive(Clone)]
 pub struct RecvConfig {
@@ -192,6 +194,10 @@ where
 
 		#[cfg(feature = "statistics")]
 		self.writer.statistics.inc_ops();
+
+		if self.config.flush_on_send {
+			self.writer.flush() await?;
+		}
 
 		Ok(())
 	}

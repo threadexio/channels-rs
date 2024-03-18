@@ -230,8 +230,6 @@ where
 		.await
 		.map_err(SendError::Io)?;
 
-		self.writer.flush().await.map_err(SendError::Io)?;
-
 		Ok(())
 	}
 }
@@ -264,8 +262,6 @@ where
 			payload,
 		)
 		.map_err(SendError::Io)?;
-
-		self.writer.flush().map_err(SendError::Io)?;
 
 		Ok(())
 	}
@@ -300,7 +296,7 @@ impl<T> Builder<T, (), ()> {
 			_marker: PhantomData,
 			serializer: (),
 			writer: (),
-			config: SendConfig {},
+			config: SendConfig { flush_on_send: true },
 		}
 	}
 }
@@ -366,6 +362,19 @@ impl<T, W> Builder<T, W, ()> {
 }
 
 impl<T, W, S> Builder<T, W, S> {
+	/// Flush the writer after every [`Sender::send()`] and
+	/// [`Sender::send_blocking()`] call.
+	///
+	/// **Default value**: `true`.
+	///
+	/// If this option is disabled, then flushing the writer (if needed) must be
+	/// done manually through the provided references given by [`Sender::get()`]
+	/// and [`Sender::get_mut()`].
+	pub fn flush_on_send(mut self, yes: bool) -> Self {
+		self.config.flush_on_send = yes;
+		self
+	}
+
 	/// Build a [`Sender`].
 	///
 	/// # Example
@@ -389,7 +398,9 @@ impl<T, W, S> Builder<T, W, S> {
 
 impl fmt::Debug for SendConfig {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Config").finish()
+		let mut debug = f.debug_struct("Config");
+		debug.field("flush_on_send", &self.flush_on_send);
+		debug.finish()
 	}
 }
 
