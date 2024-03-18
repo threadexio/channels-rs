@@ -6,8 +6,9 @@ use core::marker::PhantomData;
 
 use crate::error::SendError;
 use crate::io::{AsyncWrite, IntoWriter, Write, Writer};
+use crate::protocol::Pcb;
 use crate::serdes::Serializer;
-use crate::util::{Pcb, StatIO};
+use crate::util::StatIO;
 
 #[allow(unused_imports)]
 use crate::util::Statistics;

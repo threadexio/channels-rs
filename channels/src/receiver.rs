@@ -5,8 +5,9 @@ use core::marker::PhantomData;
 
 use crate::error::RecvError;
 use crate::io::{AsyncRead, IntoReader, Read, Reader};
+use crate::protocol::Pcb;
 use crate::serdes::Deserializer;
-use crate::util::{Pcb, StatIO};
+use crate::util::StatIO;
 
 #[allow(unused_imports)]
 use crate::util::Statistics;

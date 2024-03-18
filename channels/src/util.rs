@@ -1,21 +1,8 @@
 use core::fmt;
 
-use channels_packet::IdGenerator;
-
 use crate::io::{
 	AsyncRead, AsyncWrite, Contiguous, ContiguousMut, Read, Write,
 };
-
-#[derive(Clone)]
-pub struct Pcb {
-	pub id_gen: IdGenerator,
-}
-
-impl Pcb {
-	pub const fn new() -> Self {
-		Self { id_gen: IdGenerator::new() }
-	}
-}
 
 /// IO statistic information.
 #[derive(Clone)]

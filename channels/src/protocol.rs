@@ -1,10 +1,23 @@
-use channels_packet::{Flags, Header, PacketLength, PayloadLength};
+use channels_packet::{
+	Flags, Header, IdGenerator, PacketLength, PayloadLength,
+};
 
 use crate::error::VerifyError;
 use crate::io::{
 	AsyncRead, AsyncWrite, Buf, Contiguous, Cursor, Read, Write,
 };
-use crate::util::{Pcb, StatIO};
+use crate::util::StatIO;
+
+#[derive(Clone)]
+pub struct Pcb {
+	id_gen: IdGenerator,
+}
+
+impl Pcb {
+	pub const fn new() -> Self {
+		Self { id_gen: IdGenerator::new() }
+	}
+}
 
 struct SendPayload<'a, W, B> {
 	pcb: &'a mut Pcb,
