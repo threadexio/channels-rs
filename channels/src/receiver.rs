@@ -2,10 +2,11 @@
 
 use core::fmt;
 use core::marker::PhantomData;
+use core::num::NonZeroUsize;
 
 use crate::error::RecvError;
 use crate::io::{AsyncRead, IntoReader, Read, Reader};
-use crate::protocol::Pcb;
+use crate::protocol::{Pcb, RecvConfig};
 use crate::serdes::Deserializer;
 use crate::util::StatIO;
 
@@ -18,6 +19,7 @@ pub struct Receiver<T, R, D> {
 	reader: StatIO<R>,
 	deserializer: D,
 	pcb: Pcb,
+	config: RecvConfig,
 }
 
 impl<T> Receiver<T, (), ()> {
@@ -35,7 +37,7 @@ impl<T> Receiver<T, (), ()> {
 	///            .build();
 	/// ```
 	#[must_use]
-	pub const fn builder() -> Builder<T, (), ()> {
+	pub fn builder() -> Builder<T, (), ()> {
 		Builder::new()
 	}
 }
@@ -248,6 +250,7 @@ where
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
 		let payload = crate::protocol::recv_async(
+			&self.config,
 			&mut self.pcb,
 			&mut self.reader,
 		)
@@ -272,6 +275,7 @@ where
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
 		let payload = crate::protocol::recv_sync(
+			&self.config,
 			&mut self.pcb,
 			&mut self.reader,
 		)?;
@@ -280,33 +284,6 @@ where
 			.deserialize(payload)
 			.map_err(RecvError::Serde)
 	}
-}
-
-impl<T, R, D> fmt::Debug for Receiver<T, R, D>
-where
-	StatIO<R>: fmt::Debug,
-	D: fmt::Debug,
-{
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Receiver")
-			.field("reader", &self.reader)
-			.field("deserializer", &self.deserializer)
-			.finish_non_exhaustive()
-	}
-}
-
-unsafe impl<T, R, D> Send for Receiver<T, R, D>
-where
-	StatIO<R>: Send,
-	D: Send,
-{
-}
-
-unsafe impl<T, R, D> Sync for Receiver<T, R, D>
-where
-	StatIO<R>: Sync,
-	D: Sync,
-{
 }
 
 /// An iterator over received messages.
@@ -345,23 +322,12 @@ where
 }
 
 /// A builder for [`Receiver`].
+#[derive(Clone)]
 pub struct Builder<T, R, D> {
 	_marker: PhantomData<T>,
 	reader: R,
 	deserializer: D,
-}
-
-impl<T, R, D> fmt::Debug for Builder<T, R, D>
-where
-	R: fmt::Debug,
-	D: fmt::Debug,
-{
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Builder")
-			.field("reader", &self.reader)
-			.field("deserializer", &self.deserializer)
-			.finish()
-	}
+	config: RecvConfig,
 }
 
 impl<T> Builder<T, (), ()> {
@@ -379,8 +345,13 @@ impl<T> Builder<T, (), ()> {
 	///            .build();
 	/// ```
 	#[must_use]
-	pub const fn new() -> Self {
-		Builder { _marker: PhantomData, reader: (), deserializer: () }
+	pub fn new() -> Self {
+		Builder {
+			_marker: PhantomData,
+			reader: (),
+			deserializer: (),
+			config: RecvConfig { size_estimate: None },
+		}
 	}
 }
 
@@ -418,6 +389,7 @@ impl<T, D> Builder<T, (), D> {
 			_marker: PhantomData,
 			reader: reader.into_reader(),
 			deserializer: self.deserializer,
+			config: self.config,
 		}
 	}
 }
@@ -441,11 +413,28 @@ impl<T, R> Builder<T, R, ()> {
 			_marker: PhantomData,
 			reader: self.reader,
 			deserializer,
+			config: self.config,
 		}
 	}
 }
 
 impl<T, R, D> Builder<T, R, D> {
+	/// Set the expected size for each received type.
+	///
+	/// This options exists purely to avoid reallocations when receiving types
+	/// that span multiple packets.
+	///
+	/// # Panics
+	///
+	/// If `size_estimate` is 0.
+	pub fn size_estimate(mut self, size_estimate: usize) -> Self {
+		self.config.size_estimate = Some(
+			NonZeroUsize::new(size_estimate)
+				.expect("size_estimate cannot be zero"),
+		);
+		self
+	}
+
 	/// Build a [`Receiver`].
 	///
 	/// # Example
@@ -462,6 +451,53 @@ impl<T, R, D> Builder<T, R, D> {
 			reader: StatIO::new(self.reader),
 			deserializer: self.deserializer,
 			pcb: Pcb::new(),
+			config: self.config,
 		}
 	}
 }
+
+impl fmt::Debug for RecvConfig {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let mut debug = f.debug_struct("Config");
+
+		if let Some(x) = self.size_estimate {
+			debug.field("size_estimate", &x.get());
+		}
+
+		debug.finish()
+	}
+}
+
+impl<T, R, D> fmt::Debug for Builder<T, R, D>
+where
+	R: fmt::Debug,
+	D: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Builder")
+			.field("reader", &self.reader)
+			.field("deserializer", &self.deserializer)
+			.field("config", &self.config)
+			.finish()
+	}
+}
+
+impl<T, R, D> fmt::Debug for Receiver<T, R, D>
+where
+	StatIO<R>: fmt::Debug,
+	D: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Receiver")
+			.field("reader", &self.reader)
+			.field("deserializer", &self.deserializer)
+			.field("config", &self.config)
+			.finish_non_exhaustive()
+	}
+}
+
+unsafe impl<T, R: Send, D: Send> Send for Builder<T, R, D> {}
+unsafe impl<T, R: Sync, D: Sync> Sync for Builder<T, R, D> {}
+
+unsafe impl<T, R: Send, D: Send> Send for Receiver<T, R, D> {}
+unsafe impl<T, R: Sync, D: Sync> Sync for Receiver<T, R, D> {}

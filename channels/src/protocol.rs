@@ -1,3 +1,5 @@
+use core::num::NonZeroUsize;
+
 use channels_packet::{
 	Flags, Header, IdGenerator, PacketLength, PayloadLength,
 };
@@ -7,6 +9,14 @@ use crate::io::{
 	AsyncRead, AsyncWrite, Buf, Contiguous, Cursor, Read, Write,
 };
 use crate::util::StatIO;
+
+#[derive(Clone)]
+pub struct SendConfig {}
+
+#[derive(Clone)]
+pub struct RecvConfig {
+	pub size_estimate: Option<NonZeroUsize>,
+}
 
 #[derive(Clone)]
 pub struct Pcb {
@@ -24,16 +34,7 @@ struct SendPayload<'a, W, B> {
 	writer: &'a mut StatIO<W>,
 	payload: B,
 	has_sent_one_packet: bool,
-}
-
-impl<'a, W, B> SendPayload<'a, W, B> {
-	pub fn new(
-		pcb: &'a mut Pcb,
-		writer: &'a mut StatIO<W>,
-		payload: B,
-	) -> Self {
-		Self { pcb, writer, payload, has_sent_one_packet: false }
-	}
+	config: &'a SendConfig,
 }
 
 impl<'a, W, B> SendPayload<'a, W, B>
@@ -100,12 +101,7 @@ impl<Ser, Io> From<RecvPayloadError<Io>>
 struct RecvPayload<'a, R> {
 	pcb: &'a mut Pcb,
 	reader: &'a mut StatIO<R>,
-}
-
-impl<'a, R> RecvPayload<'a, R> {
-	pub fn new(pcb: &'a mut Pcb, reader: &'a mut StatIO<R>) -> Self {
-		Self { pcb, reader }
-	}
+	config: &'a RecvConfig,
 }
 
 channels_macros::replace! {
@@ -134,6 +130,7 @@ channels_macros::replace! {
 	code: {
 
 pub async fn send<'a, W, B>(
+	config: &'a SendConfig,
 	pcb: &'a mut Pcb,
 	writer: &'a mut StatIO<W>,
 	payload: B,
@@ -142,7 +139,28 @@ where
 	W: Write,
 	B: Buf,
 {
-	SendPayload::new(pcb, writer, payload).run() await
+	SendPayload {
+		pcb,
+		writer,
+		payload,
+		has_sent_one_packet: false,
+		config
+	}.run() await
+}
+
+pub async fn recv<'a, R>(
+	config: &'a RecvConfig,
+	pcb: &'a mut Pcb,
+	reader: &'a mut StatIO<R>,
+) -> Result<impl Contiguous, RecvPayloadError<R::Error>>
+where
+	R: Read,
+{
+	RecvPayload {
+		pcb,
+		reader,
+		config
+	}.run() await
 }
 
 impl<'a, W, B> SendPayload<'a, W, B>
@@ -179,16 +197,6 @@ where
 	}
 }
 
-pub async fn recv<'a, R>(
-	pcb: &'a mut Pcb,
-	reader: &'a mut StatIO<R>,
-) -> Result<impl Contiguous, RecvPayloadError<R::Error>>
-where
-	R: Read,
-{
-	RecvPayload::new(pcb, reader).run() await
-}
-
 impl<'a, R> RecvPayload<'a, R>
 where
 	R: Read,
@@ -196,7 +204,12 @@ where
 	pub async fn run(
 		self,
 	) -> Result<impl Contiguous, RecvPayloadError<R::Error>> {
-		let mut full_payload = alloc::vec::Vec::new();
+		use alloc::vec::Vec;
+
+		let mut full_payload = match self.config.size_estimate {
+			Some(estimate) => Vec::with_capacity(estimate.get()),
+			None => Vec::new()
+		};
 
 		loop {
 			let mut header = [0u8; Header::SIZE];

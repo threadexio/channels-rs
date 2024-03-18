@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 
 use crate::error::SendError;
 use crate::io::{AsyncWrite, IntoWriter, Write, Writer};
-use crate::protocol::Pcb;
+use crate::protocol::{Pcb, SendConfig};
 use crate::serdes::Serializer;
 use crate::util::StatIO;
 
@@ -19,6 +19,7 @@ pub struct Sender<T, W, S> {
 	writer: StatIO<W>,
 	serializer: S,
 	pcb: Pcb,
+	config: SendConfig,
 }
 
 impl<T> Sender<T, (), ()> {
@@ -36,7 +37,7 @@ impl<T> Sender<T, (), ()> {
 	///            .build();
 	/// ```
 	#[must_use]
-	pub const fn builder() -> Builder<T, (), ()> {
+	pub fn builder() -> Builder<T, (), ()> {
 		Builder::new()
 	}
 }
@@ -221,6 +222,7 @@ where
 			.map_err(SendError::Serde)?;
 
 		crate::protocol::send_async(
+			&self.config,
 			&mut self.pcb,
 			&mut self.writer,
 			payload,
@@ -256,6 +258,7 @@ where
 			.map_err(SendError::Serde)?;
 
 		crate::protocol::send_sync(
+			&self.config,
 			&mut self.pcb,
 			&mut self.writer,
 			payload,
@@ -268,51 +271,13 @@ where
 	}
 }
 
-impl<T, W, S> fmt::Debug for Sender<T, W, S>
-where
-	StatIO<W>: fmt::Debug,
-	S: fmt::Debug,
-{
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Sender")
-			.field("writer", &self.writer)
-			.field("serializer", &self.serializer)
-			.finish_non_exhaustive()
-	}
-}
-
-unsafe impl<T, W, S> Send for Sender<T, W, S>
-where
-	StatIO<W>: Send,
-	S: Send,
-{
-}
-
-unsafe impl<T, W, S> Sync for Sender<T, W, S>
-where
-	StatIO<W>: Sync,
-	S: Sync,
-{
-}
-
 /// A builder for [`Sender`].
+#[derive(Clone)]
 pub struct Builder<T, W, S> {
 	_marker: PhantomData<T>,
 	writer: W,
 	serializer: S,
-}
-
-impl<T, R, D> fmt::Debug for Builder<T, R, D>
-where
-	R: fmt::Debug,
-	D: fmt::Debug,
-{
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Builder")
-			.field("writer", &self.writer)
-			.field("serializer", &self.serializer)
-			.finish()
-	}
+	config: SendConfig,
 }
 
 impl<T> Builder<T, (), ()> {
@@ -330,8 +295,13 @@ impl<T> Builder<T, (), ()> {
 	///            .build();
 	/// ```
 	#[must_use]
-	pub const fn new() -> Self {
-		Builder { _marker: PhantomData, serializer: (), writer: () }
+	pub fn new() -> Self {
+		Builder {
+			_marker: PhantomData,
+			serializer: (),
+			writer: (),
+			config: SendConfig {},
+		}
 	}
 }
 
@@ -369,6 +339,7 @@ impl<T, S> Builder<T, (), S> {
 			_marker: PhantomData,
 			writer: writer.into_writer(),
 			serializer: self.serializer,
+			config: self.config,
 		}
 	}
 }
@@ -389,6 +360,7 @@ impl<T, W> Builder<T, W, ()> {
 			_marker: PhantomData,
 			writer: self.writer,
 			serializer,
+			config: self.config,
 		}
 	}
 }
@@ -410,6 +382,47 @@ impl<T, W, S> Builder<T, W, S> {
 			writer: StatIO::new(self.writer),
 			serializer: self.serializer,
 			pcb: Pcb::new(),
+			config: self.config,
 		}
 	}
 }
+
+impl fmt::Debug for SendConfig {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Config").finish()
+	}
+}
+
+impl<T, R, D> fmt::Debug for Builder<T, R, D>
+where
+	R: fmt::Debug,
+	D: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Builder")
+			.field("writer", &self.writer)
+			.field("serializer", &self.serializer)
+			.field("config", &self.config)
+			.finish()
+	}
+}
+
+impl<T, W, S> fmt::Debug for Sender<T, W, S>
+where
+	StatIO<W>: fmt::Debug,
+	S: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Sender")
+			.field("writer", &self.writer)
+			.field("serializer", &self.serializer)
+			.field("config", &self.config)
+			.finish_non_exhaustive()
+	}
+}
+
+unsafe impl<T, W: Send, S: Send> Send for Builder<T, W, S> {}
+unsafe impl<T, W: Sync, S: Sync> Sync for Builder<T, W, S> {}
+
+unsafe impl<T, W: Send, S: Send> Send for Sender<T, W, S> {}
+unsafe impl<T, W: Sync, S: Sync> Sync for Sender<T, W, S> {}
