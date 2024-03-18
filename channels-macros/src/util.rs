@@ -11,12 +11,14 @@ pub fn try_parse_ident<I>(stream: &mut Peekable<I>) -> Option<Ident>
 where
 	I: Iterator<Item = TokenTree>,
 {
-	let next = stream.peek()?;
-
 	use TokenTree as TT;
-	match next {
+
+	match stream.peek()? {
 		TT::Ident(_) => {
-			let TT::Ident(x) = stream.next().unwrap() else {
+			let TT::Ident(x) = stream
+				.next()
+				.expect("next() should have returned Some")
+			else {
 				panic!("peek() did not return the next element")
 			};
 
@@ -35,12 +37,16 @@ pub fn try_parse_punct<I>(stream: &mut Peekable<I>) -> Option<Punct>
 where
 	I: Iterator<Item = TokenTree>,
 {
+	use TokenTree as TT;
+
 	let next = stream.peek()?;
 
-	use TokenTree as TT;
 	match next {
 		TT::Punct(_) => {
-			let TT::Punct(x) = stream.next().unwrap() else {
+			let TT::Punct(x) = stream
+				.next()
+				.expect("next() should have returned Some")
+			else {
 				panic!("peek() did not return the next element")
 			};
 
@@ -60,12 +66,16 @@ pub fn try_parse_group<I>(stream: &mut Peekable<I>) -> Option<Group>
 where
 	I: Iterator<Item = TokenTree>,
 {
+	use TokenTree as TT;
+
 	let next = stream.peek()?;
 
-	use TokenTree as TT;
 	match next {
 		TT::Group(_) => {
-			let TT::Group(x) = stream.next().unwrap() else {
+			let TT::Group(x) = stream
+				.next()
+				.expect("next() should have returned Some")
+			else {
 				panic!("peek() did not return the next element")
 			};
 

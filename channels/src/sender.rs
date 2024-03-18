@@ -370,6 +370,7 @@ impl<T, W, S> Builder<T, W, S> {
 	/// If this option is disabled, then flushing the writer (if needed) must be
 	/// done manually through the provided references given by [`Sender::get()`]
 	/// and [`Sender::get_mut()`].
+	#[must_use]
 	pub fn flush_on_send(mut self, yes: bool) -> Self {
 		self.config.flush_on_send = yes;
 		self

@@ -14,6 +14,9 @@ readme = "README.md"
 
 [dependencies]
 
+[lints]
+workspace = true
+
 [package.metadata.docs.rs]
 all-features = true
 rustc-args = ["--cfg", "channels_nightly"]

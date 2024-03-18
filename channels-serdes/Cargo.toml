@@ -40,6 +40,9 @@ default-features = false
 features = ["alloc"]
 optional = true
 
+[lints]
+workspace = true
+
 [package.metadata.docs.rs]
 all-features = true
 rustc-args = ["--cfg", "channels_nightly"]

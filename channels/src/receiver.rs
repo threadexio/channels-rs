@@ -427,6 +427,7 @@ impl<T, R, D> Builder<T, R, D> {
 	/// # Panics
 	///
 	/// If `size_estimate` is 0.
+	#[must_use]
 	pub fn size_estimate(mut self, size_estimate: usize) -> Self {
 		self.config.size_estimate = Some(
 			NonZeroUsize::new(size_estimate)

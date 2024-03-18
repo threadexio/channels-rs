@@ -4,7 +4,11 @@ use proc_macro::{
 	Delimiter, Group, Punct, Spacing, TokenStream, TokenTree,
 };
 
-use crate::util::*;
+use crate::util::{
+	try_parse_group_expected, try_parse_ident,
+	try_parse_ident_expected, try_parse_punct_expected,
+	TryParseError,
+};
 
 mod translate;
 use self::translate::Translate;
@@ -12,8 +16,8 @@ use self::translate::Translate;
 pub fn entry(item: TokenStream) -> TokenStream {
 	let mut item = item.into_iter();
 
-	let replace = try_parse_replace_section(&mut item).unwrap();
-	let code = try_parse_code_section(&mut item).unwrap();
+	let replace = try_parse_replace_section(&mut item);
+	let code = try_parse_code_section(&mut item);
 
 	replace
 		.iter()
@@ -32,7 +36,7 @@ fn process_token_tree(
 
 	let mut output = TokenStream::new();
 
-	for token in input.into_iter() {
+	for token in input {
 		match token {
 			TT::Group(x) => {
 				let delimiter = x.delimiter();
@@ -56,34 +60,35 @@ fn process_token_tree(
 	output
 }
 
-fn try_parse_code_section<I>(stream: I) -> Result<TokenStream, String>
+fn try_parse_code_section<I>(stream: I) -> TokenStream
 where
 	I: Iterator<Item = TokenTree>,
 {
 	let mut stream = stream.peekable();
 
-	try_parse_ident_expected(&mut stream, "code").unwrap();
-	try_parse_punct_expected(&mut stream, ':').unwrap();
+	try_parse_ident_expected(&mut stream, "code")
+		.expect("expected 'code'");
+	try_parse_punct_expected(&mut stream, ':').expect("expected ':'");
 	let code =
 		try_parse_group_expected(&mut stream, Delimiter::Brace)
-			.unwrap();
-	Ok(code.stream())
+			.expect("expected '{}' group");
+
+	code.stream()
 }
 
-fn try_parse_replace_section<I>(
-	stream: I,
-) -> Result<Vec<Translate>, String>
+fn try_parse_replace_section<I>(stream: I) -> Vec<Translate>
 where
 	I: Iterator<Item = TokenTree>,
 {
 	let mut stream = stream.peekable();
 
-	try_parse_ident_expected(&mut stream, "replace").unwrap();
-	try_parse_punct_expected(&mut stream, ':').unwrap();
+	try_parse_ident_expected(&mut stream, "replace")
+		.expect("expected 'replace'");
+	try_parse_punct_expected(&mut stream, ':').expect("expected ':'");
 
 	let mut stream =
 		try_parse_group_expected(&mut stream, Delimiter::Brace)
-			.unwrap()
+			.expect("expected '{}' group")
 			.stream()
 			.into_iter()
 			.peekable();
@@ -97,7 +102,7 @@ where
 		) {
 			Ok(x) => x,
 			Err(TryParseError::NotFound) => break,
-			Err(e) => panic!("{:?}", e),
+			Err(e) => panic!("{e:?}"),
 		}
 		.stream()
 		.into_iter()
@@ -112,18 +117,21 @@ where
 			) {
 				Ok(x) => x,
 				Err(TryParseError::NotFound) => break,
-				Err(e) => panic!("{:?}", e),
+				Err(e) => panic!("{e:?}"),
 			}
 			.stream()
 			.into_iter()
 			.peekable();
 
-			let src = try_parse_ident(&mut stream).unwrap();
+			let src = try_parse_ident(&mut stream)
+				.expect("expected source identifier");
 
 			check_spacing_joint(
-				try_parse_punct_expected(&mut stream, '=').unwrap(),
+				try_parse_punct_expected(&mut stream, '=')
+					.expect("expected '=>'"),
 			);
-			try_parse_punct_expected(&mut stream, '>').unwrap();
+			try_parse_punct_expected(&mut stream, '>')
+				.expect("expected '=>'");
 
 			let dst = stream.collect::<TokenStream>();
 
@@ -133,7 +141,7 @@ where
 		sets.push(Translate::new(table));
 	}
 
-	Ok(sets)
+	sets
 }
 
 fn check_spacing_joint(punct: Punct) -> Punct {

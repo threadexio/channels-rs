@@ -50,6 +50,8 @@ full = [
 
 default = ["std", "bincode"]
 
+[lints]
+workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

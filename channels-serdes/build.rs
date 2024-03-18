@@ -1,3 +1,5 @@
+//!
+
 fn set_cfg(cfg: &str, value: Option<&str>) {
 	match value {
 		Some(v) => println!("cargo:rustc-cfg={cfg}={v}"),

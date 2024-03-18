@@ -15,3 +15,34 @@ resolver = "2"
 
 [workspace.dependencies]
 channels = { path = "./channels", features = ["full"] }
+
+[workspace.lints.rust]
+missing_docs = "deny"
+arithmetic_overflow = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+style = "warn"
+cargo = "warn"
+perf = "warn"
+correctness = "warn"
+complexity = "warn"
+pedantic = "warn"
+suspicious = "warn"
+cast_lossless = "warn"
+cast_possible_wrap = "warn"
+useless_conversion = "warn"
+wrong_self_convention = "warn"
+missing_assert_message = "warn"
+unwrap_used = "warn"
+missing_panics_doc = "warn"
+missing_safety_doc = "warn"
+new_without_default = "allow"
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+
+[workspace.lints.rustdoc]
+all = "warn"
+broken_intra_doc_links = "warn"
+missing_crate_level_docs = "warn"

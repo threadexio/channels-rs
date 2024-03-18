@@ -32,6 +32,9 @@ std = ["alloc"]
 tokio = ["dep:tokio", "std"]
 futures = ["dep:futures", "std"]
 
+[lints]
+workspace = true
+
 [package.metadata.docs.rs]
 all-features = true
 rustc-args = ["--cfg", "channels_nightly"]
