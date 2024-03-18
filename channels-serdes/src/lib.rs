@@ -83,16 +83,16 @@ pub trait Deserializer<T> {
 	) -> Result<T, Self::Error>;
 }
 
-macro_rules! serde_impl {
-	($module:ident :: $impl:ident if $feature:literal) => {
-		#[cfg(feature = $feature)]
+macro_rules! serdes_impl {
+	($module:ident :: $impl:ident if $($cfg:tt)+) => {
+		#[cfg($($cfg)+)]
 		mod $module;
-		#[cfg(feature = $feature)]
+		#[cfg($($cfg)+)]
 		pub use self::$module::$impl;
 	};
 }
 
-serde_impl! { bincode::Bincode if "bincode" }
-serde_impl! { cbor::Cbor       if "cbor"    }
-serde_impl! { json::Json       if "json"    }
-serde_impl! { borsh::Borsh     if "borsh"   }
+serdes_impl! { bincode::Bincode if feature = "bincode" }
+serdes_impl! { cbor::Cbor       if feature = "cbor"    }
+serdes_impl! { json::Json       if feature = "json"    }
+serdes_impl! { borsh::Borsh     if feature = "borsh"   }
