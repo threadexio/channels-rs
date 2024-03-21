@@ -47,7 +47,7 @@
 //! assert_eq!(deserialized, Ok(42));
 //! ```
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
-#![cfg_attr(not(needs_std), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 use channels_io::{Contiguous, Walkable};
 
