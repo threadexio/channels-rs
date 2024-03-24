@@ -74,13 +74,15 @@ where
 
 unsafe impl<B> Contiguous for Take<B> where B: Contiguous {}
 
-impl<'a, B> Walkable<'a> for Take<B>
+impl<B> Walkable for Take<B>
 where
-	B: Walkable<'a>,
+	B: Walkable,
 {
-	type Iter = Walk<'a, B>;
+	type Iter<'a> = Walk<'a, B>
+	where
+		Self: 'a;
 
-	fn walk_chunks(&'a self) -> Self::Iter {
+	fn walk_chunks(&self) -> Self::Iter<'_> {
 		Walk::new(self)
 	}
 }
@@ -89,15 +91,15 @@ where
 #[derive(Debug)]
 pub struct Walk<'a, B>
 where
-	B: Walkable<'a>,
+	B: Walkable + 'a,
 {
-	chunks: B::Iter,
+	chunks: B::Iter<'a>,
 	left: usize,
 }
 
 impl<'a, B> Walk<'a, B>
 where
-	B: Walkable<'a>,
+	B: Walkable,
 {
 	fn new(take: &'a Take<B>) -> Self {
 		Self { chunks: take.buf.walk_chunks(), left: take.left }
@@ -106,7 +108,7 @@ where
 
 impl<'a, B> Iterator for Walk<'a, B>
 where
-	B: Walkable<'a>,
+	B: Walkable,
 {
 	type Item = &'a [u8];
 

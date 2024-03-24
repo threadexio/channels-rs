@@ -83,14 +83,16 @@ where
 	}
 }
 
-impl<'a, A, B> Walkable<'a> for Chain<A, B>
+impl<A, B> Walkable for Chain<A, B>
 where
-	A: Walkable<'a>,
-	B: Walkable<'a>,
+	A: Walkable,
+	B: Walkable,
 {
-	type Iter = Walk<'a, A, B>;
+	type Iter<'a> = Walk<'a, A, B>
+	where
+		Self: 'a;
 
-	fn walk_chunks(&'a self) -> Self::Iter {
+	fn walk_chunks(&self) -> Self::Iter<'_> {
 		Walk::new(self)
 	}
 }
@@ -99,17 +101,17 @@ where
 #[derive(Debug)]
 pub struct Walk<'a, A, B>
 where
-	A: Walkable<'a>,
-	B: Walkable<'a>,
+	A: Walkable + 'a,
+	B: Walkable + 'a,
 {
-	a: A::Iter,
-	b: B::Iter,
+	a: A::Iter<'a>,
+	b: B::Iter<'a>,
 }
 
 impl<'a, A, B> Walk<'a, A, B>
 where
-	A: Walkable<'a>,
-	B: Walkable<'a>,
+	A: Walkable,
+	B: Walkable,
 {
 	fn new(chain: &'a Chain<A, B>) -> Self {
 		Self { a: chain.a.walk_chunks(), b: chain.b.walk_chunks() }
@@ -118,8 +120,8 @@ where
 
 impl<'a, A, B> Iterator for Walk<'a, A, B>
 where
-	A: Walkable<'a>,
-	B: Walkable<'a>,
+	A: Walkable,
+	B: Walkable,
 {
 	type Item = &'a [u8];
 
@@ -183,14 +185,16 @@ where
 	}
 }
 
-impl<'a, A, B> WalkableMut<'a> for Chain<A, B>
+impl<A, B> WalkableMut for Chain<A, B>
 where
-	A: WalkableMut<'a>,
-	B: WalkableMut<'a>,
+	A: WalkableMut,
+	B: WalkableMut,
 {
-	type Iter = WalkMut<'a, A, B>;
+	type Iter<'a> = WalkMut<'a, A, B>
+	where
+		Self: 'a;
 
-	fn walk_chunks_mut(&'a mut self) -> Self::Iter {
+	fn walk_chunks_mut(&mut self) -> Self::Iter<'_> {
 		WalkMut::new(self)
 	}
 }
@@ -199,17 +203,17 @@ where
 #[derive(Debug)]
 pub struct WalkMut<'a, A, B>
 where
-	A: WalkableMut<'a>,
-	B: WalkableMut<'a>,
+	A: WalkableMut + 'a,
+	B: WalkableMut + 'a,
 {
-	a: A::Iter,
-	b: B::Iter,
+	a: A::Iter<'a>,
+	b: B::Iter<'a>,
 }
 
 impl<'a, A, B> WalkMut<'a, A, B>
 where
-	A: WalkableMut<'a>,
-	B: WalkableMut<'a>,
+	A: WalkableMut,
+	B: WalkableMut,
 {
 	fn new(chain: &'a mut Chain<A, B>) -> Self {
 		Self {
@@ -221,8 +225,8 @@ where
 
 impl<'a, A, B> Iterator for WalkMut<'a, A, B>
 where
-	A: WalkableMut<'a>,
-	B: WalkableMut<'a>,
+	A: WalkableMut,
+	B: WalkableMut,
 {
 	type Item = &'a mut [u8];
 

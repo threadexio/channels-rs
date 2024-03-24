@@ -87,13 +87,15 @@ where
 
 unsafe impl<T> Contiguous for Cursor<T> where T: AsBytes {}
 
-impl<'a, T> Walkable<'a> for Cursor<T>
+impl<T> Walkable for Cursor<T>
 where
 	T: AsBytes,
 {
-	type Iter = Once<&'a [u8]>;
+	type Iter<'a> = Once<&'a [u8]>
+	where
+		Self: 'a;
 
-	fn walk_chunks(&'a self) -> Self::Iter {
+	fn walk_chunks(&self) -> Self::Iter<'_> {
 		once(self.chunk())
 	}
 }
@@ -117,13 +119,15 @@ where
 
 unsafe impl<T> ContiguousMut for Cursor<T> where T: AsBytesMut {}
 
-impl<'a, T> WalkableMut<'a> for Cursor<T>
+impl<T> WalkableMut for Cursor<T>
 where
 	T: AsBytesMut,
 {
-	type Iter = Once<&'a mut [u8]>;
+	type Iter<'a> = Once<&'a mut [u8]>
+	where
+		Self: 'a;
 
-	fn walk_chunks_mut(&'a mut self) -> Self::Iter {
+	fn walk_chunks_mut(&mut self) -> Self::Iter<'_> {
 		once(self.chunk_mut())
 	}
 }

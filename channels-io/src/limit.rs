@@ -73,13 +73,15 @@ where
 
 unsafe impl<B> ContiguousMut for Limit<B> where B: ContiguousMut {}
 
-impl<'a, B> WalkableMut<'a> for Limit<B>
+impl<B> WalkableMut for Limit<B>
 where
-	B: WalkableMut<'a>,
+	B: WalkableMut,
 {
-	type Iter = Walk<'a, B>;
+	type Iter<'a> = Walk<'a, B>
+	where
+		Self: 'a;
 
-	fn walk_chunks_mut(&'a mut self) -> Self::Iter {
+	fn walk_chunks_mut(&mut self) -> Self::Iter<'_> {
 		Walk::new(self)
 	}
 }
@@ -88,15 +90,15 @@ where
 #[derive(Debug)]
 pub struct Walk<'a, B>
 where
-	B: WalkableMut<'a>,
+	B: WalkableMut + 'a,
 {
-	chunks: B::Iter,
+	chunks: B::Iter<'a>,
 	left: usize,
 }
 
 impl<'a, B> Walk<'a, B>
 where
-	B: WalkableMut<'a>,
+	B: WalkableMut,
 {
 	fn new(limit: &'a mut Limit<B>) -> Self {
 		Self { chunks: limit.buf.walk_chunks_mut(), left: limit.left }
@@ -105,7 +107,7 @@ where
 
 impl<'a, B> Iterator for Walk<'a, B>
 where
-	B: WalkableMut<'a>,
+	B: WalkableMut,
 {
 	type Item = &'a mut [u8];
 

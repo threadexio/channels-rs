@@ -121,25 +121,31 @@ macro_rules! forward_buf_impl {
 pub(crate) use forward_buf_impl;
 
 /// A non-contiguous buffer whose chunks can be iterated over.
-pub trait Walkable<'chunk>: Buf {
+pub trait Walkable: Buf {
 	/// Chunk iterator type.
-	type Iter: Iterator<Item = &'chunk [u8]>;
+	type Iter<'a>: Iterator<Item = &'a [u8]>
+	where
+		Self: 'a;
 
 	/// Walk each chunk of the buffer in order.
 	///
 	/// This function returns an [`Iterator`] that will iterate over all chunks
 	/// of the buffer in order.
-	fn walk_chunks(&'chunk self) -> Self::Iter;
+	fn walk_chunks(&self) -> Self::Iter<'_>;
 }
 
+// TODO: file a
+#[rustfmt::skip]
 macro_rules! forward_walkable_impl {
-    ($to:ty, $($lifetime:tt)+) => {
-        type Iter = <$to>::Iter;
+	($to:ty) => {
+		type Iter<'a> = <$to>::Iter<'a>
+		where
+			Self: 'a;
 
-        fn walk_chunks(&$($lifetime)+ self) -> Self::Iter {
-            (**self).walk_chunks()
-        }
-    };
+		fn walk_chunks(&self) -> Self::Iter<'_> {
+			(**self).walk_chunks()
+		}
+	};
 }
 pub(crate) use forward_walkable_impl;
 
@@ -149,10 +155,7 @@ pub(crate) use forward_walkable_impl;
 ///
 /// If this trait is implemented, then the slice returned by [`Buf::chunk()`] MUST
 /// be of length [`Buf::remaining()`].
-pub unsafe trait Contiguous:
-	Buf + for<'a> Walkable<'a>
-{
-}
+pub unsafe trait Contiguous: Buf + Walkable {}
 
 // ========================================================
 
@@ -160,8 +163,8 @@ impl<B: Buf> Buf for &mut B {
 	forward_buf_impl!();
 }
 
-impl<'a, B: Walkable<'a>> Walkable<'a> for &mut B {
-	forward_walkable_impl!(B, 'a);
+impl<B: Walkable> Walkable for &mut B {
+	forward_walkable_impl!(B);
 }
 
 unsafe impl<B: Contiguous> Contiguous for &mut B {}
@@ -184,10 +187,12 @@ impl Buf for &[u8] {
 	}
 }
 
-impl<'a> Walkable<'a> for &[u8] {
-	type Iter = Once<&'a [u8]>;
+impl Walkable for &[u8] {
+	type Iter<'a> = Once<&'a [u8]>
+	where
+		Self: 'a;
 
-	fn walk_chunks(&'a self) -> Self::Iter {
+	fn walk_chunks(&self) -> Self::Iter<'_> {
 		once(*self)
 	}
 }
@@ -206,8 +211,8 @@ mod alloc_impls {
 		forward_buf_impl!();
 	}
 
-	impl<'a, B: Walkable<'a>> Walkable<'a> for Box<B> {
-		forward_walkable_impl!(B, 'a);
+	impl<B: Walkable> Walkable for Box<B> {
+		forward_walkable_impl!(B);
 	}
 
 	unsafe impl<B: Contiguous> Contiguous for Box<B> {}

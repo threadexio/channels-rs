@@ -102,25 +102,31 @@ macro_rules! forward_bufmut_impl {
 pub(crate) use forward_bufmut_impl;
 
 /// A non-contiguous mutable buffer whose chunks can be iterated over.
-pub trait WalkableMut<'chunk>: BufMut {
+pub trait WalkableMut: BufMut {
 	/// Chunk iterator type.
-	type Iter: Iterator<Item = &'chunk mut [u8]>;
+	type Iter<'a>: Iterator<Item = &'a mut [u8]>
+	where
+		Self: 'a;
 
 	/// Walk each chunk of the buffer in order.
 	///
 	/// This function returns an [`Iterator`] that will iterate over all chunks
 	/// of the buffer in order.
-	fn walk_chunks_mut(&'chunk mut self) -> Self::Iter;
+	fn walk_chunks_mut(&mut self) -> Self::Iter<'_>;
 }
 
+// TODO: file a bug report
+#[rustfmt::skip]
 macro_rules! forward_walkable_mut_impl {
-    ($to:ty, $($lifetime:tt)+) => {
-        type Iter = <$to>::Iter;
+	($to:ty) => {
+		type Iter<'a> = <$to>::Iter<'a>
+		where
+			Self: 'a;
 
-        fn walk_chunks_mut(&$($lifetime)+ mut self) -> Self::Iter {
-            (**self).walk_chunks_mut()
-        }
-    };
+		fn walk_chunks_mut(&mut self) -> Self::Iter<'_> {
+			(**self).walk_chunks_mut()
+		}
+	};
 }
 pub(crate) use forward_walkable_mut_impl;
 
@@ -130,10 +136,7 @@ pub(crate) use forward_walkable_mut_impl;
 ///
 /// If this trait is implemented, then the slice returned by [`BufMut::chunk_mut()`]
 /// MUST be of length [`BufMut::remaining_mut()`].
-pub unsafe trait ContiguousMut:
-	BufMut + for<'a> WalkableMut<'a>
-{
-}
+pub unsafe trait ContiguousMut: BufMut + WalkableMut {}
 
 // ========================================================
 
@@ -141,8 +144,8 @@ impl<B: BufMut> BufMut for &mut B {
 	forward_bufmut_impl!();
 }
 
-impl<'a, B: WalkableMut<'a>> WalkableMut<'a> for &mut B {
-	forward_walkable_mut_impl!(B, 'a);
+impl<B: WalkableMut> WalkableMut for &mut B {
+	forward_walkable_mut_impl!(B);
 }
 
 unsafe impl<B: ContiguousMut> ContiguousMut for &mut B {}
@@ -166,10 +169,12 @@ impl BufMut for &mut [u8] {
 	}
 }
 
-impl<'a> WalkableMut<'a> for &mut [u8] {
-	type Iter = Once<&'a mut [u8]>;
+impl WalkableMut for &mut [u8] {
+	type Iter<'a> = Once<&'a mut [u8]>
+	where
+		Self: 'a;
 
-	fn walk_chunks_mut(&'a mut self) -> Self::Iter {
+	fn walk_chunks_mut(&mut self) -> Self::Iter<'_> {
 		once(*self)
 	}
 }
@@ -188,8 +193,8 @@ mod alloc_impls {
 		forward_bufmut_impl!();
 	}
 
-	impl<'a, B: WalkableMut<'a>> WalkableMut<'a> for Box<B> {
-		forward_walkable_mut_impl!(B, 'a);
+	impl<B: WalkableMut> WalkableMut for Box<B> {
+		forward_walkable_mut_impl!(B);
 	}
 
 	unsafe impl<B: ContiguousMut> ContiguousMut for Box<B> {}
