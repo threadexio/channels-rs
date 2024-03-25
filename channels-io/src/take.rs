@@ -1,6 +1,8 @@
 //! An adapter for [`Buf`] that will allow reading up to a specific number of
 //! bytes.
 
+use core::cmp;
+
 use super::{Buf, Contiguous, Walkable};
 
 /// An adapter for [`Buf`] that will allow reading up to a specific number of
@@ -59,7 +61,7 @@ where
 	}
 
 	fn remaining(&self) -> usize {
-		core::cmp::min(self.left, self.buf.remaining())
+		cmp::min(self.left, self.buf.remaining())
 	}
 
 	fn advance(&mut self, cnt: usize) {

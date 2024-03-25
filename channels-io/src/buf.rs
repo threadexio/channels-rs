@@ -59,8 +59,7 @@ pub trait Buf {
 	where
 		Self: Sized,
 	{
-		let mut vec =
-			alloc::vec::Vec::with_capacity(self.remaining());
+		let mut vec = Vec::with_capacity(self.remaining());
 
 		while self.has_remaining() {
 			let chunk = self.chunk();
@@ -232,6 +231,8 @@ mod alloc_impls {
 mod std_impls {
 	use super::Buf;
 
+	use std::io;
+
 	/// An adapter for [`Buf`] that implements [`std::io::Read`].
 	#[derive(Debug, Clone, PartialEq, Eq)]
 	pub struct Reader<B>
@@ -262,8 +263,8 @@ mod std_impls {
 		}
 	}
 
-	impl<B: Buf> std::io::Read for Reader<B> {
-		fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+	impl<B: Buf> io::Read for Reader<B> {
+		fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
 			let n = self.buf.copy_to_slice(buf);
 			Ok(n)
 		}

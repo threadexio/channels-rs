@@ -62,6 +62,7 @@
 //! [`futures`]: https://docs.rs/futures
 //! [`Read`]: std::io::Read
 //! [`Write`]: std::io::Write
+#![allow(clippy::multiple_crate_versions)]
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 

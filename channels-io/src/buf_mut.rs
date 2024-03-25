@@ -214,6 +214,8 @@ mod alloc_impls {
 mod std_impls {
 	use super::BufMut;
 
+	use std::io;
+
 	/// An adapter for [`BufMut`] that implements [`std::io::Write`].
 	#[derive(Debug, Clone, PartialEq, Eq)]
 	pub struct Writer<B>
@@ -244,13 +246,13 @@ mod std_impls {
 		}
 	}
 
-	impl<B: BufMut> std::io::Write for Writer<B> {
-		fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+	impl<B: BufMut> io::Write for Writer<B> {
+		fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
 			let n = self.buf.copy_from_slice(buf);
 			Ok(n)
 		}
 
-		fn flush(&mut self) -> std::io::Result<()> {
+		fn flush(&mut self) -> io::Result<()> {
 			Ok(())
 		}
 	}
