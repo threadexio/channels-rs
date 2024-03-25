@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace --all-features --no-run --locked
+      - run: cargo test --workspace --all-features --no-run
       - run: cargo test --workspace --all-features -- --nocapture --quiet
 
   doc:
