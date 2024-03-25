@@ -5,6 +5,7 @@
 [`serde_json`]: https://github.com/serde-rs/json
 [`borsh`]: https://github.com/near/borsh-rs
 [`crc`]: https://github.com/mrhooray/crc-rs
+[`flate2`]: https://github.com/rust-lang/flate2-rs
 
 # channels-serdes
 
@@ -27,6 +28,7 @@ The crate contains reference implementations that are all usable under [`channel
 
 ## Middleware
 
-| Name  | Implemented By | Feature Flag |
-|:------|:--------------:|:------------:|
-| `Crc` |    [`crc`]     |    `crc`     |
+| Name      | Implemented By | Feature Flag |
+|:----------|:--------------:|:------------:|
+| `Crc`     |    [`crc`]     |    `crc`     |
+| `Deflate` |   [`flate2`]   |  `deflate`   |

@@ -59,9 +59,10 @@ extern crate alloc;
 
 mod util;
 
-mod buf;
-mod buf_mut;
 mod bytes;
+
+pub mod buf;
+pub mod buf_mut;
 
 pub use self::buf::{Buf, Contiguous, Walkable};
 pub use self::buf_mut::{BufMut, ContiguousMut, WalkableMut};

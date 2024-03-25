@@ -1,3 +1,5 @@
+//! Traits and utilities to work with immutable buffers.
+
 use core::iter::{once, Once};
 
 use super::util::copy_min_len;
@@ -92,6 +94,15 @@ pub trait Buf {
 		Self: Sized,
 	{
 		self
+	}
+
+	/// Create a [`Reader`] adapter that implements [`std::io::Read`].
+	#[cfg(feature = "std")]
+	fn reader(self) -> Reader<Self>
+	where
+		Self: Sized,
+	{
+		Reader::new(self)
 	}
 }
 
@@ -216,3 +227,48 @@ mod alloc_impls {
 
 	unsafe impl<B: Contiguous> Contiguous for Box<B> {}
 }
+
+#[cfg(feature = "std")]
+mod std_impls {
+	use super::Buf;
+
+	/// An adapter for [`Buf`] that implements [`std::io::Read`].
+	#[derive(Debug, Clone, PartialEq, Eq)]
+	pub struct Reader<B>
+	where
+		B: Buf,
+	{
+		buf: B,
+	}
+
+	impl<B: Buf> Reader<B> {
+		pub(crate) fn new(buf: B) -> Self {
+			Self { buf }
+		}
+
+		/// Get a reference to the buffer.
+		pub fn get(&self) -> &B {
+			&self.buf
+		}
+
+		/// Get a mutable reference to the buffer.
+		pub fn get_mut(&mut self) -> &mut B {
+			&mut self.buf
+		}
+
+		/// Destruct the [`Reader`] and get back the buffer.
+		pub fn into_inner(self) -> B {
+			self.buf
+		}
+	}
+
+	impl<B: Buf> std::io::Read for Reader<B> {
+		fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+			let n = self.buf.copy_to_slice(buf);
+			Ok(n)
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+pub use self::std_impls::Reader;

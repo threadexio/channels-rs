@@ -51,6 +51,7 @@
 //! | `json`       | Support for serializing/deserializing types with [`serde_json`].                                |
 //! | `borsh`      | Support for serializing/deserializing types with [`borsh`].                                     |
 //! | `crc`        | Middleware that verifies data with a CRC checksum.                                              |
+//! | `deflate`    | Middleware that compresses data with DEFLATE.                                                   |
 //! | `full`       | All of the above.                                                                               |
 //!
 //! [`bincode`]: https://docs.rs/bincode

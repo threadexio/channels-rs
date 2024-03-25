@@ -1,3 +1,5 @@
+//! Traits and utilities to work with mutable buffers.
+
 use core::iter::{once, Once};
 
 use super::util::copy_min_len;
@@ -73,6 +75,15 @@ pub trait BufMut {
 		Self: Sized,
 	{
 		self
+	}
+
+	/// Create a [`Writer`] adapter that implements [`std::io::Write`].
+	#[cfg(feature = "std")]
+	fn writer(self) -> Writer<Self>
+	where
+		Self: Sized,
+	{
+		Writer::new(self)
 	}
 }
 
@@ -198,3 +209,52 @@ mod alloc_impls {
 
 	unsafe impl<B: ContiguousMut> ContiguousMut for Box<B> {}
 }
+
+#[cfg(feature = "std")]
+mod std_impls {
+	use super::BufMut;
+
+	/// An adapter for [`BufMut`] that implements [`std::io::Write`].
+	#[derive(Debug, Clone, PartialEq, Eq)]
+	pub struct Writer<B>
+	where
+		B: BufMut,
+	{
+		buf: B,
+	}
+
+	impl<B: BufMut> Writer<B> {
+		pub(crate) fn new(buf: B) -> Self {
+			Self { buf }
+		}
+
+		/// Get a reference to the buffer.
+		pub fn get(&self) -> &B {
+			&self.buf
+		}
+
+		/// Get a mutable reference to the buffer.
+		pub fn get_mut(&mut self) -> &mut B {
+			&mut self.buf
+		}
+
+		/// Destruct the [`Writer`] and get back the buffer.
+		pub fn into_inner(self) -> B {
+			self.buf
+		}
+	}
+
+	impl<B: BufMut> std::io::Write for Writer<B> {
+		fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+			let n = self.buf.copy_from_slice(buf);
+			Ok(n)
+		}
+
+		fn flush(&mut self) -> std::io::Result<()> {
+			Ok(())
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+pub use self::std_impls::Writer;
