@@ -115,7 +115,6 @@ pub trait WalkableMut: BufMut {
 	fn walk_chunks_mut(&mut self) -> Self::Iter<'_>;
 }
 
-// TODO: file a bug report
 #[rustfmt::skip]
 macro_rules! forward_walkable_mut_impl {
 	($to:ty) => {

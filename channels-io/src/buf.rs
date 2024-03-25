@@ -134,7 +134,6 @@ pub trait Walkable: Buf {
 	fn walk_chunks(&self) -> Self::Iter<'_>;
 }
 
-// TODO: file a
 #[rustfmt::skip]
 macro_rules! forward_walkable_impl {
 	($to:ty) => {
