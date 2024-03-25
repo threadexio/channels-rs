@@ -128,7 +128,6 @@ macro_rules! forward_buf_impl {
 		}
 	};
 }
-pub(crate) use forward_buf_impl;
 
 /// A non-contiguous buffer whose chunks can be iterated over.
 pub trait Walkable: Buf {
@@ -156,7 +155,6 @@ macro_rules! forward_walkable_impl {
 		}
 	};
 }
-pub(crate) use forward_walkable_impl;
 
 /// A marker trait that describes the behavior of [`Buf::chunk()`].
 ///
@@ -210,7 +208,6 @@ unsafe impl Contiguous for &[u8] {}
 
 #[cfg(feature = "alloc")]
 mod alloc_impls {
-	use super::{forward_buf_impl, forward_walkable_impl};
 	use super::{Buf, Contiguous, Walkable};
 
 	#[allow(unused_imports)]

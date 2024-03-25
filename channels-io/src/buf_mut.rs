@@ -110,7 +110,6 @@ macro_rules! forward_bufmut_impl {
 		}
 	};
 }
-pub(crate) use forward_bufmut_impl;
 
 /// A non-contiguous mutable buffer whose chunks can be iterated over.
 pub trait WalkableMut: BufMut {
@@ -138,7 +137,6 @@ macro_rules! forward_walkable_mut_impl {
 		}
 	};
 }
-pub(crate) use forward_walkable_mut_impl;
 
 /// A marker trait that describes the behavior of [`BufMut::chunk_mut()`].
 ///
@@ -193,7 +191,6 @@ unsafe impl ContiguousMut for &mut [u8] {}
 
 #[cfg(feature = "alloc")]
 mod alloc_impls {
-	use super::{forward_bufmut_impl, forward_walkable_mut_impl};
 	use super::{BufMut, ContiguousMut, WalkableMut};
 
 	#[allow(unused_imports)]

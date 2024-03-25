@@ -11,7 +11,6 @@ macro_rules! forward_as_bytes_impl {
 		}
 	};
 }
-pub(crate) use forward_as_bytes_impl;
 
 /// A type that holds a contiguous slice of mutable bytes.
 pub trait AsBytesMut: AsBytes {
@@ -26,7 +25,6 @@ macro_rules! forward_as_bytes_mut_impl {
 		}
 	};
 }
-pub(crate) use forward_as_bytes_mut_impl;
 
 // ========================================================
 
@@ -56,7 +54,6 @@ impl<const N: usize> AsBytesMut for [u8; N] {
 
 #[cfg(feature = "alloc")]
 mod alloc_impls {
-	use super::{forward_as_bytes_impl, forward_as_bytes_mut_impl};
 	use super::{AsBytes, AsBytesMut};
 
 	#[allow(unused_imports)]
