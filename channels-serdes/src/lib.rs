@@ -86,7 +86,7 @@ pub trait Deserializer<T> {
 macro_rules! serdes_impl {
 	($module:ident :: $impl:ident if $($cfg:tt)+) => {
 		#[cfg($($cfg)+)]
-		mod $module;
+		pub mod $module;
 		#[cfg($($cfg)+)]
 		pub use self::$module::$impl;
 	};
@@ -96,3 +96,4 @@ serdes_impl! { bincode::Bincode if feature = "bincode" }
 serdes_impl! { cbor::Cbor       if feature = "cbor"    }
 serdes_impl! { json::Json       if feature = "json"    }
 serdes_impl! { borsh::Borsh     if feature = "borsh"   }
+serdes_impl! { crc::Crc         if feature = "crc"     }

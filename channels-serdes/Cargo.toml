@@ -18,11 +18,13 @@ bincode = ["dep:serde", "dep:bincode"]
 cbor = ["dep:serde", "dep:ciborium", "std"]
 json = ["dep:serde", "dep:serde_json"]
 borsh = ["dep:borsh"]
+crc = ["dep:crc"]
 
 [dependencies]
 bincode = { version = "1.3", optional = true }
 borsh = { version = "1.3", optional = true }
 ciborium = { version = "0.2", optional = true }
+crc = { version = "*", optional = true }
 serde = { version = "1.0", default_features = false, optional = true }
 
 [dependencies.serde_json]

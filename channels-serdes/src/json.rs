@@ -1,3 +1,6 @@
+//! The [`mod@serde_json`] serializer which automatically works with all
+//! types that implement [`serde::Serialize`] and [`serde::Deserialize`].
+
 use crate::{Contiguous, Deserializer, Serializer, Walkable};
 
 /// The [`mod@serde_json`] serializer which automatically works with all

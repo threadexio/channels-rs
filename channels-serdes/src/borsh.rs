@@ -1,3 +1,6 @@
+//! The [`mod@borsh`] serializer which automatically works with all
+//! types that implement [`borsh::BorshSerialize`] and [`borsh::BorshDeserialize`].
+
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{Contiguous, Deserializer, Serializer, Walkable};

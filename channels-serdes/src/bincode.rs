@@ -1,3 +1,6 @@
+//! The [`mod@bincode`] serializer which automatically works with all
+//! types that implement [`serde::Serialize`] and [`serde::Deserialize`].
+
 use bincode::Options;
 
 use crate::{Contiguous, Deserializer, Serializer, Walkable};

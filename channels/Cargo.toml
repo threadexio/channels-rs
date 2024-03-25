@@ -36,6 +36,7 @@ bincode = ["channels-serdes/bincode", "dep:serde"]
 cbor = ["channels-serdes/cbor"]
 json = ["channels-serdes/json"]
 borsh = ["channels-serdes/borsh"]
+crc = ["channels-serdes/crc"]
 
 full = [
 	"statistics",
@@ -46,6 +47,7 @@ full = [
 	"cbor",
 	"json",
 	"borsh",
+	"crc",
 ]
 
 default = ["std", "bincode"]
