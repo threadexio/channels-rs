@@ -58,3 +58,14 @@ missing_errors_doc = "allow"
 all = "warn"
 broken_intra_doc_links = "warn"
 missing_crate_level_docs = "warn"
+
+############################
+######## Profiles ##########
+############################
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+incremental = true
+debug = 0
