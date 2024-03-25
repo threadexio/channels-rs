@@ -1,12 +1,16 @@
 [package]
 name = "channels-macros"
-description = "Procedural macros for channels"
 version = "0.1.0"
-edition = "2021"
 authors = ["1337"]
-license = "MIT"
-repository = "https://github.com/threadexio/channels-rs"
+edition = "2021"
+description = """
+Procedural macros for channels.
+"""
+documentation = "https://docs.rs/channels-macros"
 readme = "README.md"
+homepage = "https://github.com/threadexio/channels-rs"
+repository = "https://github.com/threadexio/channels-rs"
+license = "MIT"
 keywords = ["sync", "async", "macro", "procedural"]
 categories = ["development-tools"]
 

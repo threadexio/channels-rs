@@ -1,23 +1,25 @@
 [package]
 name = "channels-packet"
 version = "0.1.1"
-edition = "2021"
 authors = ["1337"]
-license = "MIT"
-repository = "https://github.com/threadexio/channels-rs"
+edition = "2021"
 description = """
 Utilities to parse channels packets.
 """
-categories = ["parsing", "parser-implementations", "no-std"]
-keywords = ["parser", "binary", "packet"]
+documentation = "https://docs.rs/channels-packet"
 readme = "README.md"
-
-[dependencies]
-
-[lints]
-workspace = true
+homepage = "https://github.com/threadexio/channels-rs"
+repository = "https://github.com/threadexio/channels-rs"
+license = "MIT"
+keywords = ["parser", "binary", "packet"]
+categories = ["parsing", "parser-implementations", "no-std"]
 
 [package.metadata.docs.rs]
 all-features = true
 rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
+
+[dependencies]
+
+[lints]
+workspace = true

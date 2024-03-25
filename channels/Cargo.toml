@@ -1,29 +1,47 @@
 [package]
 name = "channels"
-description = "Bidirectional channel-like communication over generic Read/Write streams"
 version = "0.11.2"
-edition = "2021"
 authors = ["1337"]
-license = "MIT"
-repository = "https://github.com/threadexio/channels-rs"
+edition = "2021"
+description = """
+Bidirectional channel-like communication over generic Read/Write streams.
+"""
 documentation = "https://docs.rs/channels"
 readme = "README.md"
+homepage = "https://github.com/threadexio/channels-rs"
+repository = "https://github.com/threadexio/channels-rs"
+license = "MIT"
 keywords = ["client", "networking", "server", "stream", "channel"]
 categories = ["network-programming"]
 
-[dependencies]
-channels-packet = { version = "0.1.1", path = "../channels-packet" }
-channels-serdes = { version = "0.1.2", path = "../channels-serdes" }
-channels-io = { version = "0.1.0", path = "../channels-io", features = [
-	"alloc",
-] }
-channels-macros = { version = "0.1.0", path = "../channels-macros" }
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = ["--cfg", "channels_nightly"]
+rustdoc-args = ["--cfg", "channels_nightly"]
 
+[dependencies]
 serde = { version = "1.0", default-features = false, optional = true }
 
+[dependencies.channels-macros]
+version = "0.1.0"
+path = "../channels-macros"
+
+[dependencies.channels-io]
+version = "0.1.0"
+path = "../channels-io"
+features = ["alloc"]
+
+[dependencies.channels-packet]
+version = "0.1.1"
+path = "../channels-packet"
+
+[dependencies.channels-serdes]
+version = "0.1.2"
+path = "../channels-serdes"
+
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
 futures = { version = "0.3" }
+tokio = { version = "1", features = ["full"] }
 
 [features]
 statistics = []
@@ -33,31 +51,25 @@ tokio = ["channels-io/tokio"]
 futures = ["channels-io/futures"]
 
 bincode = ["channels-serdes/bincode", "dep:serde"]
-cbor = ["channels-serdes/cbor"]
-json = ["channels-serdes/json"]
 borsh = ["channels-serdes/borsh"]
+cbor = ["channels-serdes/cbor"]
 crc = ["channels-serdes/crc"]
 deflate = ["channels-serdes/deflate"]
+json = ["channels-serdes/json"]
 
 full = [
+	"bincode",
+	"borsh",
+	"cbor",
+	"crc",
+	"deflate",
+	"futures",
+	"json",
 	"statistics",
 	"std",
 	"tokio",
-	"futures",
-	"bincode",
-	"cbor",
-	"json",
-	"borsh",
-	"crc",
-	"deflate",
 ]
-
 default = ["std", "bincode"]
 
 [lints]
 workspace = true
-
-[package.metadata.docs.rs]
-all-features = true
-rustc-args = ["--cfg", "channels_nightly"]
-rustdoc-args = ["--cfg", "channels_nightly"]

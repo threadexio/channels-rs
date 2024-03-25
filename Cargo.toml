@@ -1,20 +1,32 @@
 [workspace]
+resolver = "2"
 members = [
-	"channels",
-	"channels-packet",
-	"channels-serdes",
 	"channels-io",
 	"channels-macros",
+	"channels-packet",
+	"channels-serdes",
+	"channels",
+
 	"benches",
-	"stress-tests",
-	"tests-integration",
 	"examples",
 	"examples/chat-app",
+	"stress-tests",
+	"tests-integration",
 ]
-resolver = "2"
+default-members = [
+	"channels-io",
+	"channels-macros",
+	"channels-packet",
+	"channels-serdes",
+	"channels",
+]
 
 [workspace.dependencies]
 channels = { path = "./channels", features = ["full"] }
+
+############################
+########   Lints  ##########
+############################
 
 [workspace.lints.rust]
 missing_docs = "deny"

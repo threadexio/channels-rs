@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 anyhow = "1"
-channels = { workspace = true, features = ["tokio"] }
+channels = { workspace = true }
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 colored = "2"
