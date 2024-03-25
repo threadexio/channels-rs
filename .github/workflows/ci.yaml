@@ -51,4 +51,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@miri
       - run: cargo +nightly miri setup
-      - run: cargo +nightly miri test --all-features -p channels-io -p channels-packet -p channels-serdes -p channels
+      - run: cargo +nightly miri test --all-features -p channels-io -p channels-packet -p channels-serdes -p channels --lib
