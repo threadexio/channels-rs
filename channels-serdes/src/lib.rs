@@ -49,6 +49,9 @@
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 use channels_io::{Contiguous, Walkable};
 
 /// The [`Serializer`] trait allows converting a type `T` to safe-to-transport
@@ -66,6 +69,19 @@ pub trait Serializer<T> {
 	) -> Result<impl Walkable, Self::Error>;
 }
 
+macro_rules! forward_serializer_impl {
+	($to:ty) => {
+		type Error = <$to>::Error;
+
+		fn serialize(
+			&mut self,
+			t: &T,
+		) -> Result<impl $crate::Walkable, Self::Error> {
+			(**self).serialize(t)
+		}
+	};
+}
+
 /// The [`Deserializer`] trait allows converting a byte slice to a type `T`.
 ///
 /// Types implementing this trait are called 'deserializers'.
@@ -81,6 +97,37 @@ pub trait Deserializer<T> {
 		&mut self,
 		buf: impl Contiguous,
 	) -> Result<T, Self::Error>;
+}
+
+macro_rules! forward_deserializer_impl {
+	($to:ty) => {
+		type Error = <$to>::Error;
+
+		fn deserialize(
+			&mut self,
+			buf: impl Contiguous,
+		) -> Result<T, Self::Error> {
+			(**self).deserialize(buf)
+		}
+	};
+}
+
+impl<T, U: Serializer<T>> Serializer<T> for &mut U {
+	forward_serializer_impl!(U);
+}
+
+impl<T, U: Deserializer<T>> Deserializer<T> for &mut U {
+	forward_deserializer_impl!(U);
+}
+
+#[cfg(feature = "alloc")]
+impl<T, U: Serializer<T>> Serializer<T> for alloc::boxed::Box<U> {
+	forward_serializer_impl!(U);
+}
+
+#[cfg(feature = "alloc")]
+impl<T, U: Deserializer<T>> Deserializer<T> for alloc::boxed::Box<U> {
+	forward_deserializer_impl!(U);
 }
 
 macro_rules! serdes_impl {

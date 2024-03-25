@@ -4,6 +4,7 @@
 [`ciborium`]: https://github.com/enarx/ciborium
 [`serde_json`]: https://github.com/serde-rs/json
 [`borsh`]: https://github.com/near/borsh-rs
+[`crc`]: https://github.com/mrhooray/crc-rs
 
 # channels-serdes
 
@@ -11,7 +12,9 @@ This crate exposes the interface used by [`channels`] to serialize and deseriali
 
 It is simply an abstraction layer for different implementations that might not necessarily rely on [`serde`].
 
-The crate contains 3 reference implementations that are all usable under [`channels`] and can be enabled with feature flags.
+The crate contains reference implementations that are all usable under [`channels`] and can be enabled with feature flags.
+
+## Serializers/Deserializers
 
 | Name      | Implemented By | Feature flag |
 |:----------|:--------------:|:------------:|
@@ -21,3 +24,9 @@ The crate contains 3 reference implementations that are all usable under [`chann
 | `Borsh`   |   [`borsh`]    |   `borsh`    |
 
 `Bincode` is the default implementation used by [`channels`].
+
+## Middleware
+
+| Name  | Implemented By | Feature Flag |
+|:------|:--------------:|:------------:|
+| `Crc` |    [`crc`]     |    `crc`     |

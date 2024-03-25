@@ -2,8 +2,6 @@
 
 use core::fmt;
 
-extern crate alloc;
-
 use alloc::boxed::Box;
 
 use channels_io::{Buf, Contiguous, Cursor, Walkable};
