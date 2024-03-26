@@ -55,6 +55,7 @@ borsh = ["channels-serdes/borsh"]
 cbor = ["channels-serdes/cbor"]
 crc = ["channels-serdes/crc"]
 deflate = ["channels-serdes/deflate"]
+hmac = ["channels-serdes/hmac"]
 json = ["channels-serdes/json"]
 
 full = [
@@ -64,6 +65,7 @@ full = [
 	"crc",
 	"deflate",
 	"futures",
+	"hmac",
 	"json",
 	"statistics",
 	"std",

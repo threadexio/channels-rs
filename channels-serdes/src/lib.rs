@@ -146,3 +146,4 @@ serdes_impl! { json::Json       if feature = "json"    }
 serdes_impl! { borsh::Borsh     if feature = "borsh"   }
 serdes_impl! { crc::Crc         if feature = "crc"     }
 serdes_impl! { deflate::Deflate if feature = "deflate" }
+serdes_impl! { hmac::Hmac       if feature = "hmac"    }
