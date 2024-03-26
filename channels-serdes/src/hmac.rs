@@ -1,5 +1,7 @@
 //! Middleware that verifies data with HMAC.
 
+use core::fmt;
+
 use channels_io::{Buf, Contiguous, Cursor, Walkable};
 
 use ring::hmac;
@@ -79,6 +81,22 @@ pub enum DeserializeError<T> {
 	/// An error from the next deserializer in the chain.
 	Next(T),
 }
+
+impl<T> fmt::Display for DeserializeError<T>
+where
+	T: fmt::Display,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Next(e) => e.fmt(f),
+			Self::NoTag => f.write_str("no tag"),
+			Self::VerifyFail => f.write_str("verification failure"),
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl<T: std::error::Error> std::error::Error for DeserializeError<T> {}
 
 impl<T, U> Deserializer<T> for Hmac<U>
 where

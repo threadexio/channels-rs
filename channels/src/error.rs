@@ -28,6 +28,9 @@ impl<Ser: Error, Io: Error> Display for SendError<Ser, Io> {
 	}
 }
 
+#[cfg(feature = "std")]
+impl<Ser: Error, Io: Error> std::error::Error for SendError<Ser, Io> {}
+
 /// The possible errors when verifying a received packet.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -88,9 +91,6 @@ impl fmt::Display for VerifyError {
 		}
 	}
 }
-
-#[cfg(feature = "std")]
-impl<Ser: Error, Io: Error> std::error::Error for SendError<Ser, Io> {}
 
 /// The error type returned by [`Receiver`](crate::Receiver).
 #[derive(Debug, Clone)]

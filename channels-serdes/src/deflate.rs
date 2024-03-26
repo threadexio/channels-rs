@@ -1,5 +1,7 @@
 //! Middleware that compresses data with DEFLATE.
 
+use core::fmt;
+
 use std::io::{Read, Write};
 
 use channels_io::{Contiguous, Cursor, Walkable};
@@ -56,6 +58,24 @@ pub enum SerializeError<T> {
 	EncodeError(std::io::Error),
 }
 
+impl<T> fmt::Display for SerializeError<T>
+where
+	T: fmt::Display,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Next(e) => e.fmt(f),
+			Self::EncodeError(e) => {
+				f.write_str("encode error: ")?;
+				e.fmt(f)
+			},
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl<T: std::error::Error> std::error::Error for SerializeError<T> {}
+
 impl<T, U> Serializer<T> for Deflate<U>
 where
 	U: Serializer<T>,
@@ -91,6 +111,24 @@ pub enum DeserializeError<T> {
 	/// The decoder failed to decode a part of the payload.
 	DecodeError(std::io::Error),
 }
+
+impl<T> fmt::Display for DeserializeError<T>
+where
+	T: fmt::Display,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Next(e) => e.fmt(f),
+			Self::DecodeError(e) => {
+				f.write_str("decode error: ")?;
+				e.fmt(f)
+			},
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl<T: std::error::Error> std::error::Error for DeserializeError<T> {}
 
 impl<T, U> Deserializer<T> for Deflate<U>
 where

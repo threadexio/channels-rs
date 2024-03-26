@@ -116,6 +116,22 @@ pub enum DeserializeError<T> {
 	Next(T),
 }
 
+impl<T> fmt::Display for DeserializeError<T>
+where
+	T: fmt::Display,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Next(e) => e.fmt(f),
+			Self::InvalidChecksum => f.write_str("invalid checksum"),
+			Self::NoChecksum => f.write_str("no checksum"),
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl<T: std::error::Error> std::error::Error for DeserializeError<T> {}
+
 impl<T, U> Deserializer<T> for Crc<U>
 where
 	U: Deserializer<T>,
