@@ -1,5 +1,3 @@
-use core::num::NonZeroUsize;
-
 use channels_packet::{
 	Flags, Header, IdGenerator, PacketLength, PayloadLength,
 };
@@ -8,17 +6,9 @@ use crate::error::VerifyError;
 use crate::io::{
 	AsyncRead, AsyncWrite, Buf, Contiguous, Cursor, Read, Write,
 };
+use crate::receiver::Config as RecvConfig;
+use crate::sender::Config as SendConfig;
 use crate::util::StatIO;
-
-#[derive(Clone)]
-pub struct SendConfig {
-	pub flush_on_send: bool,
-}
-
-#[derive(Clone)]
-pub struct RecvConfig {
-	pub size_estimate: Option<NonZeroUsize>,
-}
 
 #[derive(Clone)]
 pub struct Pcb {

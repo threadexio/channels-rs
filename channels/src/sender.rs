@@ -6,7 +6,7 @@ use core::marker::PhantomData;
 
 use crate::error::SendError;
 use crate::io::{AsyncWrite, IntoWriter, Write, Writer};
-use crate::protocol::{Pcb, SendConfig};
+use crate::protocol::Pcb;
 use crate::serdes::Serializer;
 use crate::util::StatIO;
 
@@ -19,7 +19,7 @@ pub struct Sender<T, W, S> {
 	writer: StatIO<W>,
 	serializer: S,
 	pcb: Pcb,
-	config: SendConfig,
+	config: Config,
 }
 
 impl<T> Sender<T, (), ()> {
@@ -273,7 +273,7 @@ pub struct Builder<T, W, S> {
 	_marker: PhantomData<T>,
 	writer: W,
 	serializer: S,
-	config: SendConfig,
+	config: Option<Config>,
 }
 
 impl<T> Builder<T, (), ()> {
@@ -296,7 +296,7 @@ impl<T> Builder<T, (), ()> {
 			_marker: PhantomData,
 			serializer: (),
 			writer: (),
-			config: SendConfig { flush_on_send: true },
+			config: None,
 		}
 	}
 }
@@ -362,17 +362,22 @@ impl<T, W> Builder<T, W, ()> {
 }
 
 impl<T, W, S> Builder<T, W, S> {
-	/// Flush the writer after every [`Sender::send()`] and
-	/// [`Sender::send_blocking()`] call.
+	/// Set the [`Config`] for this sender.
 	///
-	/// **Default value**: `true`.
+	/// # Example
 	///
-	/// If this option is disabled, then flushing the writer (if needed) must be
-	/// done manually through the provided references given by [`Sender::get()`]
-	/// and [`Sender::get_mut()`].
+	/// ```no_run
+	/// use channels::sender::{Config, Sender};
+	///
+	/// let config = Config::default()
+	///                 .flush_on_send(false);
+	///
+	/// let tx = Sender::<i32, _, _>::builder()
+	///             .config(config);
+	/// ```
 	#[must_use]
-	pub fn flush_on_send(mut self, yes: bool) -> Self {
-		self.config.flush_on_send = yes;
+	pub fn config(mut self, config: Config) -> Self {
+		self.config = Some(config);
 		self
 	}
 
@@ -392,16 +397,42 @@ impl<T, W, S> Builder<T, W, S> {
 			writer: StatIO::new(self.writer),
 			serializer: self.serializer,
 			pcb: Pcb::new(),
-			config: self.config,
+			config: self.config.unwrap_or_default(),
 		}
 	}
 }
 
-impl fmt::Debug for SendConfig {
+/// Configuration for [`Sender`].
+#[derive(Clone)]
+pub struct Config {
+	pub(crate) flush_on_send: bool,
+}
+
+impl Default for Config {
+	fn default() -> Self {
+		Self { flush_on_send: true }
+	}
+}
+
+impl Config {
+	/// Flush the underlying writer after every [`send()`] or [`send_blocking()`].
+	///
+	/// **Default:** `true`
+	///
+	/// [`send()`]: Sender::send()
+	/// [`send_blocking()`]: Sender::send_blocking()
+	#[must_use]
+	pub fn flush_on_send(mut self, yes: bool) -> Self {
+		self.flush_on_send = yes;
+		self
+	}
+}
+
+impl fmt::Debug for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let mut debug = f.debug_struct("Config");
-		debug.field("flush_on_send", &self.flush_on_send);
-		debug.finish()
+		f.debug_struct("Config")
+			.field("flush_on_send", &self.flush_on_send)
+			.finish()
 	}
 }
 

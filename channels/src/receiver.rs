@@ -6,7 +6,7 @@ use core::num::NonZeroUsize;
 
 use crate::error::RecvError;
 use crate::io::{AsyncRead, IntoReader, Read, Reader};
-use crate::protocol::{Pcb, RecvConfig};
+use crate::protocol::Pcb;
 use crate::serdes::Deserializer;
 use crate::util::StatIO;
 
@@ -19,7 +19,7 @@ pub struct Receiver<T, R, D> {
 	reader: StatIO<R>,
 	deserializer: D,
 	pcb: Pcb,
-	config: RecvConfig,
+	config: Config,
 }
 
 impl<T> Receiver<T, (), ()> {
@@ -327,7 +327,7 @@ pub struct Builder<T, R, D> {
 	_marker: PhantomData<T>,
 	reader: R,
 	deserializer: D,
-	config: RecvConfig,
+	config: Option<Config>,
 }
 
 impl<T> Builder<T, (), ()> {
@@ -350,7 +350,7 @@ impl<T> Builder<T, (), ()> {
 			_marker: PhantomData,
 			reader: (),
 			deserializer: (),
-			config: RecvConfig { size_estimate: None },
+			config: None,
 		}
 	}
 }
@@ -419,20 +419,24 @@ impl<T, R> Builder<T, R, ()> {
 }
 
 impl<T, R, D> Builder<T, R, D> {
-	/// Set the expected size for each received type.
+	/// Set the [`Config`] for this receiver.
 	///
-	/// This options exists purely to avoid reallocations when receiving types
-	/// that span multiple packets.
+	/// # Example
 	///
-	/// # Panics
+	/// ```no_run
+	/// use core::num::NonZeroUsize;
 	///
-	/// If `size_estimate` is 0.
+	/// use channels::receiver::{Config, Receiver};
+	///
+	/// let config = Config::default()
+	///                 .size_estimate(NonZeroUsize::new(42).unwrap());
+	///
+	/// let rx = Receiver::<i32, _, _>::builder()
+	///             .config(config);
+	/// ```
 	#[must_use]
-	pub fn size_estimate(mut self, size_estimate: usize) -> Self {
-		self.config.size_estimate = Some(
-			NonZeroUsize::new(size_estimate)
-				.expect("size_estimate cannot be zero"),
-		);
+	pub fn config(mut self, config: Config) -> Self {
+		self.config = Some(config);
 		self
 	}
 
@@ -452,20 +456,53 @@ impl<T, R, D> Builder<T, R, D> {
 			reader: StatIO::new(self.reader),
 			deserializer: self.deserializer,
 			pcb: Pcb::new(),
-			config: self.config,
+			config: self.config.unwrap_or_default(),
 		}
 	}
 }
 
-impl fmt::Debug for RecvConfig {
+/// Configuration for [`Receiver`].
+///
+/// [`Receiver`]: crate::Receiver
+#[derive(Clone, Default)]
+pub struct Config {
+	pub(crate) size_estimate: Option<NonZeroUsize>,
+}
+
+impl Config {
+	/// Size estimate for incoming data.
+	///
+	/// Inform the receiving code to preallocate a buffer of this size when
+	/// receiving. Setting this field correctly can help avoid reallocations
+	/// when receiving data that is split up into multiple packets. For most
+	/// cases, when data fits inside a single packet, this field has _no_ effect
+	/// and can simply be left as the default.
+	///
+	/// When setting this field, if you don't know the exact size of your data,
+	/// it is best to overestimate it. Setting a value even one byte less than
+	/// what the actual size of the data is will still lead to a reallocation
+	/// and more copying. However if the data fits inside one packet, as is with
+	/// most cases, setting this field incorrectly can still have a minor impact
+	/// on performance.
+	///
+	/// In general, this field should probably be left alone unless you can
+	/// prove that the processing time for received packets far exceeds the
+	/// transmission time of the medium used.
+	///
+	///
+	/// **Default:** `None`
+	#[must_use]
+	pub fn size_estimate(mut self, estimate: NonZeroUsize) -> Self {
+		self.size_estimate = Some(estimate);
+		self
+	}
+}
+
+impl fmt::Debug for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let mut debug = f.debug_struct("Config");
-
-		if let Some(x) = self.size_estimate {
-			debug.field("size_estimate", &x.get());
-		}
-
-		debug.finish()
+		f.debug_struct("Config")
+			.field("size_estimate", &self.size_estimate)
+			.finish()
 	}
 }
 
@@ -485,7 +522,7 @@ where
 
 impl<T, R, D> fmt::Debug for Receiver<T, R, D>
 where
-	StatIO<R>: fmt::Debug,
+	R: fmt::Debug,
 	D: fmt::Debug,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
