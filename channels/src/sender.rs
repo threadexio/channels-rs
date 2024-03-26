@@ -112,6 +112,32 @@ impl<T, W, S> Sender<T, W, S> {
 			.build()
 	}
 
+	/// Get the config that was given to this [`Sender`].
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// use channels::sender::{Config, Sender};
+	/// use channels::serdes::Bincode;
+	///
+	/// let writer = std::io::sink();
+	///
+	/// let config = Config::default()
+	///                 .flush_on_send(false);
+	///
+	/// let rx = Sender::<i32, _, _>::builder()
+	///             .writer(writer)
+	///             .serializer(Bincode::new())
+	///             .config(config)
+	///             .build();
+	///
+	/// println!("{:#?}", rx.config());
+	///
+	/// ```
+	pub fn config(&self) -> &Config {
+		&self.config
+	}
+
 	/// Get statistics on this sender.
 	///
 	/// # Example

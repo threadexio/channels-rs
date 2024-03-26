@@ -112,6 +112,34 @@ impl<T, R, D> Receiver<T, R, D> {
 			.build()
 	}
 
+	/// Get the config that was given to this [`Receiver`].
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// use std::num::NonZeroUsize;
+	///
+	/// use channels::receiver::{Config, Receiver};
+	/// use channels::serdes::Bincode;
+	///
+	/// let reader = std::io::empty();
+	///
+	/// let config = Config::default()
+	///                 .size_estimate(NonZeroUsize::new(42).unwrap());
+	///
+	/// let rx = Receiver::<i32, _, _>::builder()
+	///             .reader(reader)
+	///             .deserializer(Bincode::new())
+	///             .config(config)
+	///             .build();
+	///
+	/// println!("{:#?}", rx.config());
+	///
+	/// ```
+	pub fn config(&self) -> &Config {
+		&self.config
+	}
+
 	/// Get an iterator over incoming messages.
 	///
 	/// # Example
@@ -488,9 +516,6 @@ impl Config {
 	/// In general, this field should probably be left alone unless you can
 	/// prove that the processing time for received packets far exceeds the
 	/// transmission time of the medium used.
-	///
-	///
-	/// **Default:** `None`
 	#[must_use]
 	pub fn size_estimate(mut self, estimate: NonZeroUsize) -> Self {
 		self.size_estimate = Some(estimate);
