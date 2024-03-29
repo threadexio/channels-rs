@@ -28,7 +28,9 @@ The crate contains reference implementations that are all usable under [`channel
 
 ## Middleware
 
-| Name      | Implemented By | Feature Flag |
-|:----------|:--------------:|:------------:|
-| `Crc`     |    [`crc`]     |    `crc`     |
-| `Deflate` |   [`flate2`]   |  `deflate`   |
+|         Name          | Implemented By | Feature Flag |
+|:---------------------:|:--------------:|:------------:|
+|         `Crc`         |    [`crc`]     |    `crc`     |
+|       `Deflate`       |   [`flate2`]   |  `deflate`   |
+|        `Hmac`         |    [`ring`]    |    `hmac`    |
+| `Encrypt` / `Decrypt` |    [`ring`]    |    `aead`    |

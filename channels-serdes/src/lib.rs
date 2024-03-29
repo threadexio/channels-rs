@@ -140,6 +140,9 @@ macro_rules! serdes_impl {
 	};
 }
 
+#[cfg(feature = "aead")]
+pub mod aead;
+
 serdes_impl! { bincode::Bincode if feature = "bincode" }
 serdes_impl! { cbor::Cbor       if feature = "cbor"    }
 serdes_impl! { json::Json       if feature = "json"    }

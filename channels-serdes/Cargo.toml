@@ -23,6 +23,7 @@ rustdoc-args = ["--cfg", "channels_nightly"]
 alloc = []
 std = ["alloc"]
 
+aead = ["dep:ring"]
 bincode = ["dep:serde", "dep:bincode"]
 borsh = ["dep:borsh"]
 cbor = ["dep:serde", "dep:ciborium", "std"]

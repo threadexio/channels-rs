@@ -50,6 +50,7 @@ std = ["channels-io/std"]
 tokio = ["channels-io/tokio"]
 futures = ["channels-io/futures"]
 
+aead = ["channels-serdes/aead"]
 bincode = ["channels-serdes/bincode", "dep:serde"]
 borsh = ["channels-serdes/borsh"]
 cbor = ["channels-serdes/cbor"]
@@ -59,6 +60,7 @@ hmac = ["channels-serdes/hmac"]
 json = ["channels-serdes/json"]
 
 full = [
+	"aead",
 	"bincode",
 	"borsh",
 	"cbor",
