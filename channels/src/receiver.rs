@@ -13,6 +13,8 @@ use crate::util::StatIO;
 #[allow(unused_imports)]
 use crate::util::Statistics;
 
+use channels_packet::PacketLength;
+
 /// The receiving-half of the channel.
 pub struct Receiver<T, R, D> {
 	_marker: PhantomData<T>,
@@ -492,9 +494,19 @@ impl<T, R, D> Builder<T, R, D> {
 /// Configuration for [`Receiver`].
 ///
 /// [`Receiver`]: crate::Receiver
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Config {
 	pub(crate) size_estimate: Option<NonZeroUsize>,
+	pub(crate) max_size: usize,
+}
+
+impl Default for Config {
+	fn default() -> Self {
+		Self {
+			size_estimate: None,
+			max_size: PacketLength::MAX.as_usize(),
+		}
+	}
 }
 
 impl Config {
@@ -521,12 +533,63 @@ impl Config {
 		self.size_estimate = Some(estimate);
 		self
 	}
+
+	/// Maximum size of data each call to [`recv()`] or [`recv_blocking()`] will
+	/// read.
+	///
+	/// In order for large payloads to be transmitted, they have to be split up
+	/// to multiple packets. Packets contain a flag for the receiver to wait for
+	/// more packets if the payload was not fully sent in that packet (because
+	/// it had to be split up). This way of transmitting large payloads is also
+	/// used in IPv4 and it is called [IPv4 Fragmentation].
+	///
+	/// Because the receiver does not know the full length from the first packet,
+	/// it can only know this once all packets have been received and their
+	/// lengths are summed, it doesn't know how much memory it will need to hold
+	/// the full payload. For this reason, it is possible for a malicious actor
+	/// to send keep sending carefully crafted packets all with that flag set,
+	/// until the receiver exhausts all their memory. This DOS attack is the
+	/// reason for the existence of this option.
+	///
+	/// The default value allows payloads up to 65K and it should be enough for
+	/// almost all cases. Unless you are sending over 65K of data in one [`send()`]
+	/// or [`send_blocking()`], the default value is perfectly safe. Please note
+	/// that if you do send more than 65K, you will have to set this field to
+	/// fit your needs.
+	///
+	/// This field can also make the system more secure. For example, if you
+	/// know in advance the maximum length one payload can take up, you should
+	/// set this field to limit wasted memory by bad actors.
+	///
+	/// If it happens and a receiver does read more than the configured limit,
+	/// the receiver operation will return with an error of
+	/// [`RecvError::Protocol(ProtocolError::ExceededMaximumSize)`].
+	///
+	/// This attack is only possible if malicious actors are able to
+	/// talk directly with the [`Receiver`]. For example, if there is an
+	/// encrypted and trusted channel between the receiver and the sender, then
+	/// this attack is not applicable.
+	///
+	/// **Default:** 65K
+	///
+	/// [`recv()`]: Receiver::recv()
+	/// [`recv_blocking()`]: Receiver::recv_blocking()
+	/// [`send()`]: crate::Sender::send()
+	/// [`send_blocking()`]: crate::Sender::send_blocking()
+	/// [IP Fragmentation]: https://en.wikipedia.org/wiki/Internet_Protocol_version_4#Fragmentation
+	/// [`RecvError::Protocol(ProtocolError::ExceededMaximumSize)`]: crate::error::ProtocolError::ExceededMaximumSize
+	#[must_use]
+	pub fn max_size(mut self, max_size: usize) -> Self {
+		self.max_size = max_size;
+		self
+	}
 }
 
 impl fmt::Debug for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Config")
 			.field("size_estimate", &self.size_estimate)
+			.field("max_size", &self.max_size)
 			.finish()
 	}
 }

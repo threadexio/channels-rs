@@ -92,6 +92,44 @@ impl fmt::Display for VerifyError {
 	}
 }
 
+#[cfg(feature = "std")]
+impl std::error::Error for VerifyError {}
+
+/// The possible errors when receiving data.
+///
+/// These errors can be caused by misconfiguration of the [`Receiver`] or a
+/// misbehaving sender.
+///
+/// [`Receiver`]: crate::Receiver
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProtocolError {
+	/// The received data exceeded the maximum amount of data the receiver was
+	/// configured to receive. This error indicates either that: a) you must
+	/// configure the receiver to allow larger payloads with [`max_size()`], or
+	/// b) an attack was prevented.
+	///
+	/// # Safety
+	///
+	/// This error is **NOT** recoverable and the channel should be closed
+	/// immediately.
+	///
+	/// [`max_size()`]: crate::receiver::Config::max_size()
+	ExceededMaximumSize,
+}
+
+impl fmt::Display for ProtocolError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::ExceededMaximumSize => {
+				f.write_str("exceeded maximum payload size")
+			},
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ProtocolError {}
+
 /// The error type returned by [`Receiver`](crate::Receiver).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -107,6 +145,9 @@ pub enum RecvError<Ser, Io> {
 	/// A received packet could not be verified. This error is usually
 	/// unrecoverable and the channel should not be used further.
 	Verify(VerifyError),
+	/// The receiver encountered an error while processing the data. See
+	/// [`ProtocolError`] for more.
+	Protocol(ProtocolError),
 }
 
 impl<Ser: Error, Io: Error> Display for RecvError<Ser, Io> {
@@ -116,6 +157,7 @@ impl<Ser: Error, Io: Error> Display for RecvError<Ser, Io> {
 			A::Serde(e) => Display::fmt(e, f),
 			A::Io(e) => Display::fmt(e, f),
 			A::Verify(e) => Display::fmt(e, f),
+			A::Protocol(e) => Display::fmt(e, f),
 		}
 	}
 }

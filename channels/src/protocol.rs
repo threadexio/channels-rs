@@ -2,7 +2,7 @@ use channels_packet::{
 	Flags, Header, IdGenerator, PacketLength, PayloadLength,
 };
 
-use crate::error::VerifyError;
+use crate::error::{ProtocolError, VerifyError};
 use crate::io::{
 	AsyncRead, AsyncWrite, Buf, Contiguous, Cursor, Read, Write,
 };
@@ -74,6 +74,7 @@ where
 
 #[derive(Debug)]
 pub enum RecvPayloadError<Io> {
+	Protocol(ProtocolError),
 	Verify(VerifyError),
 	Io(Io),
 }
@@ -86,6 +87,7 @@ impl<Ser, Io> From<RecvPayloadError<Io>>
 		match value {
 			A::Io(v) => Self::Io(v),
 			A::Verify(v) => Self::Verify(v),
+			A::Protocol(v) => Self::Protocol(v),
 		}
 	}
 }
@@ -202,9 +204,10 @@ where
 	) -> Result<impl Contiguous, RecvPayloadError<R::Error>> {
 		use alloc::vec::Vec;
 
-		let mut full_payload = match self.config.size_estimate {
-			Some(estimate) => Vec::with_capacity(estimate.get()),
-			None => Vec::new()
+		let mut full_payload = match (self.config.size_estimate, self.config.max_size) {
+			(Some(estimate), max_size) if max_size < estimate.get() => Vec::with_capacity(max_size),
+			(Some(estimate), _) => Vec::with_capacity(estimate.get()),
+			(None, _) => Vec::new()
 		};
 
 		loop {
@@ -221,9 +224,14 @@ where
 			let payload_start = full_payload.len();
 			let payload_length =
 				header.length.to_payload_length().as_usize();
+			let payload_buf_new_len = payload_start + payload_length;
+
+			if payload_buf_new_len > self.config.max_size {
+				return Err(RecvPayloadError::Protocol(ProtocolError::ExceededMaximumSize));
+			}
 
 			full_payload.reserve_exact(payload_length);
-			full_payload.resize(payload_start + payload_length, 0);
+			full_payload.resize(payload_buf_new_len, 0);
 
 			self.reader
 				.read(&mut full_payload[payload_start..]) await
