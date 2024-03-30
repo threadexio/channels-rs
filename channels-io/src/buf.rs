@@ -59,7 +59,8 @@ pub trait Buf {
 	where
 		Self: Sized,
 	{
-		let mut vec = Vec::with_capacity(self.remaining());
+		let mut vec =
+			alloc::vec::Vec::with_capacity(self.remaining());
 
 		while self.has_remaining() {
 			let chunk = self.chunk();

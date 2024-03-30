@@ -200,7 +200,7 @@ where
 	}
 }
 
-fn copy_buf_to_vec<B: Buf>(mut buf: B) -> Vec<u8> {
+fn copy_buf_to_vec<B: Buf>(mut buf: B) -> alloc::vec::Vec<u8> {
 	let mut out = Vec::with_capacity(buf.remaining());
 
 	while buf.has_remaining() {
