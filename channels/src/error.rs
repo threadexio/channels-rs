@@ -1,6 +1,8 @@
 //! Error types for `channels`.
 use core::fmt::{self, Debug, Display};
 
+use channels_packet::header::VerifyError as HeaderVerifyError;
+
 /// The error type returned by [`Sender`](crate::Sender).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -68,10 +70,9 @@ pub enum VerifyError {
 	InvalidHeader,
 }
 
-use channels_packet::HeaderReadError;
-impl From<HeaderReadError> for VerifyError {
-	fn from(value: HeaderReadError) -> Self {
-		use HeaderReadError as L;
+impl From<HeaderVerifyError> for VerifyError {
+	fn from(value: HeaderVerifyError) -> Self {
+		use HeaderVerifyError as L;
 		use VerifyError as R;
 
 		match value {

@@ -1,5 +1,7 @@
 use channels_packet::{
-	Flags, Header, IdGenerator, PacketLength, PayloadLength,
+	header::{Header, VerifyId, WithChecksum},
+	id::IdSequence,
+	Flags, PacketLength, PayloadLength,
 };
 
 use crate::error::{ProtocolError, VerifyError};
@@ -12,12 +14,12 @@ use crate::util::StatIO;
 
 #[derive(Clone)]
 pub struct Pcb {
-	id_gen: IdGenerator,
+	seq: IdSequence,
 }
 
 impl Pcb {
-	pub const fn new() -> Self {
-		Self { id_gen: IdGenerator::new() }
+	pub fn new() -> Self {
+		Self { seq: IdSequence::new() }
 	}
 }
 
@@ -47,7 +49,7 @@ where
 			(0, false) => Some(Header {
 				length: PacketLength::MIN,
 				flags: Flags::zero(),
-				id: self.pcb.id_gen.next_id(),
+				id: self.pcb.seq.advance(),
 			}),
 			// If the remaining data is more than what fits inside
 			// one packet, return a header for a full packet.
@@ -55,7 +57,7 @@ where
 				Some(Header {
 					length: PayloadLength::MAX.to_packet_length(),
 					flags: Flags::MORE_DATA,
-					id: self.pcb.id_gen.next_id(),
+					id: self.pcb.seq.advance(),
 				})
 			},
 			// If the remaining data is equal or less than what
@@ -66,7 +68,7 @@ where
 				length: PayloadLength::new_saturating(rem as u16)
 					.to_packet_length(),
 				flags: Flags::zero(),
-				id: self.pcb.id_gen.next_id(),
+				id: self.pcb.seq.advance(),
 			}),
 		}
 	}
@@ -166,7 +168,15 @@ where
 		while let Some(header) = self.next_header() {
 			self.has_sent_one_packet = true;
 
-			let mut header_buf = Cursor::new(header.to_bytes());
+			let with_checksum =
+				if self.config.use_header_checksum {
+					WithChecksum::Yes
+				} else {
+					WithChecksum::No
+				};
+
+			let header_buf = header.to_bytes(with_checksum);
+			let mut header_buf = Cursor::new(header_buf);
 
 			match header.length.to_payload_length().as_usize() {
 				0 => {
@@ -216,8 +226,15 @@ where
 				.read(&mut header[..]) await
 				.map_err(RecvPayloadError::Io)?;
 
+			let with_checksum =
+				if self.config.verify_header_checksum {
+					WithChecksum::Yes
+				} else {
+					WithChecksum::No
+				};
+
 			let header =
-				Header::read_from(&header, &mut self.pcb.id_gen)
+				Header::try_from_bytes(header, with_checksum, VerifyId::Yes(&mut self.pcb.seq))
 					.map_err(VerifyError::from)
 					.map_err(RecvPayloadError::Verify)?;
 

@@ -3,14 +3,13 @@
 /// Assert a condition at compile-time.
 ///
 /// This macro accepts exactly the same arguments as [`assert!`].
-#[macro_export]
 macro_rules! static_assert {
 	($($tt:tt)*) => {
 		#[allow(dead_code, clippy::assertions_on_constants)]
 		const _: () = assert!($($tt)*);
 	}
 }
-pub use crate::static_assert;
+pub(crate) use static_assert;
 
 /// Convert a `&[T]` to a `&[T; N]`.
 ///

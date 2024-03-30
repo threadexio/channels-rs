@@ -526,6 +526,7 @@ impl<T, R, D> Builder<T, R, D> {
 pub struct Config {
 	pub(crate) size_estimate: Option<NonZeroUsize>,
 	pub(crate) max_size: usize,
+	pub(crate) verify_header_checksum: bool,
 }
 
 impl Default for Config {
@@ -533,6 +534,7 @@ impl Default for Config {
 		Self {
 			size_estimate: None,
 			max_size: PacketLength::MAX.as_usize(),
+			verify_header_checksum: true,
 		}
 	}
 }
@@ -611,6 +613,21 @@ impl Config {
 		self.max_size = max_size;
 		self
 	}
+
+	/// Verify the header checksum of each received packet.
+	///
+	/// This should be paired with a [`Sender`] that also does not produce
+	/// checksums (see [`use_header_checksum()`]).
+	///
+	/// **Default:** `true`
+	///
+	/// [`Sender`]: crate::Sender
+	/// [`use_header_checksum()`]: crate::sender::Config::use_header_checksum()
+	#[must_use]
+	pub fn verify_header_checksum(mut self, yes: bool) -> Self {
+		self.verify_header_checksum = yes;
+		self
+	}
 }
 
 impl fmt::Debug for Config {
@@ -618,6 +635,10 @@ impl fmt::Debug for Config {
 		f.debug_struct("Config")
 			.field("size_estimate", &self.size_estimate)
 			.field("max_size", &self.max_size)
+			.field(
+				"verify_header_checksum",
+				&self.verify_header_checksum,
+			)
 			.finish()
 	}
 }

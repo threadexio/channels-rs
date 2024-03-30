@@ -466,11 +466,12 @@ impl<T, W, S> Builder<T, W, S> {
 #[derive(Clone)]
 pub struct Config {
 	pub(crate) flush_on_send: bool,
+	pub(crate) use_header_checksum: bool,
 }
 
 impl Default for Config {
 	fn default() -> Self {
-		Self { flush_on_send: true }
+		Self { flush_on_send: true, use_header_checksum: true }
 	}
 }
 
@@ -486,12 +487,28 @@ impl Config {
 		self.flush_on_send = yes;
 		self
 	}
+
+	/// Calculate the checksum for each packet before sending it.
+	///
+	/// This is only necessary when transmitting over unreliable transports.
+	/// Thus if you are using, say a UNIX socket, pipe, or anything that is
+	/// in-memory, you generally don't need this additional check. So it is
+	/// perfectly safe to turn off this extra compute if you find it to be a
+	/// bottleneck if you application.
+	///
+	/// **Default:** `true`
+	#[must_use]
+	pub fn use_header_checksum(mut self, yes: bool) -> Self {
+		self.use_header_checksum = yes;
+		self
+	}
 }
 
 impl fmt::Debug for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Config")
 			.field("flush_on_send", &self.flush_on_send)
+			.field("use_header_checksum", &self.use_header_checksum)
 			.finish()
 	}
 }

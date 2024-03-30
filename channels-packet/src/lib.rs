@@ -2,11 +2,16 @@
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 #![no_std]
 
-mod header;
+mod consts;
+mod flags;
+mod num;
 mod util;
 
-pub use self::header::{
-	Checksum, Flags, Header, HeaderReadError, Id, IdGenerator,
-	PacketLength, PayloadLength,
-};
+pub mod checksum;
+pub mod header;
+pub mod id;
+pub mod raw;
+
+pub use self::flags::Flags;
+pub use self::num::{PacketLength, PayloadLength};
 pub use self::util::{slice_to_array, slice_to_array_mut};
