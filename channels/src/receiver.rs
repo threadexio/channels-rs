@@ -274,8 +274,20 @@ where
 {
 	/// Attempts to receive a type `T` from the channel.
 	///
-	/// This function will return a future that will complete only when all the
-	/// bytes of `T` have been received.
+	/// # Example
+	///
+	/// ```no_run
+	/// use tokio::net::TcpStream;
+	///
+	/// #[tokio::main]
+	/// async fn main() {
+	///     let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+	///     let mut rx = channels::Receiver::<i32, _, _>::new(stream);
+	///
+	///     let received: i32 = rx.recv().await.unwrap();
+	///     println!("{received}");
+	/// }
+	/// ```
 	pub async fn recv(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
@@ -299,8 +311,24 @@ where
 {
 	/// Attempts to receive a type `T` from the channel.
 	///
-	/// This function will block the current thread until every last byte of
-	/// `T` has been received.
+	/// Whether this function blocks execution is dependent on the underlying
+	/// reader.
+	///
+	/// **NOTE:** Non-blocking readers (those who return `WouldBlock`) are _not_
+	/// supported and will _not_ work. If you want non-blocking operation prefer
+	/// the asynchronous version of this function, [`Receiver::recv()`].
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// use std::net::TcpStream;
+	///
+	/// let stream = TcpStream::connect("127.0.0.1:8080").unwrap();
+	/// let mut rx = channels::Receiver::<i32, _, _>::new(stream);
+	///
+	/// let received: i32 = rx.recv_blocking().unwrap();
+	/// println!("{received}");
+	/// ```
 	pub fn recv_blocking(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {

@@ -233,8 +233,23 @@ where
 {
 	/// Attempts to send `data` through the channel.
 	///
-	/// This function will return a future that will complete only when all the
-	/// bytes of `data` have been sent through the channel.
+	/// # Example
+	///
+	/// ```no_run
+	/// use tokio::net::TcpStream;
+	///
+	/// #[tokio::main]
+	/// async fn main() {
+	///     let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+	///     let mut tx = channels::Sender::<i32, _, _>::new(stream);
+	///
+	///     let data = 42;
+	///
+	///     tx.send(&data).await.unwrap();
+	///     // or by taking ownership
+	///     tx.send(data).await.unwrap();
+	/// }
+	/// ```
 	pub async fn send<D>(
 		&mut self,
 		data: D,
@@ -267,8 +282,27 @@ where
 {
 	/// Attempts to send `data` through the channel.
 	///
-	/// This function will block the current thread until every last byte of
-	/// `data` has been sent.
+	/// Whether this function blocks execution is dependent on the underlying
+	/// writer.
+	///
+	/// **NOTE:** Non-blocking writers (those who return `WouldBlock`) are _not_
+	/// supported and will _not_ work. If you want non-blocking operation prefer
+	/// the asynchronous version of this function, [`Sender::send()`].
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// use std::net::TcpStream;
+	///
+	/// let stream = TcpStream::connect("127.0.0.1:8080").unwrap();
+	/// let mut tx = channels::Sender::<i32, _, _>::new(stream);
+	///
+	/// let data = 42;
+	///
+	/// tx.send_blocking(&data).unwrap();
+	/// // or by taking ownership
+	/// tx.send_blocking(data).unwrap();
+	/// ```
 	pub fn send_blocking<D>(
 		&mut self,
 		data: D,

@@ -79,7 +79,7 @@ impl From<HeaderReadError> for VerifyError {
 	}
 }
 
-impl fmt::Display for VerifyError {
+impl Display for VerifyError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::VersionMismatch => f.write_str("version mismatch"),
@@ -117,7 +117,7 @@ pub enum ProtocolError {
 	ExceededMaximumSize,
 }
 
-impl fmt::Display for ProtocolError {
+impl Display for ProtocolError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::ExceededMaximumSize => {
