@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "embedded"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+channels = { path = "../../channels", default-features = false, features = [
+	"aead",
+	"bincode",
+	"borsh",
+	"cbor",
+	"crc",
+	"deflate",
+	"hmac",
+	"json",
+	"statistics",
+] }
