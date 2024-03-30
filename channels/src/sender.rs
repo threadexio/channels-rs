@@ -224,6 +224,11 @@ where
 	pub fn get_mut(&mut self) -> &mut W::Inner {
 		self.writer.inner.get_mut()
 	}
+
+	/// Destruct the sender and get back the underlying writer.
+	pub fn into_writer(self) -> W::Inner {
+		self.writer.inner.into_inner()
+	}
 }
 
 impl<T, W, S> Sender<T, W, S>

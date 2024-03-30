@@ -265,6 +265,11 @@ where
 	pub fn get_mut(&mut self) -> &mut R::Inner {
 		self.reader.inner.get_mut()
 	}
+
+	/// Destruct the receiver and get back the underlying reader.
+	pub fn into_reader(self) -> R::Inner {
+		self.reader.inner.into_inner()
+	}
 }
 
 impl<T, R, D> Receiver<T, R, D>
