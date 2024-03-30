@@ -1,9 +1,6 @@
 //! Error types for `channels`.
 use core::fmt::{self, Debug, Display};
 
-trait Error: Debug + Display {}
-impl<T: Debug + Display + ?Sized> Error for T {}
-
 /// The error type returned by [`Sender`](crate::Sender).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -18,7 +15,11 @@ pub enum SendError<Ser, Io> {
 	Io(Io),
 }
 
-impl<Ser: Error, Io: Error> Display for SendError<Ser, Io> {
+impl<Ser, Io> Display for SendError<Ser, Io>
+where
+	Ser: Display,
+	Io: Display,
+{
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		use SendError as A;
 		match self {
@@ -29,7 +30,10 @@ impl<Ser: Error, Io: Error> Display for SendError<Ser, Io> {
 }
 
 #[cfg(feature = "std")]
-impl<Ser: Error, Io: Error> std::error::Error for SendError<Ser, Io> {}
+impl<Ser, Io> std::error::Error for SendError<Ser, Io> where
+	Self: Debug + Display
+{
+}
 
 /// The possible errors when verifying a received packet.
 #[derive(Debug, Clone)]
@@ -150,7 +154,7 @@ pub enum RecvError<Ser, Io> {
 	Protocol(ProtocolError),
 }
 
-impl<Ser: Error, Io: Error> Display for RecvError<Ser, Io> {
+impl<Ser: Display, Io: Display> Display for RecvError<Ser, Io> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		use RecvError as A;
 		match self {
@@ -163,4 +167,7 @@ impl<Ser: Error, Io: Error> Display for RecvError<Ser, Io> {
 }
 
 #[cfg(feature = "std")]
-impl<Ser: Error, Io: Error> std::error::Error for RecvError<Ser, Io> {}
+impl<Ser, Io> std::error::Error for RecvError<Ser, Io> where
+	Self: Debug + Display
+{
+}
