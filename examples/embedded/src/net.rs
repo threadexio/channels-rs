@@ -1,7 +1,4 @@
-use channels::io::{
-	Contiguous, ContiguousMut, IntoReader, IntoWriter, Read, Reader,
-	Write, Writer,
-};
+use channels::io::{Contiguous, ContiguousMut, Read, Write};
 
 /*
  * Implementation of networking varies between environments.
@@ -55,48 +52,5 @@ impl Write for Socket {
 
 	fn flush(&mut self) -> Result<(), Self::Error> {
 		unimplemented!()
-	}
-}
-
-impl Reader for Socket {
-	type Inner = Self;
-
-	fn get(&self) -> &Self::Inner {
-		self
-	}
-
-	fn get_mut(&mut self) -> &mut Self::Inner {
-		self
-	}
-	fn into_inner(self) -> Self::Inner {
-		self
-	}
-}
-
-impl IntoReader<Socket> for Socket {
-	fn into_reader(self) -> Socket {
-		self
-	}
-}
-
-impl Writer for Socket {
-	type Inner = Self;
-
-	fn get(&self) -> &Self::Inner {
-		self
-	}
-
-	fn get_mut(&mut self) -> &mut Self::Inner {
-		self
-	}
-
-	fn into_inner(self) -> Self::Inner {
-		self
-	}
-}
-
-impl IntoWriter<Socket> for Socket {
-	fn into_writer(self) -> Socket {
-		self
 	}
 }

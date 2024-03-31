@@ -88,16 +88,27 @@ mod prelude {
 	pub(super) use crate::{Contiguous, ContiguousMut};
 }
 
-macro_rules! declare_impl {
-	($mod:ident :: $name:ident, $feature:literal) => {
-		#[cfg(feature = $feature)]
+macro_rules! declare_impls {
+	($mod:ident :: $name:ident, $($tail:tt)*) => {
 		mod $mod;
-
-		#[cfg(feature = $feature)]
 		pub use self::$mod::$name;
+
+		declare_impls! { $($tail)* }
 	};
+	($mod:ident :: $name:ident if ($($cfg:tt)+), $($tail:tt)*) => {
+		#[cfg($($cfg)*)]
+		mod $mod;
+		#[cfg($($cfg)*)]
+		pub use self::$mod::$name;
+
+		declare_impls! { $($tail)* }
+	};
+	() => {};
 }
 
-declare_impl! { std::Std, "std" }
-declare_impl! { tokio::Tokio, "tokio" }
-declare_impl! { futures::Futures, "futures" }
+declare_impls! {
+	native::Native,
+	std::Std         if (feature = "std"),
+	tokio::Tokio     if (feature = "tokio"),
+	futures::Futures if (feature = "futures"),
+}

@@ -58,9 +58,8 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-mod util;
-
 mod bytes;
+mod util;
 
 pub mod buf;
 pub mod buf_mut;
