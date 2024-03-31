@@ -15,7 +15,7 @@ use crate::util::Statistics;
 
 /// The sending-half of the channel.
 pub struct Sender<T, W, S> {
-	_marker: PhantomData<T>,
+	_marker: PhantomData<fn() -> T>,
 	writer: StatIO<W>,
 	serializer: S,
 	pcb: Pcb,
@@ -335,7 +335,7 @@ where
 /// A builder for [`Sender`].
 #[derive(Clone)]
 pub struct Builder<T, W, S> {
-	_marker: PhantomData<T>,
+	_marker: PhantomData<fn() -> T>,
 	writer: W,
 	serializer: S,
 	config: Option<Config>,
@@ -545,9 +545,3 @@ where
 			.finish_non_exhaustive()
 	}
 }
-
-unsafe impl<T, W: Send, S: Send> Send for Builder<T, W, S> {}
-unsafe impl<T, W: Sync, S: Sync> Sync for Builder<T, W, S> {}
-
-unsafe impl<T, W: Send, S: Send> Send for Sender<T, W, S> {}
-unsafe impl<T, W: Sync, S: Sync> Sync for Sender<T, W, S> {}

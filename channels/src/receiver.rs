@@ -17,7 +17,7 @@ use channels_packet::PacketLength;
 
 /// The receiving-half of the channel.
 pub struct Receiver<T, R, D> {
-	_marker: PhantomData<T>,
+	_marker: PhantomData<fn() -> T>,
 	reader: StatIO<R>,
 	deserializer: D,
 	pcb: Pcb,
@@ -387,7 +387,7 @@ where
 /// A builder for [`Receiver`].
 #[derive(Clone)]
 pub struct Builder<T, R, D> {
-	_marker: PhantomData<T>,
+	_marker: PhantomData<fn() -> T>,
 	reader: R,
 	deserializer: D,
 	config: Option<Config>,
@@ -675,9 +675,3 @@ where
 			.finish_non_exhaustive()
 	}
 }
-
-unsafe impl<T, R: Send, D: Send> Send for Builder<T, R, D> {}
-unsafe impl<T, R: Sync, D: Sync> Sync for Builder<T, R, D> {}
-
-unsafe impl<T, R: Send, D: Send> Send for Receiver<T, R, D> {}
-unsafe impl<T, R: Sync, D: Sync> Sync for Receiver<T, R, D> {}
