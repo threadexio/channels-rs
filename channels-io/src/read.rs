@@ -148,6 +148,12 @@ pub trait IntoReader<T> {
 	fn into_reader(self) -> T;
 }
 
+impl<T: Read> IntoReader<T> for T {
+	fn into_reader(self) -> T {
+		self
+	}
+}
+
 macro_rules! forward_impl_read {
 	($typ:ty) => {
 		type Error = <$typ>::Error;

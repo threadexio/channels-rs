@@ -10,10 +10,8 @@ use self::net::Socket;
 use self::record::Record;
 use self::serdes::Serdes;
 
-type Sender =
-	channels::Sender<Record, channels::io::Native<Socket>, Serdes>;
-type Receiver =
-	channels::Receiver<Record, channels::io::Native<Socket>, Serdes>;
+type Sender = channels::Sender<Record, Socket, Serdes>;
+type Receiver = channels::Receiver<Record, Socket, Serdes>;
 
 /// A channel that sends and received [`Records`].
 pub struct Channel {

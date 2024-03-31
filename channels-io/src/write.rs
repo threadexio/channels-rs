@@ -165,6 +165,12 @@ pub trait IntoWriter<T> {
 	fn into_writer(self) -> T;
 }
 
+impl<T: Write> IntoWriter<T> for T {
+	fn into_writer(self) -> T {
+		self
+	}
+}
+
 macro_rules! forward_impl_write {
 	($typ:ty) => {
 		type Error = <$typ>::Error;
