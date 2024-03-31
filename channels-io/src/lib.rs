@@ -81,8 +81,10 @@ pub use self::take::{take, Take};
 mod read;
 mod write;
 
-pub use self::read::{AsyncRead, IntoReader, Read, Reader};
-pub use self::write::{AsyncWrite, IntoWriter, Write, Writer};
+pub use self::util::Container;
+
+pub use self::read::{AsyncRead, IntoReader, Read};
+pub use self::write::{AsyncWrite, IntoWriter, Write};
 
 mod impls;
 

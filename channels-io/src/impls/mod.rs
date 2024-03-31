@@ -8,50 +8,15 @@ macro_rules! newtype {
 		$(#[$attr])*
 		#[derive(Debug)]
 		pub struct $name<T>(pub T);
-	};
-}
 
-macro_rules! impl_newtype_read {
-    ($name:ident: $($bounds:tt)*) => {
-			impl<T> $crate::Reader for $name<T>
-			where
-				T: $($bounds)*
-			{
-				type Inner = T;
-
-				fn get(&self) -> &Self::Inner {
-					&self.0
-				}
-
-				fn get_mut(&mut self) -> &mut Self::Inner {
-					&mut self.0
-				}
-
-				fn into_inner(self) -> Self::Inner {
-					self.0
-				}
-			}
-
-			impl<T> $crate::IntoReader<$name<T>> for T
-			where
-				T: $($bounds)*
-			{
-				fn into_reader(self) -> $name<T> {
-					$name(self)
-				}
-			}
-		};
-	}
-
-macro_rules! impl_newtype_write {
-	($name:ident: $($bounds:tt)*) => {
-		impl<T> $crate::Writer for $name<T>
-		where
-			T: $($bounds)*
-		{
+		impl<T> $crate::Container for $name<T> {
 			type Inner = T;
 
-			fn get(&self) -> &Self::Inner {
+			fn from_inner(inner: Self::Inner) -> Self {
+				Self(inner)
+			}
+
+			fn get_ref(&self) -> &Self::Inner {
 				&self.0
 			}
 
@@ -62,8 +27,26 @@ macro_rules! impl_newtype_write {
 			fn into_inner(self) -> Self::Inner {
 				self.0
 			}
-		}
 
+		}
+	};
+}
+
+macro_rules! impl_newtype_read {
+	($name:ident: $($bounds:tt)*) => {
+		impl<T> $crate::IntoReader<$name<T>> for T
+		where
+			T: $($bounds)*
+		{
+			fn into_reader(self) -> $name<T> {
+				$name(self)
+			}
+		}
+	};
+}
+
+macro_rules! impl_newtype_write {
+	($name:ident: $($bounds:tt)*) => {
 		impl<T> $crate::IntoWriter<$name<T>> for T
 		where
 			T: $($bounds)*
@@ -72,7 +55,7 @@ macro_rules! impl_newtype_write {
 				$name(self)
 			}
 		}
-	}
+	};
 }
 
 use impl_newtype_read;

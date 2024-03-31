@@ -5,7 +5,7 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use crate::error::SendError;
-use crate::io::{AsyncWrite, IntoWriter, Write, Writer};
+use crate::io::{AsyncWrite, Container, IntoWriter, Write};
 use crate::protocol::Pcb;
 use crate::serdes::Serializer;
 use crate::util::StatIO;
@@ -159,7 +159,7 @@ impl<T, W, S> Sender<T, W, S> {
 
 impl<T, W, S> Sender<T, W, S>
 where
-	W: Writer,
+	W: Container,
 {
 	/// Get a reference to the underlying writer.
 	///
@@ -189,7 +189,7 @@ where
 	/// assert_eq!(w.count, 42);
 	/// ```
 	pub fn get(&self) -> &W::Inner {
-		self.writer.inner.get()
+		self.writer.inner.get_ref()
 	}
 
 	/// Get a mutable reference to the underlying writer. Directly writing to

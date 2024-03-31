@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 
 use crate::error::RecvError;
-use crate::io::{AsyncRead, IntoReader, Read, Reader};
+use crate::io::{AsyncRead, Container, IntoReader, Read};
 use crate::protocol::Pcb;
 use crate::serdes::Deserializer;
 use crate::util::StatIO;
@@ -208,7 +208,7 @@ impl<T, R, D> Receiver<T, R, D> {
 
 impl<T, R, D> Receiver<T, R, D>
 where
-	R: Reader,
+	R: Container,
 {
 	/// Get a reference to the underlying reader.
 	///
@@ -234,7 +234,7 @@ where
 	/// assert_eq!(r.count, 42);
 	/// ```
 	pub fn get(&self) -> &R::Inner {
-		self.reader.inner.get()
+		self.reader.inner.get_ref()
 	}
 
 	/// Get a mutable reference to the underlying reader. Directly reading from
