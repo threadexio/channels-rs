@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use channels_io::{Buf, Contiguous, Cursor, Walkable};
+use channels_io::{Buf, ContiguousMut, Cursor, Walkable};
 
 use ring::hmac;
 
@@ -106,17 +106,17 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<T, Self::Error> {
 		let tag_len =
 			self.key.algorithm().digest_algorithm().output_len();
-		let buf = buf.chunk();
+		let buf = buf.chunk_mut();
 
 		let tag_start = buf
 			.len()
 			.checked_sub(tag_len)
 			.ok_or(DeserializeError::NoTag)?;
-		let (data, tag) = buf.split_at(tag_start);
+		let (data, tag) = buf.split_at_mut(tag_start);
 
 		hmac::verify(&self.key, data, tag)
 			.map_err(|_| DeserializeError::VerifyFail)?;

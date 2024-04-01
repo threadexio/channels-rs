@@ -6,7 +6,7 @@ use channels_packet::{
 
 use crate::error::{ProtocolError, VerifyError};
 use crate::io::{
-	AsyncRead, AsyncWrite, Buf, Contiguous, Cursor, Read, Write,
+	AsyncRead, AsyncWrite, Buf, ContiguousMut, Cursor, Read, Write,
 };
 use crate::receiver::Config as RecvConfig;
 use crate::sender::Config as SendConfig;
@@ -148,7 +148,7 @@ pub async fn recv<'a, R>(
 	config: &'a RecvConfig,
 	pcb: &'a mut Pcb,
 	reader: &'a mut StatIO<R>,
-) -> Result<impl Contiguous, RecvPayloadError<R::Error>>
+) -> Result<impl ContiguousMut, RecvPayloadError<R::Error>>
 where
 	R: Read,
 {
@@ -211,7 +211,7 @@ where
 {
 	pub async fn run(
 		self,
-	) -> Result<impl Contiguous, RecvPayloadError<R::Error>> {
+	) -> Result<impl ContiguousMut, RecvPayloadError<R::Error>> {
 		use alloc::vec::Vec;
 
 		let mut full_payload = match (self.config.size_estimate, self.config.max_size) {

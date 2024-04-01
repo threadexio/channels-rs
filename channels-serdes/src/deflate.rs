@@ -4,7 +4,8 @@ use core::fmt;
 
 use std::io::{Read, Write};
 
-use channels_io::{Contiguous, Cursor, Walkable};
+use channels_io::{Buf, ContiguousMut, Cursor, Walkable};
+
 use flate2::{read::DeflateDecoder, write::DeflateEncoder};
 
 use crate::{Deserializer, Serializer};
@@ -138,8 +139,10 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<T, Self::Error> {
+		let buf = buf.chunk_mut();
+
 		let mut decoder = DeflateDecoder::new(buf.reader());
 
 		let mut output = Vec::new();

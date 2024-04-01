@@ -3,7 +3,9 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{Contiguous, Deserializer, Serializer, Walkable};
+use channels_io::{ContiguousMut, Walkable};
+
+use crate::{Deserializer, Serializer};
 
 /// The [`mod@borsh`] serializer which automatically works with all
 /// types that implement [`borsh::BorshSerialize`] and [`borsh::BorshDeserialize`].
@@ -41,8 +43,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<T, Self::Error> {
-		borsh::from_slice(buf.chunk())
+		borsh::from_slice(buf.chunk_mut())
 	}
 }

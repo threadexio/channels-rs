@@ -1,7 +1,9 @@
 //! The [`mod@ciborium`] serializer which automatically works with all
 //! types that implement [`serde::Serialize`] and [`serde::Deserialize`].
 
-use crate::{Contiguous, Deserializer, Serializer, Walkable};
+use channels_io::{ContiguousMut, Walkable};
+
+use crate::{Deserializer, Serializer};
 
 /// The [`mod@ciborium`] serializer which automatically works with all
 /// types that implement [`serde::Serialize`] and [`serde::Deserialize`].
@@ -41,8 +43,9 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<T, Self::Error> {
-		ciborium::from_reader(buf.chunk())
+		let buf: &[u8] = buf.chunk_mut();
+		ciborium::from_reader(buf)
 	}
 }

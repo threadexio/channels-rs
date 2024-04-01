@@ -1,7 +1,7 @@
 use core::convert::Infallible;
 
 use channels::{
-	io::{Contiguous, Cursor, Walkable},
+	io::{ContiguousMut, Cursor, Walkable},
 	serdes::{Crc, Deserializer, Serializer},
 };
 
@@ -54,29 +54,26 @@ impl Deserializer<Record> for RecordSerdes {
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<Record, Self::Error> {
-		let buf = buf.chunk();
+		let buf = buf.chunk_mut();
 
 		if buf.len() < RECORD_SIZE {
 			return Err(RecordDeserializeError::NotEnough);
 		}
 
-		let mut timestamp_bytes = [0u8; 8];
-		timestamp_bytes[..].copy_from_slice(&buf[0..8]);
-		let timestamp = u64::from_be_bytes(timestamp_bytes);
+		let timestamp =
+			u64::from_be_bytes(buf[0..8].try_into().unwrap());
 
-		let mut typ_bytes = [0u8; 2];
-		typ_bytes[..].copy_from_slice(&buf[8..10]);
-		let typ = match u16::from_be_bytes(typ_bytes) {
+		let typ = match u16::from_be_bytes(
+			buf[8..10].try_into().unwrap(),
+		) {
 			1 => RecordType::Get,
 			2 => RecordType::Update,
 			_ => return Err(RecordDeserializeError::InvalidType),
 		};
 
-		let mut path_bytes = [0u8; 16];
-		path_bytes[..].copy_from_slice(&buf[10..26]);
-		let path = RecordPath(path_bytes);
+		let path = RecordPath(buf[10..26].try_into().unwrap());
 
 		Ok(Record { timestamp, typ, path })
 	}

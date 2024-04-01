@@ -3,7 +3,9 @@
 
 use bincode::Options;
 
-use crate::{Contiguous, Deserializer, Serializer, Walkable};
+use channels_io::{ContiguousMut, Walkable};
+
+use crate::{Deserializer, Serializer};
 
 fn default_bincode_config() -> impl Options {
 	bincode::options()
@@ -62,8 +64,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<T, Self::Error> {
-		default_bincode_config().deserialize(buf.chunk())
+		default_bincode_config().deserialize(buf.chunk_mut())
 	}
 }

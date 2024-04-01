@@ -1,7 +1,9 @@
 //! The [`mod@serde_json`] serializer which automatically works with all
 //! types that implement [`serde::Serialize`] and [`serde::Deserialize`].
 
-use crate::{Contiguous, Deserializer, Serializer, Walkable};
+use channels_io::{ContiguousMut, Walkable};
+
+use crate::{Deserializer, Serializer};
 
 /// The [`mod@serde_json`] serializer which automatically works with all
 /// types that implement [`serde::Serialize`] and [`serde::Deserialize`].
@@ -44,8 +46,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<T, Self::Error> {
-		serde_json::from_slice(buf.chunk())
+		serde_json::from_slice(buf.chunk_mut())
 	}
 }

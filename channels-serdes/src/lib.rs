@@ -5,7 +5,7 @@
 //! ```rust
 //! use std::convert::Infallible;
 //! use channels_serdes::{Serializer, Deserializer};
-//! use channels_io::{Walkable, Contiguous, Cursor, Buf};
+//! use channels_io::{Walkable, ContiguousMut, Cursor, Buf};
 //!
 //! struct MyI32;
 //!
@@ -27,8 +27,8 @@
 //! impl Deserializer<i32> for MyI32 {
 //!     type Error = I32DeserializeError;
 //!
-//!     fn deserialize(&mut self, buf: impl Contiguous) -> Result<i32, Self::Error> {
-//!         buf.chunk().get(..4)
+//!     fn deserialize(&mut self, mut buf: impl ContiguousMut) -> Result<i32, Self::Error> {
+//!         buf.chunk_mut().get(..4)
 //!            .map(|slice| -> [u8; 4] { slice.try_into().unwrap() })
 //!            .map(i32::from_be_bytes)
 //!            .ok_or(I32DeserializeError::NotEnough)
@@ -37,13 +37,16 @@
 //!
 //! let mut sd = MyI32;
 //!
-//! let mut serialized = sd.serialize(&42)
+//! let mut serialized: Vec<u8> = sd.serialize(&42)
 //!                        .unwrap()
-//!                        .copy_to_contiguous();
+//!                        .walk_chunks()
+//!                        .flatten()
+//!                        .copied()
+//!                        .collect();
 //!
-//! assert_eq!(serialized.chunk(), [0, 0, 0, 42]);
+//! assert_eq!(serialized, [0, 0, 0, 42]);
 //!
-//! let deserialized = sd.deserialize(serialized);
+//! let deserialized = sd.deserialize(&mut serialized[..]);
 //! assert_eq!(deserialized, Ok(42));
 //! ```
 #![allow(clippy::multiple_crate_versions)]
@@ -53,7 +56,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-use channels_io::{Contiguous, Walkable};
+use channels_io::{ContiguousMut, Walkable};
 
 /// The [`Serializer`] trait allows converting a type `T` to safe-to-transport
 /// byte sequences.
@@ -92,11 +95,10 @@ pub trait Deserializer<T> {
 
 	/// Deserialize bytes from `buf` to a type `T`.
 	///
-	/// `buf` is passed with a mutable reference so implementations can do
-	/// in-place modification of the data if needed.
+	/// Implementations can freely modify `buf` if needed.
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		buf: impl ContiguousMut,
 	) -> Result<T, Self::Error>;
 }
 
@@ -106,7 +108,7 @@ macro_rules! forward_deserializer_impl {
 
 		fn deserialize(
 			&mut self,
-			buf: impl Contiguous,
+			buf: impl $crate::ContiguousMut,
 		) -> Result<T, Self::Error> {
 			(**self).deserialize(buf)
 		}

@@ -4,7 +4,7 @@ use core::fmt;
 
 use alloc::boxed::Box;
 
-use channels_io::{Buf, Contiguous, Cursor, Walkable};
+use channels_io::{Buf, ContiguousMut, Cursor, Walkable};
 
 use crate::{Deserializer, Serializer};
 
@@ -140,14 +140,15 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<T, Self::Error> {
 		let inner_len = buf
-			.remaining()
+			.remaining_mut()
 			.checked_sub(8)
 			.ok_or(DeserializeError::NoChecksum)?;
 
-		let (inner, checksum) = buf.chunk().split_at(inner_len);
+		let (inner, checksum) =
+			buf.chunk_mut().split_at_mut(inner_len);
 
 		let unverified = u64::from_be_bytes(checksum.try_into().expect(
 			"remaining part of payload should have been at least 8 bytes",

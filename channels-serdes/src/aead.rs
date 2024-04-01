@@ -2,7 +2,7 @@
 
 use core::fmt;
 
-use channels_io::{Buf, Contiguous, Cursor, Walkable};
+use channels_io::{Buf, ContiguousMut, Cursor, Walkable};
 
 use ring::aead::{self, Aad};
 
@@ -107,7 +107,7 @@ where
 		let out = Cursor::new(out);
 		let tag = Cursor::new(tag.as_ref().to_vec());
 
-		let out = out.chain(tag);
+		let out = Buf::chain(out, tag);
 		Ok(out)
 	}
 }
@@ -185,17 +185,15 @@ where
 
 	fn deserialize(
 		&mut self,
-		buf: impl Contiguous,
+		mut buf: impl ContiguousMut,
 	) -> Result<T, Self::Error> {
-		let mut input = copy_buf_to_vec(buf);
-
 		let plaintext = self
 			.key
-			.open_in_place(Aad::empty(), &mut input)
+			.open_in_place(Aad::empty(), buf.chunk_mut())
 			.map_err(|_| DeserializeError::DecryptError)?;
 
 		self.next
-			.deserialize(plaintext.as_ref())
+			.deserialize(plaintext)
 			.map_err(DeserializeError::Next)
 	}
 }
