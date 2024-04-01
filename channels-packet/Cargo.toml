@@ -19,7 +19,20 @@ all-features = true
 rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
 
+[[bench]]
+name = "parse"
+path = "benches/parse.rs"
+harness = false
+
+[[bench]]
+name = "checksum"
+path = "benches/checksum.rs"
+harness = false
+
 [dependencies]
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [lints]
 workspace = true
