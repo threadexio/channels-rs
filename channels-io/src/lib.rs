@@ -51,7 +51,6 @@
 //!
 //! As you can see `write_data` is called both with types from [`tokio`] and
 //! [`async-std`] (aka [`futures`]). The same logic applies to synchronous code.
-#![allow(clippy::multiple_crate_versions)]
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
