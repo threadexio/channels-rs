@@ -6,7 +6,8 @@ use channels_packet::{
 
 use crate::error::{ProtocolError, VerifyError};
 use crate::io::{
-	AsyncRead, AsyncWrite, Buf, ContiguousMut, Cursor, Read, Write,
+	chain, AsyncRead, AsyncWrite, Buf, ContiguousMut, Cursor, Read,
+	Write,
 };
 use crate::receiver::Config as RecvConfig;
 use crate::sender::Config as SendConfig;
@@ -175,20 +176,29 @@ where
 					WithChecksum::No
 				};
 
-			let header_buf = header.to_bytes(with_checksum);
-			let mut header_buf = Cursor::new(header_buf);
+			let mut header_buf = Cursor::new(header.to_bytes(with_checksum));
+			let payload_length = header.length.to_payload_length().as_usize();
 
-			match header.length.to_payload_length().as_usize() {
-				0 => {
-					self.writer.write(&mut header_buf) await?;
+			if payload_length == 0 {
+				self.writer.write(&mut header_buf) await?;
+			} else {
+				let payload = self.payload.by_ref().take(payload_length);
+				let mut packet = chain(header_buf, payload);
+
+				match payload_length {
+					_ if self.config.coalesce_writes => {
+						let mut packet = packet.copy_to_contiguous();
+						self.writer.write(&mut packet) await?;
+					}
+					_ => {
+						while packet.has_remaining() {
+							let chunk = packet.chunk();
+							self.writer.write(chunk) await?;
+							packet.advance(chunk.len());
+						}
+					}
 				}
-				payload_length => {
-					let payload = self.payload.by_ref().take(payload_length);
-					let packet = header_buf.chain(payload);
-					let mut packet = packet.copy_to_contiguous();
-					self.writer.write(&mut packet) await?;
-				}
-			};
+			}
 
 			#[cfg(feature = "statistics")]
 			self.writer.statistics.inc_packets();

@@ -472,11 +472,16 @@ impl<T, W, S> Builder<T, W, S> {
 pub struct Config {
 	pub(crate) flush_on_send: bool,
 	pub(crate) use_header_checksum: bool,
+	pub(crate) coalesce_writes: bool,
 }
 
 impl Default for Config {
 	fn default() -> Self {
-		Self { flush_on_send: true, use_header_checksum: true }
+		Self {
+			flush_on_send: true,
+			use_header_checksum: true,
+			coalesce_writes: true,
+		}
 	}
 }
 
@@ -507,6 +512,49 @@ impl Config {
 		self.use_header_checksum = yes;
 		self
 	}
+
+	/// Coalesce packet writes into a single [`write()`] call.
+	///
+	/// Produced packets do not reside in contiguous chunks of memory. Because
+	/// [`write()`] expects a contiguous region of memory, this means that
+	/// writing the packet to the underlying writer is not as simple as calling
+	/// [`write()`] once.
+	///
+	/// In such situations, code can:
+	///
+	/// - A) call [`write()`] many times
+	/// - B) copy each part of the packet into a single contiguous region of
+	///      memory and call [`write()`] on it just once
+	///
+	/// Approach A has the benefit that it requires no additional allocations
+	/// or copying data. However, it heavily depends on the speed of the
+	/// underlying writer. Consider a writer that performs a system call each
+	/// time its [`write()`] method is called. Because system calls are
+	/// expensive, code should generally try to reduce their usage. For these
+	/// cases it is generally preferred to use approach B and only call [`write()`]
+	/// once. But in other cases where the writer is generally cheaply writable,
+	/// say writing to an in-memory buffer for further processing, it **can** be
+	/// **sometimes** beneficial to use approach A in terms of CPU time and memory
+	/// resources. Note that even in such cases, approach B might still be
+	/// faster.
+	///
+	/// This field basically controls the behavior of how [`write()`] is called.
+	/// Setting it to `true`, will signal the sending code to use approach B as
+	/// per the above. Setting it to `false`, will signal the sending code to
+	/// use approach A. Incorrectly setting this field, can lead to serious
+	/// performance issues. For this reason, the default behavior is approach B.
+	///
+	/// Writers should not assume anything about the pattern of how [`write()`]
+	/// is called.
+	///
+	/// **Default:** `true`
+	///
+	/// [`write()`]: Write::write()
+	#[must_use]
+	pub fn coalesce_writes(mut self, yes: bool) -> Self {
+		self.coalesce_writes = yes;
+		self
+	}
 }
 
 impl fmt::Debug for Config {
@@ -514,6 +562,7 @@ impl fmt::Debug for Config {
 		f.debug_struct("Config")
 			.field("flush_on_send", &self.flush_on_send)
 			.field("use_header_checksum", &self.use_header_checksum)
+			.field("coalesce_writes", &self.coalesce_writes)
 			.finish()
 	}
 }
