@@ -10,12 +10,16 @@ use core::num::Wrapping;
 pub struct Id(u8);
 
 impl Id {
-	pub(crate) fn from_u8(value: u8) -> Self {
-		Self(value)
-	}
-
-	pub(crate) fn as_u8(&self) -> u8 {
+	/// Get the [`u8`] representation of the [`Id`].
+	#[must_use]
+	pub fn as_u8(&self) -> u8 {
 		self.0
+	}
+}
+
+impl From<u8> for Id {
+	fn from(value: u8) -> Self {
+		Self(value)
 	}
 }
 
@@ -35,7 +39,7 @@ impl IdSequence {
 	/// Peek at the next [`Id`] in the sequence without advancing it.
 	#[must_use]
 	pub fn peek(&self) -> Id {
-		Id::from_u8(self.next.0)
+		Id::from(self.next.0)
 	}
 
 	/// Get the next [`Id`] in the sequence and advance it.

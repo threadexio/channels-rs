@@ -110,12 +110,11 @@ impl Header {
 			PacketLength::new(unsafe { raw.header.length.into() })
 				.ok_or(E::InvalidLength)?;
 
-		let flags = Flags::from(unsafe { raw.header.flags });
+		let flags =
+			Flags::from_bits_retain(unsafe { raw.header.flags });
 
-		let id = match (
-			verify_id,
-			Id::from_u8(unsafe { raw.header.id }),
-		) {
+		let id = match (verify_id, Id::from(unsafe { raw.header.id }))
+		{
 			(VerifyId::No, id) => id,
 			(VerifyId::Yes(seq), id) => {
 				if id == seq.peek() {
@@ -167,8 +166,8 @@ mod tests {
 		assert_eq!(
 			Header {
 				length: PacketLength::new(1234).unwrap(),
-				flags: Flags::zero(),
-				id: Id::from_u8(42),
+				flags: Flags::empty(),
+				id: Id::from(42),
 			}
 			.to_bytes(WithChecksum::Yes),
 			[0xfd, 0x3f, 0x04, 0xd2, 0xfd, 0xc3, 0x00, 0x2a]
@@ -178,7 +177,7 @@ mod tests {
 			Header {
 				length: PacketLength::new(42).unwrap(),
 				flags: Flags::MORE_DATA,
-				id: Id::from_u8(0),
+				id: Id::from(0),
 			}
 			.to_bytes(WithChecksum::Yes),
 			[0xfd, 0x3f, 0x00, 0x2a, 0x82, 0x95, 0x80, 0x00]
@@ -197,8 +196,8 @@ mod tests {
 			),
 			Ok(Header {
 				length: PacketLength::new(1234).unwrap(),
-				flags: Flags::zero(),
-				id: Id::from_u8(0),
+				flags: Flags::empty(),
+				id: Id::from(0),
 			})
 		);
 
@@ -211,7 +210,7 @@ mod tests {
 			Ok(Header {
 				length: PacketLength::new(42).unwrap(),
 				flags: Flags::MORE_DATA,
-				id: Id::from_u8(1),
+				id: Id::from(1),
 			})
 		);
 	}
@@ -228,8 +227,8 @@ mod tests {
 			),
 			Ok(Header {
 				length: PacketLength::new(1234).unwrap(),
-				flags: Flags::zero(),
-				id: Id::from_u8(0),
+				flags: Flags::empty(),
+				id: Id::from(0),
 			})
 		);
 
@@ -242,7 +241,7 @@ mod tests {
 			Ok(Header {
 				length: PacketLength::new(42).unwrap(),
 				flags: Flags::MORE_DATA,
-				id: Id::from_u8(1),
+				id: Id::from(1),
 			})
 		);
 	}
@@ -257,8 +256,8 @@ mod tests {
 			),
 			Ok(Header {
 				length: PacketLength::new(1234).unwrap(),
-				flags: Flags::zero(),
-				id: Id::from_u8(0),
+				flags: Flags::empty(),
+				id: Id::from(0),
 			})
 		);
 
@@ -271,7 +270,7 @@ mod tests {
 			Ok(Header {
 				length: PacketLength::new(42).unwrap(),
 				flags: Flags::MORE_DATA,
-				id: Id::from_u8(1),
+				id: Id::from(1),
 			})
 		);
 	}

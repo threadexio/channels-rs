@@ -49,7 +49,7 @@ where
 			// packets, then send one packet with no payload.
 			(0, false) => Some(Header {
 				length: PacketLength::MIN,
-				flags: Flags::zero(),
+				flags: Flags::empty(),
 				id: self.pcb.seq.advance(),
 			}),
 			// If the remaining data is more than what fits inside
@@ -68,7 +68,7 @@ where
 			(rem, _) => Some(Header {
 				length: PayloadLength::new_saturating(rem as u16)
 					.to_packet_length(),
-				flags: Flags::zero(),
+				flags: Flags::empty(),
 				id: self.pcb.seq.advance(),
 			}),
 		}
@@ -264,7 +264,7 @@ where
 				.read(&mut full_payload[payload_start..]) await
 				.map_err(RecvPayloadError::Io)?;
 
-			if !(header.flags & Flags::MORE_DATA) {
+			if !header.flags.contains(Flags::MORE_DATA) {
 				break;
 			}
 		}

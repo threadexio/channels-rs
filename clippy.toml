@@ -1,4 +1,5 @@
 allowed-duplicate-crates = [
+	"bitflags",
 	"windows-sys",
 	"windows-targets",
 	"windows_aarch64_gnullvm",
