@@ -12,6 +12,7 @@ members = [
 	"examples/chat-app",
 	"stress-tests",
 	"tests-integration",
+	"tools/dissect"
 ]
 default-members = [
 	"channels-io",

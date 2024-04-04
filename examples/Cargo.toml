@@ -20,7 +20,16 @@ path = "tcp_echo_client.rs"
 name = "tcp_echo_server"
 path = "tcp_echo_server.rs"
 
+[[example]]
+name = "send_stdout"
+path = "send_stdout.rs"
+
+[[example]]
+name = "recv_stdin"
+path = "recv_stdin.rs"
+
 [dependencies]
 channels = { workspace = true }
 rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }

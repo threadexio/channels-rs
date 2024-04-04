@@ -1,0 +1,20 @@
+[package]
+name = "dissect"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = "1"
+colored = "2"
+fern = "0.6"
+log = "0.4"
+
+[dependencies.channels-io]
+path = "../../channels-io"
+
+[dependencies.channels-packet]
+path = "../../channels-packet"
+
+[lints]
+workspace = true
