@@ -114,6 +114,7 @@ pub enum RecvPayloadError<Io> {
 	Io(Io),
 	OutOfOrder,
 	VersionMismatch,
+	ZeroSizeFragment,
 }
 
 impl<Io> From<Io> for RecvPayloadError<Io> {
@@ -148,6 +149,7 @@ impl<Des, Io> From<RecvPayloadError<Io>> for RecvError<Des, Io> {
 			A::Io(x) => B::Io(x),
 			A::OutOfOrder => B::OutOfOrder,
 			A::VersionMismatch => B::VersionMismatch,
+			A::ZeroSizeFragment => B::ZeroSizeFragment,
 		}
 	}
 }
@@ -295,6 +297,12 @@ where
 			let header =
 				Header::try_from_bytes(header, with_checksum, VerifyId::Yes(&mut self.pcb.seq))
 					.map_err(RecvPayloadError::from_verify_error)?;
+
+			if header.length == PacketLength::MIN
+				&& header.flags.contains(Flags::MORE_DATA)
+			{
+				return Err(RecvPayloadError::ZeroSizeFragment);
+			}
 
 			let payload_start = full_payload.len();
 			let payload_length =

@@ -79,6 +79,9 @@ pub enum RecvError<Des, Io> {
 	/// The 2 peers are not using the same protocol version. This means that
 	/// each end is not using the same version of the crate.
 	VersionMismatch,
+
+	/// A fragment was received but it had no data.
+	ZeroSizeFragment,
 }
 
 impl<Ser: Display, Io: Display> Display for RecvError<Ser, Io> {
@@ -96,6 +99,7 @@ impl<Ser: Display, Io: Display> Display for RecvError<Ser, Io> {
 			},
 			A::Serde(e) => Display::fmt(e, f),
 			A::VersionMismatch => f.write_str("version mismatch"),
+			A::ZeroSizeFragment => f.write_str("zero size fragment"),
 		}
 	}
 }
