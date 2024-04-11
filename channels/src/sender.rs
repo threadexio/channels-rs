@@ -123,7 +123,7 @@ impl<T, W, S> Sender<T, W, S> {
 	/// let writer = std::io::sink();
 	///
 	/// let config = Config::default()
-	///                 .flush_on_send(false);
+	///                 .with_flush_on_send(false);
 	///
 	/// let rx = Sender::<i32, _, _>::builder()
 	///             .writer(writer)
@@ -433,7 +433,7 @@ impl<T, W, S> Builder<T, W, S> {
 	/// use channels::sender::{Config, Sender};
 	///
 	/// let config = Config::default()
-	///                 .flush_on_send(false);
+	///                 .with_flush_on_send(false);
 	///
 	/// let tx = Sender::<i32, _, _>::builder()
 	///             .config(config);
@@ -466,91 +466,160 @@ impl<T, W, S> Builder<T, W, S> {
 }
 
 /// Configuration for [`Sender`].
+///
+/// ## Flush on send
+///
+/// Flush the underlying writer after every [`send()`] or [`send_blocking()`].
+///
+/// **Default:** `true`
+///
+/// [`send()`]: Sender::send()
+/// [`send_blocking()`]: Sender::send_blocking()
+///
+/// ## Use header checksum
+///
+/// Calculate the checksum for each packet before sending it.
+///
+/// This is only necessary when transmitting over unreliable transports.
+/// Thus if you are using, say a UNIX socket, pipe, or anything that is
+/// in-memory, you generally don't need this additional check. So it is
+/// perfectly safe to turn off this extra compute if you find it to be a
+/// bottleneck for your application.
+///
+/// **Default:** `true`
+///
+/// ## Coalesce writes
+///
+/// Coalesce packet writes into a single [`write()`] call.
+///
+/// Produced packets do not reside in contiguous chunks of memory. Because
+/// [`write()`] expects a contiguous region of memory, this means that
+/// writing the packet to the underlying writer is not as simple as calling
+/// [`write()`] once.
+///
+/// In such situations, code can:
+///
+/// - A) call [`write()`] many times
+/// - B) copy each part of the packet into a single contiguous region of
+///      memory and call [`write()`] on it just once
+///
+/// Approach A has the benefit that it requires no additional allocations
+/// or copying data. However, it heavily depends on the speed of the
+/// underlying writer. Consider a writer that performs a system call each
+/// time its [`write()`] method is called. Because system calls are
+/// expensive, code should generally try to reduce their usage. For these
+/// cases it is generally preferred to use approach B and only call [`write()`]
+/// once. But in other cases where the writer is generally cheaply writable,
+/// say writing to an in-memory buffer for further processing, it **can** be
+/// **sometimes** beneficial to use approach A in terms of CPU time and memory
+/// resources. Note that even in such cases, approach B might still be
+/// faster.
+///
+/// This field basically controls the behavior of how [`write()`] is called.
+/// Setting it to `true`, will signal the sending code to use approach B as
+/// per the above. Setting it to `false`, will signal the sending code to
+/// use approach A. Incorrectly setting this field, can lead to serious
+/// performance issues. For this reason, the default behavior is approach B.
+///
+/// Writers should not assume anything about the pattern of how [`write()`]
+/// is called.
+///
+/// **Default:** `true`
+///
+/// [`write()`]: Write::write()
 #[derive(Clone)]
 pub struct Config {
-	pub(crate) flush_on_send: bool,
-	pub(crate) use_header_checksum: bool,
-	pub(crate) coalesce_writes: bool,
+	flags: u8,
+}
+
+impl Config {
+	const FLUSH_ON_SEND: u8 = 1 << 0;
+	const USE_HEADER_CHECKSUM: u8 = 1 << 1;
+	const COALESCE_WRITES: u8 = 1 << 2;
+
+	#[inline]
+	fn get_flag(&self, flag: u8) -> bool {
+		self.flags & flag != 0
+	}
+
+	#[inline]
+	fn set_flag(&mut self, flag: u8, value: bool) {
+		if value {
+			self.flags |= flag;
+		} else {
+			self.flags &= !flag;
+		}
+	}
 }
 
 impl Default for Config {
 	fn default() -> Self {
 		Self {
-			flush_on_send: true,
-			use_header_checksum: true,
-			coalesce_writes: true,
+			flags: Self::FLUSH_ON_SEND
+				| Self::USE_HEADER_CHECKSUM
+				| Self::COALESCE_WRITES,
 		}
 	}
 }
 
 impl Config {
-	/// Flush the underlying writer after every [`send()`] or [`send_blocking()`].
-	///
-	/// **Default:** `true`
-	///
-	/// [`send()`]: Sender::send()
-	/// [`send_blocking()`]: Sender::send_blocking()
+	/// Get whether the [`Sender`] will flush the writer after every send.
 	#[must_use]
-	pub fn flush_on_send(mut self, yes: bool) -> Self {
-		self.flush_on_send = yes;
+	pub fn flush_on_send(&self) -> bool {
+		self.get_flag(Self::FLUSH_ON_SEND)
+	}
+
+	/// Whether the [`Sender`] will flush the writer after every send.
+	pub fn set_flush_on_send(&mut self, yes: bool) -> &mut Self {
+		self.set_flag(Self::FLUSH_ON_SEND, yes);
 		self
 	}
 
-	/// Calculate the checksum for each packet before sending it.
-	///
-	/// This is only necessary when transmitting over unreliable transports.
-	/// Thus if you are using, say a UNIX socket, pipe, or anything that is
-	/// in-memory, you generally don't need this additional check. So it is
-	/// perfectly safe to turn off this extra compute if you find it to be a
-	/// bottleneck if you application.
-	///
-	/// **Default:** `true`
+	/// Whether the [`Sender`] will flush the writer after every send.
 	#[must_use]
-	pub fn use_header_checksum(mut self, yes: bool) -> Self {
-		self.use_header_checksum = yes;
+	pub fn with_flush_on_send(mut self, yes: bool) -> Self {
+		self.set_flush_on_send(yes);
 		self
 	}
 
-	/// Coalesce packet writes into a single [`write()`] call.
-	///
-	/// Produced packets do not reside in contiguous chunks of memory. Because
-	/// [`write()`] expects a contiguous region of memory, this means that
-	/// writing the packet to the underlying writer is not as simple as calling
-	/// [`write()`] once.
-	///
-	/// In such situations, code can:
-	///
-	/// - A) call [`write()`] many times
-	/// - B) copy each part of the packet into a single contiguous region of
-	///      memory and call [`write()`] on it just once
-	///
-	/// Approach A has the benefit that it requires no additional allocations
-	/// or copying data. However, it heavily depends on the speed of the
-	/// underlying writer. Consider a writer that performs a system call each
-	/// time its [`write()`] method is called. Because system calls are
-	/// expensive, code should generally try to reduce their usage. For these
-	/// cases it is generally preferred to use approach B and only call [`write()`]
-	/// once. But in other cases where the writer is generally cheaply writable,
-	/// say writing to an in-memory buffer for further processing, it **can** be
-	/// **sometimes** beneficial to use approach A in terms of CPU time and memory
-	/// resources. Note that even in such cases, approach B might still be
-	/// faster.
-	///
-	/// This field basically controls the behavior of how [`write()`] is called.
-	/// Setting it to `true`, will signal the sending code to use approach B as
-	/// per the above. Setting it to `false`, will signal the sending code to
-	/// use approach A. Incorrectly setting this field, can lead to serious
-	/// performance issues. For this reason, the default behavior is approach B.
-	///
-	/// Writers should not assume anything about the pattern of how [`write()`]
-	/// is called.
-	///
-	/// **Default:** `true`
-	///
-	/// [`write()`]: Write::write()
+	/// Get whether the [`Sender`] will calculate the checksum for sent packets.
 	#[must_use]
-	pub fn coalesce_writes(mut self, yes: bool) -> Self {
-		self.coalesce_writes = yes;
+	pub fn use_header_checksum(&self) -> bool {
+		self.get_flag(Self::USE_HEADER_CHECKSUM)
+	}
+
+	/// Whether the [`Sender`] will calculate the checksum for sent packets.
+	pub fn set_use_header_checksum(
+		&mut self,
+		yes: bool,
+	) -> &mut Self {
+		self.set_flag(Self::USE_HEADER_CHECKSUM, yes);
+		self
+	}
+
+	/// Whether the [`Sender`] will calculate the checksum for sent packets.
+	#[must_use]
+	pub fn with_use_header_checksum(mut self, yes: bool) -> Self {
+		self.set_use_header_checksum(yes);
+		self
+	}
+
+	/// Get whether the [`Sender`] will coalesce all writes into a single buffer.
+	#[must_use]
+	pub fn coalesce_writes(&self) -> bool {
+		self.get_flag(Self::COALESCE_WRITES)
+	}
+
+	/// Whether the [`Sender`] will coalesce all writes into a single buffer.
+	pub fn set_coalesce_writes(&mut self, yes: bool) -> &mut Self {
+		self.set_flag(Self::COALESCE_WRITES, yes);
+		self
+	}
+
+	/// Whether the [`Sender`] will coalesce all writes into a single buffer.
+	#[must_use]
+	pub fn with_coalesce_writes(mut self, yes: bool) -> Self {
+		self.set_coalesce_writes(yes);
 		self
 	}
 }
@@ -558,9 +627,9 @@ impl Config {
 impl fmt::Debug for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Config")
-			.field("flush_on_send", &self.flush_on_send)
-			.field("use_header_checksum", &self.use_header_checksum)
-			.field("coalesce_writes", &self.coalesce_writes)
+			.field("flush_on_send", &self.flush_on_send())
+			.field("use_header_checksum", &self.use_header_checksum())
+			.field("coalesce_writes", &self.coalesce_writes())
 			.finish()
 	}
 }

@@ -125,7 +125,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// let reader = std::io::empty();
 	///
 	/// let config = Config::default()
-	///                 .size_estimate(42);
+	///                 .with_size_estimate(42);
 	///
 	/// let rx = Receiver::<i32, _, _>::builder()
 	///             .reader(reader)
@@ -488,7 +488,7 @@ impl<T, R, D> Builder<T, R, D> {
 	/// use channels::receiver::{Config, Receiver};
 	///
 	/// let config = Config::default()
-	///                 .size_estimate(42);
+	///                 .with_size_estimate(42);
 	///
 	/// let rx = Receiver::<i32, _, _>::builder()
 	///             .config(config);
@@ -522,7 +522,92 @@ impl<T, R, D> Builder<T, R, D> {
 
 /// Configuration for [`Receiver`].
 ///
+/// ## Size estimate
+///
+/// Size estimate for incoming data.
+///
+/// Inform the receiving code to preallocate a buffer of this size when
+/// receiving. Setting this field correctly can help avoid reallocations
+/// when receiving data that is split up into multiple packets. For most
+/// cases, when data fits inside a single packet, this field has _no_ effect
+/// and can simply be left as the default.
+///
+/// When setting this field, if you don't know the exact size of your data,
+/// it is best to overestimate it. Setting a value even one byte less than
+/// what the actual size of the data is will still lead to a reallocation
+/// and more copying. However if the data fits inside one packet, as is with
+/// most cases, setting this field incorrectly can still have a minor impact
+/// on performance.
+///
+/// In general, this field should probably be left alone unless you can
+/// prove that the processing time for received packets far exceeds the
+/// transmission time of the medium used.
+///
+/// **NOTE:** Setting this field to `0` disables any preallocations.
+///
+/// **Default:** `0`
+///
 /// [`Receiver`]: crate::Receiver
+///
+/// ## Max size
+///
+/// Maximum size of data each call to [`recv()`] or [`recv_blocking()`] will
+/// read.
+///
+/// In order for large payloads to be transmitted, they have to be split up
+/// to multiple packets. Packets contain a flag for the receiver to wait for
+/// more packets if the payload was not fully sent in that packet (because
+/// it had to be split up). This way of transmitting large payloads is also
+/// used in IPv4 and it is called [IPv4 Fragmentation].
+///
+/// Because the receiver does not know the full length from the first packet,
+/// it can only know this once all packets have been received and their
+/// lengths are summed, it doesn't know how much memory it will need to hold
+/// the full payload. For this reason, it is possible for a malicious actor
+/// to send keep sending carefully crafted packets all with that flag set,
+/// until the receiver exhausts all their memory. This DOS attack is the
+/// reason for the existence of this option.
+///
+/// The default value allows payloads up to 65K and it should be enough for
+/// almost all cases. Unless you are sending over 65K of data in one [`send()`]
+/// or [`send_blocking()`], the default value is perfectly safe. Please note
+/// that if you do send more than 65K, you will have to set this field to
+/// fit your needs.
+///
+/// This field can also make the system more secure. For example, if you
+/// know in advance the maximum length one payload can take up, you should
+/// set this field to limit wasted memory by bad actors.
+///
+/// If it happens and a receiver does read more than the configured limit,
+/// the receiver operation will return with an error of [`RecvError::ExceededMaximumSize`].
+///
+/// This attack is only possible if malicious actors are able to
+/// talk directly with the [`Receiver`]. For example, if there is an
+/// encrypted and trusted channel between the receiver and the sender, then
+/// this attack is not applicable.
+///
+/// Setting this field to `0` disables this mechanism and allows payloads
+/// of any size.
+///
+/// **Default:** 65K
+///
+/// [`recv()`]: Receiver::recv()
+/// [`recv_blocking()`]: Receiver::recv_blocking()
+/// [`send()`]: crate::Sender::send()
+/// [`send_blocking()`]: crate::Sender::send_blocking()
+/// [IP Fragmentation]: https://en.wikipedia.org/wiki/Internet_Protocol_version_4#Fragmentation
+///
+/// ## Verify header checksum
+///
+/// Verify the header checksum of each received packet.
+///
+/// This should be paired with a [`Sender`] that also does not produce
+/// checksums (see [`use_header_checksum()`]).
+///
+/// **Default:** `true`
+///
+/// [`Sender`]: crate::Sender
+/// [`use_header_checksum()`]: crate::sender::Config::use_header_checksum()
 #[derive(Clone)]
 pub struct Config {
 	pub(crate) size_estimate: Option<NonZeroUsize>,
@@ -544,31 +629,18 @@ impl Default for Config {
 }
 
 impl Config {
-	/// Size estimate for incoming data.
-	///
-	/// Inform the receiving code to preallocate a buffer of this size when
-	/// receiving. Setting this field correctly can help avoid reallocations
-	/// when receiving data that is split up into multiple packets. For most
-	/// cases, when data fits inside a single packet, this field has _no_ effect
-	/// and can simply be left as the default.
-	///
-	/// When setting this field, if you don't know the exact size of your data,
-	/// it is best to overestimate it. Setting a value even one byte less than
-	/// what the actual size of the data is will still lead to a reallocation
-	/// and more copying. However if the data fits inside one packet, as is with
-	/// most cases, setting this field incorrectly can still have a minor impact
-	/// on performance.
-	///
-	/// In general, this field should probably be left alone unless you can
-	/// prove that the processing time for received packets far exceeds the
-	/// transmission time of the medium used.
-	///
-	/// **NOTE:** Setting this field to `0` disables any preallocations.
-	///
-	/// **Default:** `0`
+	/// Get the size estimate of the [`Receiver`].
 	#[must_use]
+	pub fn size_estimate(&self) -> usize {
+		self.size_estimate.map_or(0, NonZeroUsize::get)
+	}
+
+	/// Set the size estimate of the [`Receiver`].
 	#[allow(clippy::missing_panics_doc)]
-	pub fn size_estimate(mut self, estimate: usize) -> Self {
+	pub fn set_size_estimate(
+		&mut self,
+		estimate: usize,
+	) -> &mut Self {
 		self.size_estimate = match estimate {
 			0 => None,
 			x => Some(
@@ -576,58 +648,25 @@ impl Config {
 					.expect("size_estimate should never be 0"),
 			),
 		};
-
 		self
 	}
 
-	/// Maximum size of data each call to [`recv()`] or [`recv_blocking()`] will
-	/// read.
-	///
-	/// In order for large payloads to be transmitted, they have to be split up
-	/// to multiple packets. Packets contain a flag for the receiver to wait for
-	/// more packets if the payload was not fully sent in that packet (because
-	/// it had to be split up). This way of transmitting large payloads is also
-	/// used in IPv4 and it is called [IPv4 Fragmentation].
-	///
-	/// Because the receiver does not know the full length from the first packet,
-	/// it can only know this once all packets have been received and their
-	/// lengths are summed, it doesn't know how much memory it will need to hold
-	/// the full payload. For this reason, it is possible for a malicious actor
-	/// to send keep sending carefully crafted packets all with that flag set,
-	/// until the receiver exhausts all their memory. This DOS attack is the
-	/// reason for the existence of this option.
-	///
-	/// The default value allows payloads up to 65K and it should be enough for
-	/// almost all cases. Unless you are sending over 65K of data in one [`send()`]
-	/// or [`send_blocking()`], the default value is perfectly safe. Please note
-	/// that if you do send more than 65K, you will have to set this field to
-	/// fit your needs.
-	///
-	/// This field can also make the system more secure. For example, if you
-	/// know in advance the maximum length one payload can take up, you should
-	/// set this field to limit wasted memory by bad actors.
-	///
-	/// If it happens and a receiver does read more than the configured limit,
-	/// the receiver operation will return with an error of [`RecvError::ExceededMaximumSize`].
-	///
-	/// This attack is only possible if malicious actors are able to
-	/// talk directly with the [`Receiver`]. For example, if there is an
-	/// encrypted and trusted channel between the receiver and the sender, then
-	/// this attack is not applicable.
-	///
-	/// Setting this field to `0` disables this mechanism and allows payloads
-	/// of any size.
-	///
-	/// **Default:** 65K
-	///
-	/// [`recv()`]: Receiver::recv()
-	/// [`recv_blocking()`]: Receiver::recv_blocking()
-	/// [`send()`]: crate::Sender::send()
-	/// [`send_blocking()`]: crate::Sender::send_blocking()
-	/// [IP Fragmentation]: https://en.wikipedia.org/wiki/Internet_Protocol_version_4#Fragmentation
+	/// Set the size estimate of the [`Receiver`].
 	#[must_use]
+	pub fn with_size_estimate(mut self, estimate: usize) -> Self {
+		self.set_size_estimate(estimate);
+		self
+	}
+
+	/// Get the max size of the [`Receiver`].
+	#[must_use]
+	pub fn max_size(&self) -> usize {
+		self.max_size.map_or(0, NonZeroUsize::get)
+	}
+
+	/// Set the max size of the [`Receiver`].
 	#[allow(clippy::missing_panics_doc)]
-	pub fn max_size(mut self, max_size: usize) -> Self {
+	pub fn set_max_size(&mut self, max_size: usize) -> &mut Self {
 		self.max_size = match max_size {
 			0 => None,
 			x => Some(
@@ -635,22 +674,36 @@ impl Config {
 					.expect("max_size should never be 0"),
 			),
 		};
-
 		self
 	}
 
-	/// Verify the header checksum of each received packet.
-	///
-	/// This should be paired with a [`Sender`] that also does not produce
-	/// checksums (see [`use_header_checksum()`]).
-	///
-	/// **Default:** `true`
-	///
-	/// [`Sender`]: crate::Sender
-	/// [`use_header_checksum()`]: crate::sender::Config::use_header_checksum()
+	/// Set the max size of the [`Receiver`].
 	#[must_use]
-	pub fn verify_header_checksum(mut self, yes: bool) -> Self {
+	pub fn with_max_size(mut self, max_size: usize) -> Self {
+		self.set_max_size(max_size);
+		self
+	}
+
+	/// Get whether the [`Receiver`] will verify each packet's header with the
+	/// checksum.
+	#[must_use]
+	pub fn verify_header_checksum(&self) -> bool {
+		self.verify_header_checksum
+	}
+
+	/// Whether to verify each packet's header with the checksum.
+	pub fn set_verify_header_checksum(
+		&mut self,
+		yes: bool,
+	) -> &mut Self {
 		self.verify_header_checksum = yes;
+		self
+	}
+
+	/// Whether to verify each packet's header with the checksum.
+	#[must_use]
+	pub fn with_verify_header_checksum(mut self, yes: bool) -> Self {
+		self.set_verify_header_checksum(yes);
 		self
 	}
 }
@@ -658,11 +711,11 @@ impl Config {
 impl fmt::Debug for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Config")
-			.field("size_estimate", &self.size_estimate)
-			.field("max_size", &self.max_size)
+			.field("size_estimate", &self.size_estimate())
+			.field("max_size", &self.max_size())
 			.field(
 				"verify_header_checksum",
-				&self.verify_header_checksum,
+				&self.verify_header_checksum(),
 			)
 			.finish()
 	}

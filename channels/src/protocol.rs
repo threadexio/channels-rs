@@ -223,7 +223,7 @@ where
 			self.has_sent_one_packet = true;
 
 			let with_checksum =
-				if self.config.use_header_checksum {
+				if self.config.use_header_checksum() {
 					WithChecksum::Yes
 				} else {
 					WithChecksum::No
@@ -239,7 +239,7 @@ where
 				let mut packet = header_buf.chain(payload);
 
 				match payload_length {
-					_ if self.config.coalesce_writes => {
+					_ if self.config.coalesce_writes() => {
 						let mut packet = packet.copy_to_contiguous();
 						self.writer.write(&mut packet) await?;
 					}
@@ -260,7 +260,7 @@ where
 		#[cfg(feature = "statistics")]
 		self.writer.statistics.inc_ops();
 
-		if self.config.flush_on_send {
+		if self.config.flush_on_send() {
 			self.writer.flush() await?;
 		}
 
