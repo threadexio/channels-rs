@@ -278,7 +278,7 @@ where
 		use alloc::vec::Vec;
 
 		let mut full_payload = match (self.config.size_estimate, self.config.max_size) {
-			(Some(estimate), max_size) if max_size < estimate.get() => Vec::with_capacity(max_size),
+			(Some(estimate), Some(max_size)) if max_size < estimate => Vec::with_capacity(max_size.get()),
 			(Some(estimate), _) => Vec::with_capacity(estimate.get()),
 			(None, _) => Vec::new()
 		};
@@ -309,8 +309,10 @@ where
 				header.length.to_payload_length().as_usize();
 			let payload_buf_new_len = payload_start + payload_length;
 
-			if payload_buf_new_len > self.config.max_size {
-				return Err(RecvPayloadError::ExceededMaximumSize);
+			if let Some(max_size) = self.config.max_size {
+				if payload_buf_new_len > max_size.get() {
+					return Err(RecvPayloadError::ExceededMaximumSize);
+				}
 			}
 
 			full_payload.reserve_exact(payload_length);

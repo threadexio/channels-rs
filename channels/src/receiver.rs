@@ -119,15 +119,13 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// # Example
 	///
 	/// ```no_run
-	/// use std::num::NonZeroUsize;
-	///
 	/// use channels::receiver::{Config, Receiver};
 	/// use channels::serdes::Bincode;
 	///
 	/// let reader = std::io::empty();
 	///
 	/// let config = Config::default()
-	///                 .size_estimate(NonZeroUsize::new(42).unwrap());
+	///                 .size_estimate(42);
 	///
 	/// let rx = Receiver::<i32, _, _>::builder()
 	///             .reader(reader)
@@ -487,12 +485,10 @@ impl<T, R, D> Builder<T, R, D> {
 	/// # Example
 	///
 	/// ```no_run
-	/// use core::num::NonZeroUsize;
-	///
 	/// use channels::receiver::{Config, Receiver};
 	///
 	/// let config = Config::default()
-	///                 .size_estimate(NonZeroUsize::new(42).unwrap());
+	///                 .size_estimate(42);
 	///
 	/// let rx = Receiver::<i32, _, _>::builder()
 	///             .config(config);
@@ -530,7 +526,7 @@ impl<T, R, D> Builder<T, R, D> {
 #[derive(Clone)]
 pub struct Config {
 	pub(crate) size_estimate: Option<NonZeroUsize>,
-	pub(crate) max_size: usize,
+	pub(crate) max_size: Option<NonZeroUsize>,
 	pub(crate) verify_header_checksum: bool,
 }
 
@@ -538,7 +534,10 @@ impl Default for Config {
 	fn default() -> Self {
 		Self {
 			size_estimate: None,
-			max_size: PacketLength::MAX.as_usize(),
+			max_size: Some(
+				NonZeroUsize::new(PacketLength::MAX.as_usize())
+					.expect("PacketLength::MAX should not be 0"),
+			),
 			verify_header_checksum: true,
 		}
 	}
@@ -563,9 +562,21 @@ impl Config {
 	/// In general, this field should probably be left alone unless you can
 	/// prove that the processing time for received packets far exceeds the
 	/// transmission time of the medium used.
+	///
+	/// **NOTE:** Setting this field to `0` disables any preallocations.
+	///
+	/// **Default:** `0`
 	#[must_use]
-	pub fn size_estimate(mut self, estimate: NonZeroUsize) -> Self {
-		self.size_estimate = Some(estimate);
+	#[allow(clippy::missing_panics_doc)]
+	pub fn size_estimate(mut self, estimate: usize) -> Self {
+		self.size_estimate = match estimate {
+			0 => None,
+			x => Some(
+				NonZeroUsize::new(x)
+					.expect("size_estimate should never be 0"),
+			),
+		};
+
 		self
 	}
 
@@ -597,13 +608,15 @@ impl Config {
 	/// set this field to limit wasted memory by bad actors.
 	///
 	/// If it happens and a receiver does read more than the configured limit,
-	/// the receiver operation will return with an error of
-	/// [`RecvError::ExceededMaximumSize`].
+	/// the receiver operation will return with an error of [`RecvError::ExceededMaximumSize`].
 	///
 	/// This attack is only possible if malicious actors are able to
 	/// talk directly with the [`Receiver`]. For example, if there is an
 	/// encrypted and trusted channel between the receiver and the sender, then
 	/// this attack is not applicable.
+	///
+	/// Setting this field to `0` disables this mechanism and allows payloads
+	/// of any size.
 	///
 	/// **Default:** 65K
 	///
@@ -613,8 +626,16 @@ impl Config {
 	/// [`send_blocking()`]: crate::Sender::send_blocking()
 	/// [IP Fragmentation]: https://en.wikipedia.org/wiki/Internet_Protocol_version_4#Fragmentation
 	#[must_use]
+	#[allow(clippy::missing_panics_doc)]
 	pub fn max_size(mut self, max_size: usize) -> Self {
-		self.max_size = max_size;
+		self.max_size = match max_size {
+			0 => None,
+			x => Some(
+				NonZeroUsize::new(x)
+					.expect("max_size should never be 0"),
+			),
+		};
+
 		self
 	}
 

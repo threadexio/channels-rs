@@ -1,5 +1,3 @@
-use std::num::NonZeroUsize;
-
 use serial_test::serial;
 
 use channels::io::{IntoReader, IntoWriter};
@@ -23,8 +21,7 @@ fn make_pair<R, W>(
 ) -> Pair<R, W> {
 	use channels::receiver;
 
-	const PAYLOAD_SIZE: NonZeroUsize =
-		unsafe { NonZeroUsize::new_unchecked(100 * 1024) }; // A very rough estimate
+	const PAYLOAD_SIZE: usize = 100 * 1024; // A very rough estimate
 
 	let tx = channels::Sender::builder()
 		.writer(writer)
@@ -33,7 +30,7 @@ fn make_pair<R, W>(
 
 	let config = receiver::Config::default()
 		.size_estimate(PAYLOAD_SIZE)
-		.max_size(PAYLOAD_SIZE.get());
+		.max_size(PAYLOAD_SIZE);
 
 	let rx = channels::Receiver::builder()
 		.reader(reader)
