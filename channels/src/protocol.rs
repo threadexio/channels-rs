@@ -1,13 +1,13 @@
 use channels_packet::{
-	header::{Header, VerifyId, WithChecksum},
+	header::{Header, VerifyError, VerifyId, WithChecksum},
 	id::IdSequence,
 	Flags, PacketLength, PayloadLength,
 };
 
-use crate::error::{ProtocolError, VerifyError};
+use crate::error::{RecvError, SendError};
+
 use crate::io::{
-	chain, AsyncRead, AsyncWrite, Buf, ContiguousMut, Cursor, Read,
-	Write,
+	AsyncRead, AsyncWrite, Buf, ContiguousMut, Cursor, Read, Write,
 };
 use crate::receiver::Config as RecvConfig;
 use crate::sender::Config as SendConfig;
@@ -24,7 +24,10 @@ impl Pcb {
 	}
 }
 
-struct SendPayload<'a, W, B> {
+struct SendPayload<'a, W, B>
+where
+	B: Buf,
+{
 	pcb: &'a mut Pcb,
 	writer: &'a mut StatIO<W>,
 	payload: B,
@@ -75,22 +78,24 @@ where
 	}
 }
 
-#[derive(Debug)]
-pub enum RecvPayloadError<Io> {
-	Protocol(ProtocolError),
-	Verify(VerifyError),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SendPayloadError<Io> {
 	Io(Io),
 }
 
-impl<Ser, Io> From<RecvPayloadError<Io>>
-	for crate::error::RecvError<Ser, Io>
-{
-	fn from(value: RecvPayloadError<Io>) -> Self {
-		use RecvPayloadError as A;
+impl<Io> From<Io> for SendPayloadError<Io> {
+	fn from(value: Io) -> Self {
+		Self::Io(value)
+	}
+}
+
+impl<Ser, Io> From<SendPayloadError<Io>> for SendError<Ser, Io> {
+	fn from(value: SendPayloadError<Io>) -> Self {
+		use SendError as B;
+		use SendPayloadError as A;
+
 		match value {
-			A::Io(v) => Self::Io(v),
-			A::Verify(v) => Self::Verify(v),
-			A::Protocol(v) => Self::Protocol(v),
+			A::Io(x) => B::Io(x),
 		}
 	}
 }
@@ -99,6 +104,52 @@ struct RecvPayload<'a, R> {
 	pcb: &'a mut Pcb,
 	reader: &'a mut StatIO<R>,
 	config: &'a RecvConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RecvPayloadError<Io> {
+	ChecksumError,
+	ExceededMaximumSize,
+	InvalidHeader,
+	Io(Io),
+	OutOfOrder,
+	VersionMismatch,
+}
+
+impl<Io> From<Io> for RecvPayloadError<Io> {
+	fn from(value: Io) -> Self {
+		Self::Io(value)
+	}
+}
+
+impl<Io> RecvPayloadError<Io> {
+	pub fn from_verify_error(value: VerifyError) -> Self {
+		use RecvPayloadError as B;
+		use VerifyError as A;
+
+		match value {
+			A::InvalidChecksum => B::ChecksumError,
+			A::InvalidLength => B::InvalidHeader,
+			A::OutOfOrder => B::OutOfOrder,
+			A::VersionMismatch => B::VersionMismatch,
+		}
+	}
+}
+
+impl<Des, Io> From<RecvPayloadError<Io>> for RecvError<Des, Io> {
+	fn from(value: RecvPayloadError<Io>) -> Self {
+		use RecvError as B;
+		use RecvPayloadError as A;
+
+		match value {
+			A::ChecksumError => B::ChecksumError,
+			A::ExceededMaximumSize => B::ExceededMaximumSize,
+			A::InvalidHeader => B::InvalidHeader,
+			A::Io(x) => B::Io(x),
+			A::OutOfOrder => B::OutOfOrder,
+			A::VersionMismatch => B::VersionMismatch,
+		}
+	}
 }
 
 channels_macros::replace! {
@@ -131,7 +182,7 @@ pub async fn send<'a, W, B>(
 	pcb: &'a mut Pcb,
 	writer: &'a mut StatIO<W>,
 	payload: B,
-) -> Result<(), W::Error>
+) -> Result<(), SendPayloadError<W::Error>>
 where
 	W: Write,
 	B: Buf,
@@ -165,7 +216,7 @@ where
 	W: Write,
 	B: Buf,
 {
-	pub async fn run(mut self) -> Result<(), W::Error> {
+	pub async fn run(mut self) -> Result<(), SendPayloadError<W::Error>> {
 		while let Some(header) = self.next_header() {
 			self.has_sent_one_packet = true;
 
@@ -183,7 +234,7 @@ where
 				self.writer.write(&mut header_buf) await?;
 			} else {
 				let payload = self.payload.by_ref().take(payload_length);
-				let mut packet = chain(header_buf, payload);
+				let mut packet = header_buf.chain(payload);
 
 				match payload_length {
 					_ if self.config.coalesce_writes => {
@@ -232,9 +283,7 @@ where
 
 		loop {
 			let mut header = [0u8; Header::SIZE];
-			self.reader
-				.read(&mut header[..]) await
-				.map_err(RecvPayloadError::Io)?;
+			self.reader.read(&mut header[..]) await?;
 
 			let with_checksum =
 				if self.config.verify_header_checksum {
@@ -245,8 +294,7 @@ where
 
 			let header =
 				Header::try_from_bytes(header, with_checksum, VerifyId::Yes(&mut self.pcb.seq))
-					.map_err(VerifyError::from)
-					.map_err(RecvPayloadError::Verify)?;
+					.map_err(RecvPayloadError::from_verify_error)?;
 
 			let payload_start = full_payload.len();
 			let payload_length =
@@ -254,15 +302,13 @@ where
 			let payload_buf_new_len = payload_start + payload_length;
 
 			if payload_buf_new_len > self.config.max_size {
-				return Err(RecvPayloadError::Protocol(ProtocolError::ExceededMaximumSize));
+				return Err(RecvPayloadError::ExceededMaximumSize);
 			}
 
 			full_payload.reserve_exact(payload_length);
 			full_payload.resize(payload_buf_new_len, 0);
 
-			self.reader
-				.read(&mut full_payload[payload_start..]) await
-				.map_err(RecvPayloadError::Io)?;
+			self.reader.read(&mut full_payload[payload_start..]) await?;
 
 			if !header.flags.contains(Flags::MORE_DATA) {
 				break;

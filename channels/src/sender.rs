@@ -273,8 +273,7 @@ where
 			&mut self.writer,
 			payload,
 		)
-		.await
-		.map_err(SendError::Io)?;
+		.await?;
 
 		Ok(())
 	}
@@ -325,8 +324,7 @@ where
 			&mut self.pcb,
 			&mut self.writer,
 			payload,
-		)
-		.map_err(SendError::Io)?;
+		)?;
 
 		Ok(())
 	}

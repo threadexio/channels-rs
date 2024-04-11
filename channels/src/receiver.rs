@@ -598,7 +598,7 @@ impl Config {
 	///
 	/// If it happens and a receiver does read more than the configured limit,
 	/// the receiver operation will return with an error of
-	/// [`RecvError::Protocol(ProtocolError::ExceededMaximumSize)`].
+	/// [`RecvError::ExceededMaximumSize`].
 	///
 	/// This attack is only possible if malicious actors are able to
 	/// talk directly with the [`Receiver`]. For example, if there is an
@@ -612,7 +612,6 @@ impl Config {
 	/// [`send()`]: crate::Sender::send()
 	/// [`send_blocking()`]: crate::Sender::send_blocking()
 	/// [IP Fragmentation]: https://en.wikipedia.org/wiki/Internet_Protocol_version_4#Fragmentation
-	/// [`RecvError::Protocol(ProtocolError::ExceededMaximumSize)`]: crate::error::ProtocolError::ExceededMaximumSize
 	#[must_use]
 	pub fn max_size(mut self, max_size: usize) -> Self {
 		self.max_size = max_size;
