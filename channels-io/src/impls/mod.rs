@@ -113,6 +113,7 @@ if_feature! {
 	}
 }
 
+#[cfg(not(target_os = "windows"))]
 if_feature! {
 	if "acid_io" {
 		mod acid_io;

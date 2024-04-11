@@ -25,6 +25,8 @@ rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
 
 [dependencies]
+cfg-if = "1.0"
+
 acid_io = { version = "0.1.0", optional = true }
 core2 = { version = "0.4", default-features = false, optional = true }
 futures = { version = "0.3", default-features = false, features = ["std"], optional = true }
