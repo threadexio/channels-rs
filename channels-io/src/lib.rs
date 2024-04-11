@@ -7,13 +7,13 @@
 //! [`tokio`] and [`futures`] with no additional code and no hacky workarounds.
 //!
 //! ```rust,no_run
-//! use channels_io::{IntoWriter, AsyncWrite};
+//! use channels_io::{IntoWrite, AsyncWrite};
 //!
-//! async fn write_data<W>(writer: impl IntoWriter<W>) -> Result<(), W::Error>
+//! async fn write_data<W>(writer: impl IntoWrite<W>) -> Result<(), W::Error>
 //! where
 //!     W: AsyncWrite
 //! {
-//!     let mut writer = writer.into_writer();
+//!     let mut writer = writer.into_write();
 //!
 //!     let data: Vec<u8> = (0..255).collect();
 //!
@@ -77,13 +77,13 @@ pub use self::cursor::Cursor;
 pub use self::limit::{limit, Limit};
 pub use self::take::{take, Take};
 
-mod read;
-mod write;
+pub mod read;
+pub mod write;
 
 pub use self::util::Container;
 
-pub use self::read::{AsyncRead, IntoReader, Read};
-pub use self::write::{AsyncWrite, IntoWriter, Write};
+pub use self::read::{AsyncRead, IntoRead, Read};
+pub use self::write::{AsyncWrite, IntoWrite, Write};
 
 mod impls;
 

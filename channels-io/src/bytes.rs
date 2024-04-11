@@ -5,9 +5,9 @@ pub trait AsBytes {
 }
 
 macro_rules! forward_as_bytes_impl {
-	() => {
+	($to:ty) => {
 		fn as_bytes(&self) -> &[u8] {
-			(**self).as_bytes()
+			<$to>::as_bytes(self)
 		}
 	};
 }
@@ -19,9 +19,9 @@ pub trait AsBytesMut: AsBytes {
 }
 
 macro_rules! forward_as_bytes_mut_impl {
-	() => {
+	($to:ty) => {
 		fn as_bytes_mut(&mut self) -> &mut [u8] {
-			(**self).as_bytes_mut()
+			<$to>::as_bytes_mut(self)
 		}
 	};
 }
@@ -29,15 +29,15 @@ macro_rules! forward_as_bytes_mut_impl {
 // ========================================================
 
 impl<B: AsBytes> AsBytes for &B {
-	forward_as_bytes_impl!();
+	forward_as_bytes_impl!(B);
 }
 
 impl<B: AsBytes> AsBytes for &mut B {
-	forward_as_bytes_impl!();
+	forward_as_bytes_impl!(B);
 }
 
 impl<B: AsBytesMut> AsBytesMut for &mut B {
-	forward_as_bytes_mut_impl!();
+	forward_as_bytes_mut_impl!(B);
 }
 
 impl<const N: usize> AsBytes for [u8; N] {
@@ -60,11 +60,11 @@ mod alloc_impls {
 	use alloc::{boxed::Box, vec::Vec};
 
 	impl<B: AsBytes> AsBytes for Box<B> {
-		forward_as_bytes_impl!();
+		forward_as_bytes_impl!(B);
 	}
 
 	impl<B: AsBytesMut> AsBytesMut for Box<B> {
-		forward_as_bytes_mut_impl!();
+		forward_as_bytes_mut_impl!(B);
 	}
 
 	impl AsBytes for Vec<u8> {

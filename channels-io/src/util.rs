@@ -25,15 +25,15 @@ pub use core::future::Future;
 ///
 /// ```rust,no_run
 /// use std::io::{empty, Empty};
-/// use channels_io::{IntoReader, Std, Read, Container};
+/// use channels_io::{IntoRead, Std, Read, Container};
 ///
 /// struct MyStruct<R> {
 ///     reader: R
 /// }
 ///
 /// impl<R> MyStruct<R> {
-///     pub fn new(reader: impl IntoReader<R>) -> Self {
-///         Self { reader: reader.into_reader() }
+///     pub fn new(reader: impl IntoRead<R>) -> Self {
+///         Self { reader: reader.into_read() }
 ///     }
 /// }
 ///

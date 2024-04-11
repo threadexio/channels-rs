@@ -34,11 +34,11 @@ macro_rules! newtype {
 
 macro_rules! impl_newtype_read {
 	($name:ident: $($bounds:tt)*) => {
-		impl<T> $crate::IntoReader<$name<T>> for T
+		impl<T> $crate::IntoRead<$name<T>> for T
 		where
 			T: $($bounds)*
 		{
-			fn into_reader(self) -> $name<T> {
+			fn into_read(self) -> $name<T> {
 				$name(self)
 			}
 		}
@@ -47,11 +47,11 @@ macro_rules! impl_newtype_read {
 
 macro_rules! impl_newtype_write {
 	($name:ident: $($bounds:tt)*) => {
-		impl<T> $crate::IntoWriter<$name<T>> for T
+		impl<T> $crate::IntoWrite<$name<T>> for T
 		where
 			T: $($bounds)*
 		{
-			fn into_writer(self) -> $name<T> {
+			fn into_write(self) -> $name<T> {
 				$name(self)
 			}
 		}
@@ -71,27 +71,37 @@ mod prelude {
 	pub(super) use crate::{Contiguous, ContiguousMut};
 }
 
-macro_rules! declare_impls {
-	($mod:ident :: $name:ident, $($tail:tt)*) => {
-		mod $mod;
-		pub use self::$mod::$name;
-
-		declare_impls! { $($tail)* }
+macro_rules! if_feature {
+	(if $feature:literal {
+		$($item:item)*
+	}) => {
+		$(
+			#[cfg(feature = $feature)]
+			$item
+		)*
 	};
-	($mod:ident :: $name:ident if ($($cfg:tt)+), $($tail:tt)*) => {
-		#[cfg($($cfg)*)]
-		mod $mod;
-		#[cfg($($cfg)*)]
-		pub use self::$mod::$name;
-
-		declare_impls! { $($tail)* }
-	};
-	() => {};
 }
 
-declare_impls! {
-	native::Native,
-	std::Std         if (feature = "std"),
-	tokio::Tokio     if (feature = "tokio"),
-	futures::Futures if (feature = "futures"),
+mod native;
+pub use self::native::{Native, NativeAsync};
+
+if_feature! {
+	if "std" {
+		mod std;
+		pub use self::std::Std;
+	}
+}
+
+if_feature! {
+	if "tokio" {
+		mod tokio;
+		pub use self::tokio::Tokio;
+	}
+}
+
+if_feature! {
+	if "futures" {
+		mod futures;
+		pub use self::futures::Futures;
+	}
 }

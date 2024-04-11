@@ -15,10 +15,10 @@ where
 {
 	type Error = ::tokio::io::Error;
 
-	async fn read<B>(&mut self, mut buf: B) -> Result<(), Self::Error>
-	where
-		B: ContiguousMut,
-	{
+	async fn read<B: ContiguousMut>(
+		&mut self,
+		mut buf: B,
+	) -> Result<(), Self::Error> {
 		while buf.has_remaining_mut() {
 			use ::tokio::io::ErrorKind as E;
 			match self.0.read(buf.chunk_mut()).await {
@@ -40,13 +40,10 @@ where
 {
 	type Error = ::tokio::io::Error;
 
-	async fn write<B>(
+	async fn write<B: Contiguous>(
 		&mut self,
 		mut buf: B,
-	) -> Result<(), Self::Error>
-	where
-		B: Contiguous,
-	{
+	) -> Result<(), Self::Error> {
 		while buf.has_remaining() {
 			use ::tokio::io::ErrorKind as E;
 			match self.0.write(buf.chunk()).await {

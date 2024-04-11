@@ -1,6 +1,6 @@
 use serial_test::serial;
 
-use channels::io::{IntoReader, IntoWriter};
+use channels::io::{IntoRead, IntoWrite};
 
 #[derive(
 	Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize,
@@ -16,8 +16,8 @@ type Pair<R, W> =
 	channels::Pair<Data, R, W, channels::serdes::Bincode>;
 
 fn make_pair<R, W>(
-	reader: impl IntoReader<R>,
-	writer: impl IntoWriter<W>,
+	reader: impl IntoRead<R>,
+	writer: impl IntoWrite<W>,
 ) -> Pair<R, W> {
 	use channels::receiver;
 

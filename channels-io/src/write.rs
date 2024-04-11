@@ -1,3 +1,5 @@
+//! [`Write`] and [`AsyncWrite`] traits.
+
 use crate::buf::Contiguous;
 use crate::util::Future;
 
@@ -19,9 +21,10 @@ pub trait Write {
 	///
 	/// If `buf` has been written to the writer, then this function must return
 	/// with [`Ok(())`](Ok). In any other case it must return an [`Err`].
-	fn write<B>(&mut self, buf: B) -> Result<(), Self::Error>
-	where
-		B: Contiguous;
+	fn write<B: Contiguous>(
+		&mut self,
+		buf: B,
+	) -> Result<(), Self::Error>;
 
 	/// Flush this writer ensuring all bytes reach their destination.
 	///
@@ -42,12 +45,10 @@ pub trait AsyncWrite {
 	/// it returns a [`Future`] that must be `.await`ed.
 	///
 	/// [`Future`]: core::future::Future
-	fn write<B>(
+	fn write<B: Contiguous>(
 		&mut self,
 		buf: B,
-	) -> impl Future<Output = Result<(), Self::Error>>
-	where
-		B: Contiguous;
+	) -> impl Future<Output = Result<(), Self::Error>>;
 
 	/// Asynchronously flush the writer.
 	///
@@ -66,7 +67,7 @@ pub trait AsyncWrite {
 /// interface. It is very flexible, allowing code to be agnostic over synchronous
 /// or asynchronous writers and/or different interfaces.
 ///
-/// The trait consists of only one method [`IntoWriter::into_writer()`]. The
+/// The trait consists of only one method [`IntoWrite::into_write()`]. The
 /// purpose of this method is to wrap any type `T` with its appropriate wrapper
 /// type so that it can implement [`Write`] and/or [`AsyncWrite`]. This is necessary
 /// because we can't implement a trait directly for every type `T` multiple times
@@ -102,16 +103,16 @@ pub trait AsyncWrite {
 /// - Accepting any writer.
 ///
 /// ```rust,no_run
-/// use channels_io::{IntoWriter, AsyncWrite, Write};
+/// use channels_io::{IntoWrite, AsyncWrite, Write};
 ///
 /// struct MyStruct<R> {
 ///     writer: R
 /// }
 ///
 /// impl<R> MyStruct<R> {
-///     pub fn new(writer: impl IntoWriter<R>) -> Self {
+///     pub fn new(writer: impl IntoWrite<R>) -> Self {
 ///         Self {
-///             writer: writer.into_writer()
+///             writer: writer.into_write()
 ///         }
 ///     }
 /// }
@@ -134,10 +135,10 @@ pub trait AsyncWrite {
 /// - Accepting synchronous/asynchronous readers only.
 ///
 /// ```rust,no_run
-/// use channels_io::{IntoWriter, AsyncWrite, Write};
+/// use channels_io::{IntoWrite, AsyncWrite, Write};
 ///
-/// fn sync_only<W: Write>(writer: impl IntoWriter<W>) { /* ... */ }
-/// fn async_only<W: AsyncWrite>(writer: impl IntoWriter<W>) { /* ... */ }
+/// fn sync_only<W: Write>(writer: impl IntoWrite<W>) { /* ... */ }
+/// fn async_only<W: AsyncWrite>(writer: impl IntoWrite<W>) { /* ... */ }
 ///
 /// let _ = sync_only(std::io::sink());
 /// let _ = async_only(tokio::io::sink());
@@ -146,64 +147,55 @@ pub trait AsyncWrite {
 /// So the following cannot work:
 ///
 /// ```rust,compile_fail
-/// use channels_io::{IntoWriter, Write};
+/// use channels_io::{IntoWrite, Write};
 ///
-/// fn sync_only<W: Write>(writer: impl IntoWriter<W>) { /* ... */ }
+/// fn sync_only<W: Write>(writer: impl IntoWrite<W>) { /* ... */ }
 ///
 /// let _ = sync_only(tokio::io::empty());
 /// ```
 ///
 /// ```rust,compile_fail
-/// use channels_io::{IntoWriter, AsyncWrite};
+/// use channels_io::{IntoWrite, AsyncWrite};
 ///
-/// fn async_only<W: AsyncWrite>(writer: impl IntoWriter<W>) { /* ... */ }
+/// fn async_only<W: AsyncWrite>(writer: impl IntoWrite<W>) { /* ... */ }
 ///
 /// let _ = async_only(std::io::empty());
 /// ```
-pub trait IntoWriter<T> {
+pub trait IntoWrite<T> {
 	/// Convert `self` to a writer `T`.
-	fn into_writer(self) -> T;
-}
-
-impl<T: Write> IntoWriter<T> for T {
-	fn into_writer(self) -> T {
-		self
-	}
+	fn into_write(self) -> T;
 }
 
 macro_rules! forward_impl_write {
-	($typ:ty) => {
-		type Error = <$typ>::Error;
+	($to:ty) => {
+		type Error = <$to>::Error;
 
-		fn write<B>(&mut self, buf: B) -> Result<(), Self::Error>
-		where
-			B: Contiguous,
-		{
-			(**self).write(buf)
+		fn write<B: Contiguous>(
+			&mut self,
+			buf: B,
+		) -> Result<(), Self::Error> {
+			<$to>::write(self, buf)
 		}
 
 		fn flush(&mut self) -> Result<(), Self::Error> {
-			(**self).flush()
+			<$to>::flush(self)
 		}
 	};
 }
 
 macro_rules! forward_impl_async_write {
-	($typ:ty) => {
-		type Error = <$typ>::Error;
+	($to:ty) => {
+		type Error = <$to>::Error;
 
-		async fn write<B>(
+		async fn write<B: Contiguous>(
 			&mut self,
 			buf: B,
-		) -> Result<(), Self::Error>
-		where
-			B: Contiguous,
-		{
-			(**self).write(buf).await
+		) -> Result<(), Self::Error> {
+			<$to>::write(self, buf).await
 		}
 
 		async fn flush(&mut self) -> Result<(), Self::Error> {
-			(**self).flush().await
+			<$to>::flush(self).await
 		}
 	};
 }

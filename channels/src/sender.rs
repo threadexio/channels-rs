@@ -5,7 +5,7 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use crate::error::SendError;
-use crate::io::{AsyncWrite, Container, IntoWriter, Write};
+use crate::io::{AsyncWrite, Container, IntoWrite, Write};
 use crate::protocol::Pcb;
 use crate::serdes::Serializer;
 use crate::util::StatIO;
@@ -66,7 +66,7 @@ impl<T, W> Sender<T, W, crate::serdes::Bincode> {
 	/// ```
 	///
 	/// [`Bincode`]: crate::serdes::Bincode
-	pub fn new(writer: impl IntoWriter<W>) -> Self {
+	pub fn new(writer: impl IntoWrite<W>) -> Self {
 		Self::with_serializer(writer, crate::serdes::Bincode::new())
 	}
 }
@@ -103,7 +103,7 @@ impl<T, W, S> Sender<T, W, S> {
 	/// );
 	/// ```
 	pub fn with_serializer(
-		writer: impl IntoWriter<W>,
+		writer: impl IntoWrite<W>,
 		serializer: S,
 	) -> Self {
 		Sender::builder()
@@ -392,11 +392,11 @@ impl<T, S> Builder<T, (), S> {
 	/// ```
 	pub fn writer<W>(
 		self,
-		writer: impl IntoWriter<W>,
+		writer: impl IntoWrite<W>,
 	) -> Builder<T, W, S> {
 		Builder {
 			_marker: PhantomData,
-			writer: writer.into_writer(),
+			writer: writer.into_write(),
 			serializer: self.serializer,
 			config: self.config,
 		}

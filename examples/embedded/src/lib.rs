@@ -6,12 +6,14 @@ mod serdes;
 pub mod net;
 pub mod record;
 
+use channels::io::Native;
+
 use self::net::Socket;
 use self::record::Record;
 use self::serdes::Serdes;
 
-type Sender = channels::Sender<Record, Socket, Serdes>;
-type Receiver = channels::Receiver<Record, Socket, Serdes>;
+type Sender = channels::Sender<Record, Native<Socket>, Serdes>;
+type Receiver = channels::Receiver<Record, Native<Socket>, Serdes>;
 
 /// A channel that sends and received [`Records`].
 pub struct Channel {

@@ -123,8 +123,8 @@ pub type Pair<T, R, W, Sd> = (Sender<T, W, Sd>, Receiver<T, R, Sd>);
 /// }
 /// ```
 pub fn channel<T, R, W>(
-	r: impl io::IntoReader<R>,
-	w: impl io::IntoWriter<W>,
+	r: impl io::IntoRead<R>,
+	w: impl io::IntoWrite<W>,
 ) -> Pair<T, R, W, channels_serdes::Bincode>
 where
 	for<'de> T: serde::Serialize + serde::Deserialize<'de>,

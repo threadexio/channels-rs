@@ -88,25 +88,25 @@ pub trait BufMut {
 }
 
 macro_rules! forward_bufmut_impl {
-	() => {
+	($to:ty) => {
 		fn chunk_mut(&mut self) -> &mut [u8] {
-			(**self).chunk_mut()
+			<$to>::chunk_mut(self)
 		}
 
 		fn remaining_mut(&self) -> usize {
-			(**self).remaining_mut()
+			<$to>::remaining_mut(self)
 		}
 
 		fn advance_mut(&mut self, cnt: usize) {
-			(**self).advance_mut(cnt)
+			<$to>::advance_mut(self, cnt)
 		}
 
 		fn has_remaining_mut(&self) -> bool {
-			(**self).has_remaining_mut()
+			<$to>::has_remaining_mut(self)
 		}
 
 		fn copy_from_slice(&mut self, slice: &[u8]) -> usize {
-			(**self).copy_from_slice(slice)
+			<$to>::copy_from_slice(self, slice)
 		}
 	};
 }
@@ -133,7 +133,7 @@ macro_rules! forward_walkable_mut_impl {
 			Self: 'a;
 
 		fn walk_chunks_mut(&mut self) -> Self::Iter<'_> {
-			(**self).walk_chunks_mut()
+			<$to>::walk_chunks_mut(self)
 		}
 	};
 }
@@ -149,7 +149,7 @@ pub unsafe trait ContiguousMut: BufMut + WalkableMut {}
 // ========================================================
 
 impl<B: BufMut> BufMut for &mut B {
-	forward_bufmut_impl!();
+	forward_bufmut_impl!(B);
 }
 
 impl<B: WalkableMut> WalkableMut for &mut B {
@@ -197,7 +197,7 @@ mod alloc_impls {
 	use alloc::boxed::Box;
 
 	impl<B: BufMut> BufMut for Box<B> {
-		forward_bufmut_impl!();
+		forward_bufmut_impl!(B);
 	}
 
 	impl<B: WalkableMut> WalkableMut for Box<B> {

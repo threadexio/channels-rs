@@ -72,10 +72,9 @@ pub trait Buf {
 	}
 
 	/// Create a [`Chain`] adapter between `self` and `other`.
-	fn chain<B>(self, other: B) -> Chain<Self, B>
+	fn chain<B: Buf>(self, other: B) -> Chain<Self, B>
 	where
 		Self: Sized,
-		B: Buf,
 	{
 		chain::chain(self, other)
 	}
@@ -107,25 +106,25 @@ pub trait Buf {
 }
 
 macro_rules! forward_buf_impl {
-	() => {
+	($to:ty) => {
 		fn chunk(&self) -> &[u8] {
-			(**self).chunk()
+			<$to>::chunk(self)
 		}
 
 		fn remaining(&self) -> usize {
-			(**self).remaining()
+			<$to>::remaining(self)
 		}
 
 		fn advance(&mut self, cnt: usize) {
-			(**self).advance(cnt)
+			<$to>::advance(self, cnt)
 		}
 
 		fn has_remaining(&self) -> bool {
-			(**self).has_remaining()
+			<$to>::has_remaining(self)
 		}
 
 		fn copy_to_slice(&mut self, slice: &mut [u8]) -> usize {
-			(**self).copy_to_slice(slice)
+			<$to>::copy_to_slice(self, slice)
 		}
 	};
 }
@@ -152,7 +151,7 @@ macro_rules! forward_walkable_impl {
 			Self: 'a;
 
 		fn walk_chunks(&self) -> Self::Iter<'_> {
-			(**self).walk_chunks()
+			<$to>::walk_chunks(self)
 		}
 	};
 }
@@ -168,7 +167,7 @@ pub unsafe trait Contiguous: Buf + Walkable {}
 // ========================================================
 
 impl<B: Buf> Buf for &mut B {
-	forward_buf_impl!();
+	forward_buf_impl!(B);
 }
 
 impl<B: Walkable> Walkable for &mut B {
@@ -215,7 +214,7 @@ mod alloc_impls {
 	use alloc::boxed::Box;
 
 	impl<B: Buf> Buf for Box<B> {
-		forward_buf_impl!();
+		forward_buf_impl!(B);
 	}
 
 	impl<B: Walkable> Walkable for Box<B> {

@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 
 use crate::error::RecvError;
-use crate::io::{AsyncRead, Container, IntoReader, Read};
+use crate::io::{AsyncRead, Container, IntoRead, Read};
 use crate::protocol::Pcb;
 use crate::serdes::Deserializer;
 use crate::util::StatIO;
@@ -68,7 +68,7 @@ impl<T, R> Receiver<T, R, crate::serdes::Bincode> {
 	/// ```
 	///
 	/// [`Bincode`]: crate::serdes::Bincode
-	pub fn new(reader: impl IntoReader<R>) -> Self {
+	pub fn new(reader: impl IntoRead<R>) -> Self {
 		Self::with_deserializer(reader, crate::serdes::Bincode::new())
 	}
 }
@@ -105,7 +105,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// );
 	/// ```
 	pub fn with_deserializer(
-		reader: impl IntoReader<R>,
+		reader: impl IntoRead<R>,
 		deserializer: D,
 	) -> Self {
 		Receiver::builder()
@@ -444,11 +444,11 @@ impl<T, D> Builder<T, (), D> {
 	/// ```
 	pub fn reader<R>(
 		self,
-		reader: impl IntoReader<R>,
+		reader: impl IntoRead<R>,
 	) -> Builder<T, R, D> {
 		Builder {
 			_marker: PhantomData,
-			reader: reader.into_reader(),
+			reader: reader.into_read(),
 			deserializer: self.deserializer,
 			config: self.config,
 		}

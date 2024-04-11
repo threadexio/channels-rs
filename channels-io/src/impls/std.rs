@@ -13,10 +13,10 @@ where
 {
 	type Error = ::std::io::Error;
 
-	fn read<B>(&mut self, mut buf: B) -> Result<(), Self::Error>
-	where
-		B: ContiguousMut,
-	{
+	fn read<B: ContiguousMut>(
+		&mut self,
+		mut buf: B,
+	) -> Result<(), Self::Error> {
 		while buf.has_remaining_mut() {
 			use ::std::io::ErrorKind as E;
 			match self.0.read(buf.chunk_mut()) {
@@ -38,10 +38,10 @@ where
 {
 	type Error = ::std::io::Error;
 
-	fn write<B>(&mut self, mut buf: B) -> Result<(), Self::Error>
-	where
-		B: Contiguous,
-	{
+	fn write<B: Contiguous>(
+		&mut self,
+		mut buf: B,
+	) -> Result<(), Self::Error> {
 		while buf.has_remaining() {
 			use ::std::io::ErrorKind as E;
 			match self.0.write(buf.chunk()) {

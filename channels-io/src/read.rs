@@ -1,3 +1,5 @@
+//! [`Read`] and [`AsyncRead`] traits.
+
 use crate::util::Future;
 use crate::ContiguousMut;
 
@@ -19,13 +21,14 @@ pub trait Read {
 	///
 	/// If `buf` has been filled with data, then this function must return with
 	/// [`Ok((())`](Ok). In any other case it must return an [`Err`].
-	fn read<B>(&mut self, buf: B) -> Result<(), Self::Error>
-	where
-		B: ContiguousMut;
+	fn read<B: ContiguousMut>(
+		&mut self,
+		buf: B,
+	) -> Result<(), Self::Error>;
 }
 
 /// This trait is the asynchronous version of [`Read`].
-pub trait AsyncRead: Send {
+pub trait AsyncRead {
 	/// Error type for [`AsyncRead::read()`].
 	type Error;
 
@@ -35,12 +38,10 @@ pub trait AsyncRead: Send {
 	/// returns a [`Future`] that must be `.await`ed.
 	///
 	/// [`Future`]: core::future::Future
-	fn read<B>(
+	fn read<B: ContiguousMut>(
 		&mut self,
 		buf: B,
-	) -> impl Future<Output = Result<(), Self::Error>>
-	where
-		B: ContiguousMut;
+	) -> impl Future<Output = Result<(), Self::Error>>;
 }
 
 /// Convert a type to a reader.
@@ -49,7 +50,7 @@ pub trait AsyncRead: Send {
 /// interface. It is very flexible, allowing code to be agnostic over synchronous
 /// or asynchronous readers and/or different interfaces.
 ///
-/// The trait consists of only one method [`IntoReader::into_reader()`]. The
+/// The trait consists of only one method [`IntoRead::into_read()`]. The
 /// purpose of this method is to wrap any type `T` with its appropriate wrapper
 /// type so that it can implement [`Read`] and/or [`AsyncRead`]. This is necessary
 /// because we can't implement a trait directly for every type `T` multiple times
@@ -85,16 +86,16 @@ pub trait AsyncRead: Send {
 /// - Accepting any reader.
 ///
 /// ```rust,no_run
-/// use channels_io::{IntoReader, AsyncRead, Read};
+/// use channels_io::{IntoRead, AsyncRead, Read};
 ///
 /// struct MyStruct<R> {
 ///     reader: R
 /// }
 ///
 /// impl<R> MyStruct<R> {
-///     pub fn new(reader: impl IntoReader<R>) -> Self {
+///     pub fn new(reader: impl IntoRead<R>) -> Self {
 ///         Self {
-///             reader: reader.into_reader()
+///             reader: reader.into_read()
 ///         }
 ///     }
 /// }
@@ -117,10 +118,10 @@ pub trait AsyncRead: Send {
 /// - Accepting synchronous/asynchronous readers only.
 ///
 /// ```rust,no_run
-/// use channels_io::{IntoReader, AsyncRead, Read};
+/// use channels_io::{IntoRead, AsyncRead, Read};
 ///
-/// fn sync_only<R: Read>(reader: impl IntoReader<R>) { /* ... */ }
-/// fn async_only<R: AsyncRead>(reader: impl IntoReader<R>) { /* ... */ }
+/// fn sync_only<R: Read>(reader: impl IntoRead<R>) { /* ... */ }
+/// fn async_only<R: AsyncRead>(reader: impl IntoRead<R>) { /* ... */ }
 ///
 /// let _ = sync_only(std::io::empty());
 /// let _ = async_only(tokio::io::empty());
@@ -129,64 +130,58 @@ pub trait AsyncRead: Send {
 /// So the following cannot work:
 ///
 /// ```rust,compile_fail
-/// use channels_io::{IntoReader, Read};
+/// use channels_io::{IntoRead, Read};
 ///
-/// fn sync_only<R: Read>(reader: impl IntoReader<R>) { /* ... */ }
+/// fn sync_only<R: Read>(reader: impl IntoRead<R>) { /* ... */ }
 ///
 /// let _ = sync_only(tokio::io::empty());
 /// ```
 ///
 /// ```rust,compile_fail
-/// use channels_io::{IntoReader, AsyncRead};
+/// use channels_io::{IntoRead, AsyncRead};
 ///
-/// fn async_only<R: AsyncRead>(reader: impl IntoReader<R>) { /* ... */ }
+/// fn async_only<R: AsyncRead>(reader: impl IntoRead<R>) { /* ... */ }
 ///
 /// let _ = async_only(std::io::empty());
 /// ```
-pub trait IntoReader<T> {
+pub trait IntoRead<T> {
 	/// Convert `self` to a reader `T`.
-	fn into_reader(self) -> T;
-}
-
-impl<T: Read> IntoReader<T> for T {
-	fn into_reader(self) -> T {
-		self
-	}
+	fn into_read(self) -> T;
 }
 
 macro_rules! forward_impl_read {
-	($typ:ty) => {
-		type Error = <$typ>::Error;
+	($to:ty) => {
+		type Error = <$to>::Error;
 
-		fn read<B: ContiguousMut>(
+		fn read<B: $crate::ContiguousMut>(
 			&mut self,
 			buf: B,
 		) -> Result<(), Self::Error> {
-			(**self).read(buf)
+			<$to>::read(self, buf)
 		}
 	};
 }
 
 macro_rules! forward_impl_async_read {
-	($typ:ty) => {
-		type Error = <$typ>::Error;
+	($to:ty) => {
+		type Error = <$to>::Error;
 
-		async fn read<B: ContiguousMut>(
+		async fn read<B: $crate::ContiguousMut>(
 			&mut self,
 			buf: B,
 		) -> Result<(), Self::Error> {
-			(**self).read(buf).await
+			<$to>::read(self, buf).await
 		}
 	};
 }
 
 macro_rules! forward_impl_all_read {
-	($typ:ty) => {
-		impl<T: $crate::Read> $crate::Read for $typ {
+	($to:ty) => {
+		impl<T: $crate::Read> $crate::Read for $to {
 			forward_impl_read!(T);
 		}
 
-		impl<T: $crate::AsyncRead> $crate::AsyncRead for $typ {
+		impl<T: $crate::AsyncRead> $crate::AsyncRead for $to {
 			forward_impl_async_read!(T);
 		}
 	};
