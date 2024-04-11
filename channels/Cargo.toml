@@ -46,12 +46,13 @@ tokio = { version = "1", features = ["full"] }
 [features]
 statistics = []
 
+acid_io = ["channels-io/acid_io"]
 core2 = ["channels-io/core2"]
 futures = ["channels-io/futures"]
 std = ["channels-io/std"]
 tokio = ["channels-io/tokio"]
 
-full-io = ["core2", "futures", "std", "tokio"]
+full-io = ["acid_io", "core2", "futures", "std", "tokio"]
 
 aead = ["channels-serdes/aead"]
 bincode = ["channels-serdes/bincode", "dep:serde"]

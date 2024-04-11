@@ -112,3 +112,10 @@ if_feature! {
 		pub use self::core2::Core2;
 	}
 }
+
+if_feature! {
+	if "acid_io" {
+		mod acid_io;
+		pub use self::acid_io::AcidIo;
+	}
+}

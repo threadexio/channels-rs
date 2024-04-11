@@ -25,9 +25,10 @@ rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
 
 [dependencies]
+acid_io = { version = "0.1.0", optional = true }
+core2 = { version = "0.4", default-features = false, optional = true }
 futures = { version = "0.3", optional = true }
 tokio = { version = "1", features = ["io-util"], optional = true }
-core2 = { version = "0.4", default-features = false, optional = true }
 
 [dev-dependencies]
 async-std = { version = "1" }
@@ -36,9 +37,11 @@ tokio = { version = "1", features = ["full"] }
 
 [features]
 alloc = []
+std = ["alloc"]
+
+acid_io = ["dep:acid_io"]
 core2 = ["dep:core2"]
 futures = ["dep:futures", "std"]
-std = ["alloc"]
 tokio = ["dep:tokio", "std"]
 
 [lints]
