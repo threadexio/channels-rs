@@ -1,4 +1,4 @@
-[`channels`]: (htpts://github.com/threadexio/channels-rs)
+[`channels`]: htpts://github.com/threadexio/channels-rs
 [`serde`]: https://github.com/serde-rs/serde
 [`bincode`]: https://github.com/bincode-org/bincode
 [`ciborium`]: https://github.com/enarx/ciborium
@@ -6,6 +6,7 @@
 [`borsh`]: https://github.com/near/borsh-rs
 [`crc`]: https://github.com/mrhooray/crc-rs
 [`flate2`]: https://github.com/rust-lang/flate2-rs
+[`ring`]: https://github.com/briansmith/ring
 
 # channels-serdes
 

@@ -88,6 +88,7 @@ Channels implements a communication protocol that allows sending and receiving d
 - [`std::io::{Read, Write}`](https://doc.rust-lang.org/stable/std/io)
 - [`tokio::io::{AsyncRead, AsyncWrite}`](https://docs.rs/tokio/latest/tokio/io)
 - [`futures::io::{AsyncRead, AsyncWrite}`](https://docs.rs/futures/latest/futures/io)
+- [`core2::io::{Read, Write}`](https://docs.rs/core2)
 
 You can find out more about how the underlying communication protocol works [here][spec].
 

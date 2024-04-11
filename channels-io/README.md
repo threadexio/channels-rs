@@ -15,6 +15,7 @@ some subtle differences.
 |   `std`   | Abstract over `std::io::Read` and `std::io::Write`                |
 |  `tokio`  | Abstract over `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`  |
 | `futures` | Abstract over `futures::AsyncRead` and `futures::AsyncWrite`      |
+|  `core2`  | Abstract over `core2::io::Read` and `core2::io::Write`            |
 
 **Note:** The API of this crate is _not_ final and may change at any time
 without necessarily a major version bump. If you must depend on it pin down the
