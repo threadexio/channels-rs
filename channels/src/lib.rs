@@ -52,15 +52,13 @@
 //! | `hmac`        | Middleware that verifies data with HMAC.                                                        |
 //! | `json`        | Support for serializing/deserializing types with [`serde_json`].                                |
 //! | `full-serdes` | Features: `aead`, `bincode`, `borsh`, `cbor`, `crc`, `deflate`, `hmac`, `json`                  |
-//! | `acid_io`     | Adds support for sending/receiving types with [`acid_io`].                                      |
 //! | `core2`       | Adds support for sending/receiving types with [`core2`].                                        |
 //! | `futures`     | Adds support for sending/receiving types asynchronously with [`futures`].                       |
 //! | `std`         | Adds support for sending/receiving types over [`Read`] and [`Write`].                           |
 //! | `tokio`       | Adds support for sending/receiving types asynchronously with [`tokio`].                         |
-//! | `full-io`     | Features: `acid_io`, `core2`, `futures`, `std`, `tokio`                                         |
+//! | `full-io`     | Features: `core2`, `futures`, `std`, `tokio`                                                    |
 //! | `full`        | Every feature in this table.                                                                    |
 //!
-//! [`acid_io`]: https://docs.rs/acid_io
 //! [`core2`]: https://docs.rs/core2
 //! [`bincode`]: https://docs.rs/bincode
 //! [`ciborium`]: https://docs.rs/ciborium
