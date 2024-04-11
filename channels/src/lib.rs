@@ -40,22 +40,28 @@
 //!
 //! ## cargo features
 //!
-//! |   Feature    | Description                                                                                     |
-//! | :----------: | :---------------------------------------------------------------------------------------------- |
-//! | `bincode`    | Support for serializing/deserializing types with [`bincode`].                                   |
-//! | `borsh`      | Support for serializing/deserializing types with [`borsh`].                                     |
-//! | `cbor`       | Support for serializing/deserializing types with [`ciborium`].                                  |
-//! | `json`       | Support for serializing/deserializing types with [`serde_json`].                                |
-//! | `aead`       | Middleware that encrypts data for transport.                                                    |
-//! | `crc`        | Middleware that verifies data with a CRC checksum.                                              |
-//! | `deflate`    | Middleware that compresses data with DEFLATE.                                                   |
-//! | `hmac`       | Middleware that verifies data with HMAC.                                                        |
-//! | `std`        | Adds support for sending/receiving types over [`Read`] and [`Write`].                           |
-//! | `tokio`      | Adds support for sending/receiving types asynchronously with [`tokio`].                         |
-//! | `futures`    | Adds support for sending/receiving types asynchronously with [`futures`].                       |
-//! | `statistics` | Capture statistic data like: total bytes sent/received, number of send/receive operations, etc. |
-//! | `full`       | Every feature in this table.                                                                    |
+//! |    Feature    | Description                                                                                     |
+//! | :-----------: | :---------------------------------------------------------------------------------------------- |
+//! | `statistics`  | Capture statistic data like: total bytes sent/received, number of send/receive operations, etc. |
+//! | `aead`        | Middleware that encrypts data for transport.                                                    |
+//! | `bincode`     | Support for serializing/deserializing types with [`bincode`].                                   |
+//! | `borsh`       | Support for serializing/deserializing types with [`borsh`].                                     |
+//! | `cbor`        | Support for serializing/deserializing types with [`ciborium`].                                  |
+//! | `crc`         | Middleware that verifies data with a CRC checksum.                                              |
+//! | `deflate`     | Middleware that compresses data with DEFLATE.                                                   |
+//! | `hmac`        | Middleware that verifies data with HMAC.                                                        |
+//! | `json`        | Support for serializing/deserializing types with [`serde_json`].                                |
+//! | `full-serdes` | Features: `aead`, `bincode`, `borsh`, `cbor`, `crc`, `deflate`, `hmac`, `json`                  |
+//! | `acid_io`     | Adds support for sending/receiving types with [`acid_io`].                                      |
+//! | `core2`       | Adds support for sending/receiving types with [`core2`].                                        |
+//! | `futures`     | Adds support for sending/receiving types asynchronously with [`futures`].                       |
+//! | `std`         | Adds support for sending/receiving types over [`Read`] and [`Write`].                           |
+//! | `tokio`       | Adds support for sending/receiving types asynchronously with [`tokio`].                         |
+//! | `full-io`     | Features: `acid_io`, `core2`, `futures`, `std`, `tokio`                                         |
+//! | `full`        | Every feature in this table.                                                                    |
 //!
+//! [`acid_io`]: https://docs.rs/acid_io
+//! [`core2`]: https://docs.rs/core2
 //! [`bincode`]: https://docs.rs/bincode
 //! [`ciborium`]: https://docs.rs/ciborium
 //! [`serde_json`]: https://docs.rs/serde_json
