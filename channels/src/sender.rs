@@ -634,10 +634,10 @@ impl fmt::Debug for Config {
 	}
 }
 
-impl<T, R, D> fmt::Debug for Builder<T, R, D>
+impl<T, W, S> fmt::Debug for Builder<T, W, S>
 where
-	R: fmt::Debug,
-	D: fmt::Debug,
+	W: fmt::Debug,
+	S: fmt::Debug,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Builder")
@@ -650,7 +650,7 @@ where
 
 impl<T, W, S> fmt::Debug for Sender<T, W, S>
 where
-	StatIO<W>: fmt::Debug,
+	W: fmt::Debug,
 	S: fmt::Debug,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

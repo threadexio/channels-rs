@@ -5,7 +5,7 @@ use crate::io::{
 };
 
 /// IO statistic information.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Statistics {
 	total_bytes: u64,
 	packets: u64,
@@ -65,7 +65,7 @@ impl fmt::Debug for Statistics {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StatIO<R> {
 	pub(crate) inner: R,
 
