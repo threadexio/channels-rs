@@ -27,6 +27,7 @@ rustdoc-args = ["--cfg", "channels_nightly"]
 [dependencies]
 futures = { version = "0.3", optional = true }
 tokio = { version = "1", features = ["io-util"], optional = true }
+core2 = { version = "0.4", default-features = false, optional = true }
 
 [dev-dependencies]
 async-std = { version = "1" }
@@ -35,9 +36,9 @@ tokio = { version = "1", features = ["full"] }
 
 [features]
 alloc = []
-std = ["alloc"]
-
+core2 = ["dep:core2"]
 futures = ["dep:futures", "std"]
+std = ["alloc"]
 tokio = ["dep:tokio", "std"]
 
 [lints]

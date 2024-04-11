@@ -105,3 +105,10 @@ if_feature! {
 		pub use self::futures::Futures;
 	}
 }
+
+if_feature! {
+	if "core2" {
+		mod core2;
+		pub use self::core2::Core2;
+	}
+}
