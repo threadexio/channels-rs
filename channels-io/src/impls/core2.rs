@@ -1,7 +1,7 @@
 use super::prelude::*;
 
 newtype! {
-	/// Wrapper IO type for [`core2::`].
+	/// Wrapper IO type for [`core2::io::Read`] and [`core2::io::Write`].
 	Core2
 }
 

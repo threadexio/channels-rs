@@ -51,6 +51,8 @@ futures = ["channels-io/futures"]
 std = ["channels-io/std"]
 tokio = ["channels-io/tokio"]
 
+full-io = ["core2", "futures", "std", "tokio"]
+
 aead = ["channels-serdes/aead"]
 bincode = ["channels-serdes/bincode", "dep:serde"]
 borsh = ["channels-serdes/borsh"]
@@ -60,21 +62,18 @@ deflate = ["channels-serdes/deflate"]
 hmac = ["channels-serdes/hmac"]
 json = ["channels-serdes/json"]
 
-full = [
+full-serdes = [
 	"aead",
 	"bincode",
 	"borsh",
 	"cbor",
-	"core2",
 	"crc",
 	"deflate",
-	"futures",
 	"hmac",
 	"json",
-	"statistics",
-	"std",
-	"tokio",
 ]
+
+full = ["full-io", "full-serdes", "statistics"]
 default = ["std", "bincode"]
 
 [lints]
