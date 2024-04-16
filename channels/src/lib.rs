@@ -87,8 +87,8 @@ pub use self::util::Statistics;
 pub use self::receiver::Receiver;
 pub use self::sender::Sender;
 
-pub use channels_io as io;
-pub use channels_serdes as serdes;
+#[doc(inline)]
+pub use {channels_io as io, channels_serdes as serdes};
 
 /// A tuple containing a [`Sender`] and a [`Receiver`].
 pub type Pair<T, R, W, Sd> = (Sender<T, W, Sd>, Receiver<T, R, Sd>);
