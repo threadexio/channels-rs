@@ -15,3 +15,5 @@ pub mod raw;
 pub use self::flags::Flags;
 pub use self::num::{PacketLength, PayloadLength};
 pub use self::util::{slice_to_array, slice_to_array_mut};
+
+pub use self::consts::PROTOCOL_VERSION;

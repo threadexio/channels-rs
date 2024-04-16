@@ -98,7 +98,8 @@ impl fmt::Display for Report<'_> {
 
 		report
 			.field("version", |f| {
-				const EXPECTED: u16 = 0xfd3f;
+				const EXPECTED: u16 =
+					channels_packet::PROTOCOL_VERSION;
 
 				let version: u16 = header.version.into();
 
