@@ -1,6 +1,8 @@
 //! The [`mod@bincode`] serializer which automatically works with all
 //! types that implement [`serde::Serialize`] and [`serde::Deserialize`].
 
+use alloc::vec::Vec;
+
 use bincode::Options;
 
 use crate::{Deserializer, Serializer};

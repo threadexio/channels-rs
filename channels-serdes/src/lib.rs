@@ -44,8 +44,9 @@
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "alloc")]
 extern crate alloc;
+
+use alloc::vec::Vec;
 
 /// The [`Serializer`] trait allows converting a type `T` to safe-to-transport
 /// byte sequences.

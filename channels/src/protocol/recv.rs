@@ -1,16 +1,16 @@
-use crate::{
-	error::RecvError,
-	io::{AsyncRead, Read},
-	receiver::Config,
-	util::StatIO,
+use alloc::vec::Vec;
+
+use channels_packet::header::{
+	Header, VerifyError, VerifyId, WithChecksum,
 };
+use channels_packet::{Flags, PacketLength};
+
+use crate::error::RecvError;
+use crate::io::{AsyncRead, Read};
+use crate::receiver::Config;
+use crate::util::StatIO;
 
 use super::Pcb;
-
-use channels_packet::{
-	header::{Header, VerifyError, VerifyId, WithChecksum},
-	Flags, PacketLength,
-};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecvPayloadError<Io> {
@@ -109,8 +109,6 @@ where
 	pub async fn run(
 		self,
 	) -> Result<Vec<u8>, RecvPayloadError<R::Error>> {
-		use alloc::vec::Vec;
-
 		let mut full_payload = match (self.config.size_estimate, self.config.max_size) {
 			(Some(estimate), Some(max_size)) if max_size < estimate => Vec::with_capacity(max_size.get()),
 			(Some(estimate), _) => Vec::with_capacity(estimate.get()),

@@ -4,6 +4,8 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 
+use channels_packet::PacketLength;
+
 use crate::error::RecvError;
 use crate::io::{AsyncRead, Container, IntoRead, Read};
 use crate::protocol::Pcb;
@@ -12,8 +14,6 @@ use crate::util::StatIO;
 
 #[allow(unused_imports)]
 use crate::util::Statistics;
-
-use channels_packet::PacketLength;
 
 /// The receiving-half of the channel.
 pub struct Receiver<T, R, D> {

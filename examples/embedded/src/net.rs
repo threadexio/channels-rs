@@ -1,4 +1,4 @@
-use channels::io::{Contiguous, ContiguousMut, Read, Write};
+use channels::io::{Read, Write};
 
 /*
  * Implementation of networking varies between environments.
@@ -32,10 +32,7 @@ impl Socket {
 impl Read for Socket {
 	type Error = SocketError;
 
-	fn read<B: ContiguousMut>(
-		&mut self,
-		_buf: B,
-	) -> Result<(), Self::Error> {
+	fn read(&mut self, _buf: &mut [u8]) -> Result<(), Self::Error> {
 		unimplemented!()
 	}
 }
@@ -43,10 +40,7 @@ impl Read for Socket {
 impl Write for Socket {
 	type Error = SocketError;
 
-	fn write<B: Contiguous>(
-		&mut self,
-		_buf: B,
-	) -> Result<(), Self::Error> {
+	fn write(&mut self, _buf: &[u8]) -> Result<(), Self::Error> {
 		unimplemented!()
 	}
 

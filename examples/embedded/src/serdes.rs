@@ -1,9 +1,9 @@
 use core::convert::Infallible;
 
-use channels::{
-	io::{ContiguousMut, Cursor, Walkable},
-	serdes::{Crc, Deserializer, Serializer},
-};
+use alloc::vec;
+use alloc::vec::Vec;
+
+use channels::serdes::{Crc, Deserializer, Serializer};
 
 use crate::record::{Record, RecordPath, RecordType};
 
@@ -23,8 +23,8 @@ impl Serializer<Record> for RecordSerdes {
 	fn serialize(
 		&mut self,
 		record: &Record,
-	) -> Result<impl Walkable, Self::Error> {
-		let mut buf = [0u8; RECORD_SIZE];
+	) -> Result<Vec<u8>, Self::Error> {
+		let mut buf = vec![0u8; RECORD_SIZE];
 
 		let Record { timestamp, typ, path } = record;
 
@@ -39,7 +39,7 @@ impl Serializer<Record> for RecordSerdes {
 		buf[8..10].copy_from_slice(&typ_bytes[..]);
 		buf[10..26].copy_from_slice(&path.0[..]);
 
-		Ok(Cursor::new(buf))
+		Ok(buf)
 	}
 }
 
@@ -54,10 +54,8 @@ impl Deserializer<Record> for RecordSerdes {
 
 	fn deserialize(
 		&mut self,
-		mut buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<Record, Self::Error> {
-		let buf = buf.chunk_mut();
-
 		if buf.len() < RECORD_SIZE {
 			return Err(RecordDeserializeError::NotEnough);
 		}

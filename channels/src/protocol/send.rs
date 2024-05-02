@@ -1,16 +1,12 @@
-use crate::{
-	error::SendError,
-	io::{AsyncWrite, Write},
-	sender::Config,
-	util::StatIO,
-};
+use channels_packet::header::{Header, WithChecksum};
+use channels_packet::{Flags, PacketLength, PayloadLength};
+
+use crate::error::SendError;
+use crate::io::{AsyncWrite, Write};
+use crate::sender::Config;
+use crate::util::StatIO;
 
 use super::Pcb;
-
-use channels_packet::{
-	header::{Header, WithChecksum},
-	Flags, PacketLength, PayloadLength,
-};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SendPayloadError<Io> {
