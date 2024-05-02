@@ -65,6 +65,12 @@ impl Checksum {
 	}
 }
 
+impl Default for Checksum {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 /// Calculate the checksum of `data`.
 ///
 /// Equivalent to: `Checksum::new().chain_update(data).finalize()`.
