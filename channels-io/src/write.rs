@@ -1,5 +1,3 @@
-//! [`Write`] and [`AsyncWrite`] traits.
-
 use crate::util::Future;
 
 /// This trait allows writing bytes to a writer.

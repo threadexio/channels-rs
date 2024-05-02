@@ -1,4 +1,4 @@
-//! Abstractions on top of synchronous and asynchronous IO interfaces and buffers.
+//! Abstractions on top of synchronous and asynchronous IO interfaces.
 //!
 //! This crate provides a generic interface to work with synchronous or
 //! asynchronous IO provided by many other crates. Using this crate on top of,
@@ -59,8 +59,8 @@ extern crate alloc;
 
 mod util;
 
-pub mod read;
-pub mod write;
+mod read;
+mod write;
 
 pub use self::util::Container;
 

@@ -1,5 +1,3 @@
-//! [`Read`] and [`AsyncRead`] traits.
-
 use crate::util::Future;
 
 /// This trait allows reading bytes from a source.
