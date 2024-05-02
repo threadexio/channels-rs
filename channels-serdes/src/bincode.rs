@@ -3,8 +3,6 @@
 
 use bincode::Options;
 
-use channels_io::{ContiguousMut, Walkable};
-
 use crate::{Deserializer, Serializer};
 
 fn default_bincode_config() -> impl Options {
@@ -47,12 +45,8 @@ where
 {
 	type Error = bincode::Error;
 
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<impl Walkable, Self::Error> {
-		let vec = default_bincode_config().serialize(t)?;
-		Ok(channels_io::Cursor::new(vec))
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
+		default_bincode_config().serialize(t)
 	}
 }
 
@@ -64,8 +58,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		mut buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<T, Self::Error> {
-		default_bincode_config().deserialize(buf.chunk_mut())
+		default_bincode_config().deserialize(buf)
 	}
 }

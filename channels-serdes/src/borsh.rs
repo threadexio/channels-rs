@@ -3,8 +3,6 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use channels_io::{ContiguousMut, Walkable};
-
 use crate::{Deserializer, Serializer};
 
 /// The [`mod@borsh`] serializer which automatically works with all
@@ -26,12 +24,8 @@ where
 {
 	type Error = borsh::io::Error;
 
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<impl Walkable, Self::Error> {
-		let vec = borsh::to_vec(t)?;
-		Ok(channels_io::Cursor::new(vec))
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
+		borsh::to_vec(t)
 	}
 }
 
@@ -43,8 +37,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		mut buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<T, Self::Error> {
-		borsh::from_slice(buf.chunk_mut())
+		borsh::from_slice(buf)
 	}
 }

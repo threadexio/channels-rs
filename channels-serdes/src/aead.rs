@@ -2,8 +2,6 @@
 
 use core::fmt;
 
-use channels_io::{Buf, ContiguousMut, Cursor, Walkable};
-
 use ring::aead::{self, Aad};
 
 use crate::{Deserializer, Serializer};
@@ -90,24 +88,17 @@ where
 {
 	type Error = SerializeError<U::Error>;
 
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<impl Walkable, Self::Error> {
-		let data =
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
+		let mut data =
 			self.next.serialize(t).map_err(SerializeError::Next)?;
-
-		let mut out = copy_buf_to_vec(data);
 
 		let tag = self
 			.key
-			.seal_in_place_separate_tag(Aad::empty(), &mut out)
+			.seal_in_place_separate_tag(Aad::empty(), &mut data)
 			.map_err(|_| SerializeError::EncryptError)?;
 
-		let out = Cursor::new(out);
-		let tag = Cursor::new(tag.as_ref().to_vec());
+		let out = [tag.as_ref(), &data].concat();
 
-		let out = Buf::chain(out, tag);
 		Ok(out)
 	}
 }
@@ -185,27 +176,15 @@ where
 
 	fn deserialize(
 		&mut self,
-		mut buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<T, Self::Error> {
 		let plaintext = self
 			.key
-			.open_in_place(Aad::empty(), buf.chunk_mut())
+			.open_in_place(Aad::empty(), buf)
 			.map_err(|_| DeserializeError::DecryptError)?;
 
 		self.next
 			.deserialize(plaintext)
 			.map_err(DeserializeError::Next)
 	}
-}
-
-fn copy_buf_to_vec<B: Buf>(mut buf: B) -> alloc::vec::Vec<u8> {
-	let mut out = Vec::with_capacity(buf.remaining());
-
-	while buf.has_remaining() {
-		let chunk = buf.chunk();
-		out.extend_from_slice(chunk);
-		buf.advance(chunk.len());
-	}
-
-	out
 }

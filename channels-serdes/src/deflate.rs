@@ -4,8 +4,6 @@ use core::fmt;
 
 use std::io::{Read, Write};
 
-use channels_io::{Buf, ContiguousMut, Cursor, Walkable};
-
 use flate2::{read::DeflateDecoder, write::DeflateEncoder};
 
 use crate::{Deserializer, Serializer};
@@ -83,24 +81,20 @@ where
 {
 	type Error = SerializeError<U::Error>;
 
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<impl Walkable, Self::Error> {
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
 		let data =
 			self.next.serialize(t).map_err(SerializeError::Next)?;
 
 		let mut encoder = DeflateEncoder::new(Vec::new(), self.level);
 
-		data.walk_chunks()
-			.try_for_each(|chunk| encoder.write_all(chunk))
+		encoder
+			.write_all(&data)
 			.map_err(SerializeError::EncodeError)?;
 
-		let output =
+		let out =
 			encoder.finish().map_err(SerializeError::EncodeError)?;
 
-		let output = Cursor::new(output);
-		Ok(output)
+		Ok(out)
 	}
 }
 
@@ -139,20 +133,17 @@ where
 
 	fn deserialize(
 		&mut self,
-		mut buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<T, Self::Error> {
-		let buf = buf.chunk_mut();
+		let mut decoder = DeflateDecoder::new(buf as &[u8]);
 
-		let mut decoder = DeflateDecoder::new(buf.reader());
-
-		let mut output = Vec::new();
+		let mut out = Vec::new();
 		decoder
-			.read_to_end(&mut output)
+			.read_to_end(&mut out)
 			.map_err(DeserializeError::DecodeError)?;
 
-		let output = Cursor::new(output);
 		self.next
-			.deserialize(output)
+			.deserialize(&mut out)
 			.map_err(DeserializeError::Next)
 	}
 }

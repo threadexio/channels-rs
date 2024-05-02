@@ -1,8 +1,6 @@
 //! The [`mod@serde_json`] serializer which automatically works with all
 //! types that implement [`serde::Serialize`] and [`serde::Deserialize`].
 
-use channels_io::{ContiguousMut, Walkable};
-
 use crate::{Deserializer, Serializer};
 
 /// The [`mod@serde_json`] serializer which automatically works with all
@@ -29,12 +27,8 @@ where
 {
 	type Error = serde_json::Error;
 
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<impl Walkable, Self::Error> {
-		let vec = serde_json::to_vec(t)?;
-		Ok(channels_io::Cursor::new(vec))
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
+		serde_json::to_vec(t)
 	}
 }
 
@@ -46,8 +40,8 @@ where
 
 	fn deserialize(
 		&mut self,
-		mut buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<T, Self::Error> {
-		serde_json::from_slice(buf.chunk_mut())
+		serde_json::from_slice(buf)
 	}
 }

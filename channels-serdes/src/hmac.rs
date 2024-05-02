@@ -2,8 +2,6 @@
 
 use core::fmt;
 
-use channels_io::{Buf, ContiguousMut, Cursor, Walkable};
-
 use ring::hmac;
 
 use crate::{Deserializer, Serializer};
@@ -55,19 +53,12 @@ where
 {
 	type Error = U::Error;
 
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<impl Walkable, Self::Error> {
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
 		let data = self.next.serialize(t)?;
+		let tag = hmac::sign(&self.key, &data);
 
-		let mut ctx = hmac::Context::with_key(&self.key);
-		data.walk_chunks().for_each(|chunk| ctx.update(chunk));
-
-		let tag = Cursor::new(ctx.sign().as_ref().to_vec());
-		let output = data.chain(tag);
-
-		Ok(output)
+		let out = [data.as_slice(), tag.as_ref()].concat();
+		Ok(out)
 	}
 }
 
@@ -106,11 +97,10 @@ where
 
 	fn deserialize(
 		&mut self,
-		mut buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<T, Self::Error> {
 		let tag_len =
 			self.key.algorithm().digest_algorithm().output_len();
-		let buf = buf.chunk_mut();
 
 		let tag_start = buf
 			.len()

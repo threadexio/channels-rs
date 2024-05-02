@@ -28,7 +28,7 @@ bincode = ["dep:serde", "dep:bincode"]
 borsh = ["dep:borsh"]
 cbor = ["dep:serde", "dep:ciborium", "std"]
 crc = ["dep:crc", "alloc"]
-deflate = ["dep:flate2", "std", "channels-io/std"]
+deflate = ["dep:flate2", "std"]
 hmac = ["dep:ring"]
 json = ["dep:serde", "dep:serde_json"]
 
@@ -41,11 +41,6 @@ flate2 = { version = "1.0", optional = true }
 ring = { version = "0.17", default-features = false, optional = true }
 serde = { version = "1.0", default_features = false, optional = true }
 serde_json = { version = "1.0", default_features = false, features = ["alloc"], optional = true }
-
-[dependencies.channels-io]
-version = "0.1.0"
-features = ["alloc"]
-path = "../channels-io"
 
 [lints]
 workspace = true

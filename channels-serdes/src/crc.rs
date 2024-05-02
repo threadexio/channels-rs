@@ -4,8 +4,6 @@ use core::fmt;
 
 use alloc::boxed::Box;
 
-use channels_io::{Buf, ContiguousMut, Cursor, Walkable};
-
 use crate::{Deserializer, Serializer};
 
 /// Middleware that verifies data with a CRC checksum.
@@ -89,19 +87,14 @@ where
 {
 	type Error = U::Error;
 
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<impl Walkable, Self::Error> {
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error> {
 		let data = self.next.serialize(t)?;
+		let checksum = self.crc.checksum(&data);
 
-		let mut digest = self.crc.digest();
-		data.walk_chunks().for_each(|chunk| digest.update(chunk));
-		let checksum = digest.finalize();
-
-		let checksum = Cursor::new(checksum.to_be_bytes());
-		let output = data.chain(checksum);
-		Ok(output)
+		let checksum_bytes = checksum.to_be_bytes();
+		let out =
+			[data.as_slice(), checksum_bytes.as_slice()].concat();
+		Ok(out)
 	}
 }
 
@@ -140,33 +133,25 @@ where
 
 	fn deserialize(
 		&mut self,
-		mut buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<T, Self::Error> {
 		let inner_len = buf
-			.remaining_mut()
+			.len()
 			.checked_sub(8)
 			.ok_or(DeserializeError::NoChecksum)?;
 
-		let (inner, checksum) =
-			buf.chunk_mut().split_at_mut(inner_len);
+		let (inner, checksum) = buf.split_at_mut(inner_len);
 
 		let unverified = u64::from_be_bytes(checksum.try_into().expect(
 			"remaining part of payload should have been at least 8 bytes",
 		));
 
-		let mut digest = self.crc.digest();
-		digest.update(inner);
-		let calculated = digest.finalize();
+		let calculated = self.crc.checksum(inner);
 
 		if unverified != calculated {
 			return Err(DeserializeError::InvalidChecksum);
 		}
 
-		let t = self
-			.next
-			.deserialize(inner)
-			.map_err(DeserializeError::Next)?;
-
-		Ok(t)
+		self.next.deserialize(inner).map_err(DeserializeError::Next)
 	}
 }

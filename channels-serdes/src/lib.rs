@@ -55,8 +55,6 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-use channels_io::{ContiguousMut, Walkable};
-
 /// The [`Serializer`] trait allows converting a type `T` to safe-to-transport
 /// byte sequences.
 ///
@@ -66,10 +64,7 @@ pub trait Serializer<T> {
 	type Error;
 
 	/// Serialize `t` to a buffer.
-	fn serialize(
-		&mut self,
-		t: &T,
-	) -> Result<impl Walkable, Self::Error>;
+	fn serialize(&mut self, t: &T) -> Result<Vec<u8>, Self::Error>;
 }
 
 macro_rules! forward_serializer_impl {
@@ -79,8 +74,8 @@ macro_rules! forward_serializer_impl {
 		fn serialize(
 			&mut self,
 			t: &T,
-		) -> Result<impl $crate::Walkable, Self::Error> {
-			(**self).serialize(t)
+		) -> Result<Vec<u8>, Self::Error> {
+			<$to>::serialize(self, t)
 		}
 	};
 }
@@ -97,7 +92,7 @@ pub trait Deserializer<T> {
 	/// Implementations can freely modify `buf` if needed.
 	fn deserialize(
 		&mut self,
-		buf: impl ContiguousMut,
+		buf: &mut [u8],
 	) -> Result<T, Self::Error>;
 }
 
@@ -107,9 +102,9 @@ macro_rules! forward_deserializer_impl {
 
 		fn deserialize(
 			&mut self,
-			buf: impl $crate::ContiguousMut,
+			buf: &mut [u8],
 		) -> Result<T, Self::Error> {
-			(**self).deserialize(buf)
+			<$to>::deserialize(self, buf)
 		}
 	};
 }
