@@ -1,6 +1,5 @@
 //! [`Write`] and [`AsyncWrite`] traits.
 
-use crate::buf::Contiguous;
 use crate::util::Future;
 
 /// This trait allows writing bytes to a writer.
@@ -21,10 +20,7 @@ pub trait Write {
 	///
 	/// If `buf` has been written to the writer, then this function must return
 	/// with [`Ok(())`](Ok). In any other case it must return an [`Err`].
-	fn write<B: Contiguous>(
-		&mut self,
-		buf: B,
-	) -> Result<(), Self::Error>;
+	fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error>;
 
 	/// Flush this writer ensuring all bytes reach their destination.
 	///
@@ -45,9 +41,9 @@ pub trait AsyncWrite {
 	/// it returns a [`Future`] that must be `.await`ed.
 	///
 	/// [`Future`]: core::future::Future
-	fn write<B: Contiguous>(
+	fn write(
 		&mut self,
-		buf: B,
+		buf: &[u8],
 	) -> impl Future<Output = Result<(), Self::Error>>;
 
 	/// Asynchronously flush the writer.
@@ -170,10 +166,7 @@ macro_rules! forward_impl_write {
 	($to:ty) => {
 		type Error = <$to>::Error;
 
-		fn write<B: Contiguous>(
-			&mut self,
-			buf: B,
-		) -> Result<(), Self::Error> {
+		fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
 			<$to>::write(self, buf)
 		}
 
@@ -187,9 +180,9 @@ macro_rules! forward_impl_async_write {
 	($to:ty) => {
 		type Error = <$to>::Error;
 
-		async fn write<B: Contiguous>(
+		async fn write(
 			&mut self,
-			buf: B,
+			buf: &[u8],
 		) -> Result<(), Self::Error> {
 			<$to>::write(self, buf).await
 		}

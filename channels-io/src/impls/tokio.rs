@@ -15,14 +15,14 @@ where
 {
 	type Error = ::tokio::io::Error;
 
-	async fn read<B: ContiguousMut>(
+	async fn read(
 		&mut self,
-		mut buf: B,
+		mut buf: &mut [u8],
 	) -> Result<(), Self::Error> {
-		while buf.has_remaining_mut() {
+		while !buf.is_empty() {
 			use ::tokio::io::ErrorKind as E;
-			match self.0.read(buf.chunk_mut()).await {
-				Ok(i) => buf.advance_mut(i),
+			match self.0.read(buf).await {
+				Ok(i) => buf = &mut buf[i..],
 				Err(e) if e.kind() == E::Interrupted => continue,
 				Err(e) => return Err(e),
 			}
@@ -40,14 +40,14 @@ where
 {
 	type Error = ::tokio::io::Error;
 
-	async fn write<B: Contiguous>(
+	async fn write(
 		&mut self,
-		mut buf: B,
+		mut buf: &[u8],
 	) -> Result<(), Self::Error> {
-		while buf.has_remaining() {
+		while !buf.is_empty() {
 			use ::tokio::io::ErrorKind as E;
-			match self.0.write(buf.chunk()).await {
-				Ok(i) => buf.advance(i),
+			match self.0.write(buf).await {
+				Ok(i) => buf = &buf[i..],
 				Err(e) if e.kind() == E::Interrupted => continue,
 				Err(e) => return Err(e),
 			}

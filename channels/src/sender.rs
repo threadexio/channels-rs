@@ -271,7 +271,7 @@ where
 			&self.config,
 			&mut self.pcb,
 			&mut self.writer,
-			payload,
+			&payload,
 		)
 		.await?;
 
@@ -323,7 +323,7 @@ where
 			&self.config,
 			&mut self.pcb,
 			&mut self.writer,
-			payload,
+			&payload,
 		)?;
 
 		Ok(())

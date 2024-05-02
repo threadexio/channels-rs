@@ -15,10 +15,7 @@ where
 {
 	type Error = T::Error;
 
-	fn read<B: ContiguousMut>(
-		&mut self,
-		buf: B,
-	) -> Result<(), Self::Error> {
+	fn read(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
 		self.0.read(buf)
 	}
 }
@@ -31,10 +28,7 @@ where
 {
 	type Error = T::Error;
 
-	fn write<B: Contiguous>(
-		&mut self,
-		buf: B,
-	) -> Result<(), Self::Error> {
+	fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
 		self.0.write(buf)
 	}
 
@@ -56,9 +50,9 @@ where
 {
 	type Error = T::Error;
 
-	fn read<B: ContiguousMut>(
+	fn read(
 		&mut self,
-		buf: B,
+		buf: &mut [u8],
 	) -> impl Future<Output = Result<(), Self::Error>> {
 		self.0.read(buf)
 	}
@@ -72,9 +66,9 @@ where
 {
 	type Error = T::Error;
 
-	fn write<B: Contiguous>(
+	fn write(
 		&mut self,
-		buf: B,
+		buf: &[u8],
 	) -> impl Future<Output = Result<(), Self::Error>> {
 		self.0.write(buf)
 	}

@@ -68,7 +68,6 @@ mod prelude {
 		super::read::*, super::write::*, impl_newtype_read,
 		impl_newtype_write, newtype,
 	};
-	pub(super) use crate::{Contiguous, ContiguousMut};
 }
 
 macro_rules! if_feature {

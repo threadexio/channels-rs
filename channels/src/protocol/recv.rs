@@ -1,6 +1,6 @@
 use crate::{
 	error::RecvError,
-	io::{AsyncRead, ContiguousMut, Cursor, Read},
+	io::{AsyncRead, Read},
 	receiver::Config,
 	util::StatIO,
 };
@@ -87,11 +87,11 @@ channels_macros::replace! {
 	}
 	code: {
 
-pub async fn recv<'a, R>(
-	config: &'a Config,
-	pcb: &'a mut Pcb,
-	reader: &'a mut StatIO<R>,
-) -> Result<impl ContiguousMut, RecvPayloadError<R::Error>>
+pub async fn recv<R>(
+	config: &Config,
+	pcb: &mut Pcb,
+	reader: &mut StatIO<R>,
+) -> Result<Vec<u8>, RecvPayloadError<R::Error>>
 where
 	R: Read,
 {
@@ -108,7 +108,7 @@ where
 {
 	pub async fn run(
 		self,
-	) -> Result<impl ContiguousMut, RecvPayloadError<R::Error>> {
+	) -> Result<Vec<u8>, RecvPayloadError<R::Error>> {
 		use alloc::vec::Vec;
 
 		let mut full_payload = match (self.config.size_estimate, self.config.max_size) {
@@ -159,7 +159,7 @@ where
 			}
 		}
 
-		Ok(Cursor::new(full_payload))
+		Ok(full_payload)
 	}
 }
 

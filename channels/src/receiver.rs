@@ -294,7 +294,7 @@ where
 	pub async fn recv(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let payload = crate::protocol::recv_async(
+		let mut payload = crate::protocol::recv_async(
 			&self.config,
 			&mut self.pcb,
 			&mut self.reader,
@@ -302,7 +302,7 @@ where
 		.await?;
 
 		self.deserializer
-			.deserialize(payload)
+			.deserialize(&mut payload)
 			.map_err(RecvError::Serde)
 	}
 }
@@ -335,14 +335,14 @@ where
 	pub fn recv_blocking(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let payload = crate::protocol::recv_sync(
+		let mut payload = crate::protocol::recv_sync(
 			&self.config,
 			&mut self.pcb,
 			&mut self.reader,
 		)?;
 
 		self.deserializer
-			.deserialize(payload)
+			.deserialize(&mut payload)
 			.map_err(RecvError::Serde)
 	}
 }

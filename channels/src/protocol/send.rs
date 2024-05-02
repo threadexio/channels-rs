@@ -1,6 +1,6 @@
 use crate::{
 	error::SendError,
-	io::{AsyncWrite, Buf, Cursor, Write},
+	io::{AsyncWrite, Write},
 	sender::Config,
 	util::StatIO,
 };
@@ -34,27 +34,21 @@ impl<Ser, Io> From<SendPayloadError<Io>> for SendError<Ser, Io> {
 	}
 }
 
-struct Send<'a, W, B>
-where
-	B: Buf,
-{
+struct SendPayload<'a, 'p, W> {
 	config: &'a Config,
 	has_sent_one_packet: bool,
-	payload: B,
+	payload: &'p [u8],
 	pcb: &'a mut Pcb,
 	writer: &'a mut StatIO<W>,
 }
 
-impl<'a, W, B> Send<'a, W, B>
-where
-	B: Buf,
-{
+impl<'a, 'p, W> SendPayload<'a, 'p, W> {
 	/// Get the header for the next packet.
 	///
 	/// Returns [`Some`] with the header of the next packet that should be
 	/// sent or [`None`] if no packet should be sent.
 	fn next_header(&mut self) -> Option<Header> {
-		match (self.payload.remaining(), self.has_sent_one_packet) {
+		match (self.payload.len(), self.has_sent_one_packet) {
 			// If there is no more data and we have already sent
 			// one packet, then exit.
 			(0, true) => None,
@@ -109,17 +103,16 @@ channels_macros::replace! {
 	}
 	code: {
 
-pub async fn send<'a, W, B>(
-	config: &'a Config,
-	pcb: &'a mut Pcb,
-	writer: &'a mut StatIO<W>,
-	payload: B,
+pub async fn send<W>(
+	config: &Config,
+	pcb: &mut Pcb,
+	writer: &mut StatIO<W>,
+	payload: &[u8],
 ) -> Result<(), SendPayloadError<W::Error>>
 where
-	W: Write,
-	B: Buf,
+	W: Write
 {
-	Send {
+	SendPayload {
 		config,
 		has_sent_one_packet: false,
 		payload,
@@ -128,10 +121,9 @@ where
 	}.run() await
 }
 
-impl<'a, W, B> Send<'a, W, B>
+impl<'a, 'b, W> SendPayload<'a, 'b, W>
 where
 	W: Write,
-	B: Buf,
 {
 	pub async fn run(mut self) -> Result<(), SendPayloadError<W::Error>> {
 		while let Some(header) = self.next_header() {
@@ -144,27 +136,22 @@ where
 					WithChecksum::No
 				};
 
-			let mut header_buf = Cursor::new(header.to_bytes(with_checksum));
 			let payload_length = header.length.to_payload_length().as_usize();
+			let header = header.to_bytes(with_checksum);
 
 			if payload_length == 0 {
-				self.writer.write(&mut header_buf) await?;
+				self.writer.write(&header) await?;
 			} else {
-				let payload = self.payload.by_ref().take(payload_length);
-				let mut packet = header_buf.chain(payload);
+				let payload = &self.payload[..payload_length];
+				self.payload = &self.payload[payload_length..];
 
-				match payload_length {
-					_ if self.config.coalesce_writes() => {
-						let mut packet = packet.copy_to_contiguous();
-						self.writer.write(&mut packet) await?;
-					}
-					_ => {
-						while packet.has_remaining() {
-							let chunk = packet.chunk();
-							self.writer.write(chunk) await?;
-							packet.advance(chunk.len());
-						}
-					}
+
+				if self.config.coalesce_writes() {
+					let packet = [&header, payload].concat();
+					self.writer.write(&packet) await?;
+				} else {
+					self.writer.write(&header) await?;
+					self.writer.write(payload) await?;
 				}
 			}
 

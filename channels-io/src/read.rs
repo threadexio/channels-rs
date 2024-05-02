@@ -1,7 +1,6 @@
 //! [`Read`] and [`AsyncRead`] traits.
 
 use crate::util::Future;
-use crate::ContiguousMut;
 
 /// This trait allows reading bytes from a source.
 ///
@@ -21,10 +20,7 @@ pub trait Read {
 	///
 	/// If `buf` has been filled with data, then this function must return with
 	/// [`Ok((())`](Ok). In any other case it must return an [`Err`].
-	fn read<B: ContiguousMut>(
-		&mut self,
-		buf: B,
-	) -> Result<(), Self::Error>;
+	fn read(&mut self, buf: &mut [u8]) -> Result<(), Self::Error>;
 }
 
 /// This trait is the asynchronous version of [`Read`].
@@ -38,9 +34,9 @@ pub trait AsyncRead {
 	/// returns a [`Future`] that must be `.await`ed.
 	///
 	/// [`Future`]: core::future::Future
-	fn read<B: ContiguousMut>(
+	fn read(
 		&mut self,
-		buf: B,
+		buf: &mut [u8],
 	) -> impl Future<Output = Result<(), Self::Error>>;
 }
 
@@ -153,9 +149,9 @@ macro_rules! forward_impl_read {
 	($to:ty) => {
 		type Error = <$to>::Error;
 
-		fn read<B: $crate::ContiguousMut>(
+		fn read(
 			&mut self,
-			buf: B,
+			buf: &mut [u8],
 		) -> Result<(), Self::Error> {
 			<$to>::read(self, buf)
 		}
@@ -166,9 +162,9 @@ macro_rules! forward_impl_async_read {
 	($to:ty) => {
 		type Error = <$to>::Error;
 
-		async fn read<B: $crate::ContiguousMut>(
+		async fn read(
 			&mut self,
-			buf: B,
+			buf: &mut [u8],
 		) -> Result<(), Self::Error> {
 			<$to>::read(self, buf).await
 		}

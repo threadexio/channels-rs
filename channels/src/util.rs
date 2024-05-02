@@ -1,8 +1,6 @@
 use core::fmt;
 
-use crate::io::{
-	AsyncRead, AsyncWrite, Contiguous, ContiguousMut, Read, Write,
-};
+use crate::io::{AsyncRead, AsyncWrite, Read, Write};
 
 /// IO statistic information.
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -98,15 +96,10 @@ impl<R> StatIO<R> {
 impl<W: Write> Write for StatIO<W> {
 	type Error = W::Error;
 
-	fn write<B>(&mut self, mut buf: B) -> Result<(), Self::Error>
-	where
-		B: Contiguous,
-	{
-		let l0 = buf.remaining();
-		self.inner.write(&mut buf)?;
-		let l1 = buf.remaining();
+	fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
+		self.inner.write(buf)?;
 
-		let dl = usize::abs_diff(l0, l1);
+		let dl = buf.len();
 		self.on_write(dl as u64);
 		Ok(())
 	}
@@ -119,18 +112,10 @@ impl<W: Write> Write for StatIO<W> {
 impl<W: AsyncWrite> AsyncWrite for StatIO<W> {
 	type Error = W::Error;
 
-	async fn write<B>(
-		&mut self,
-		mut buf: B,
-	) -> Result<(), Self::Error>
-	where
-		B: Contiguous,
-	{
-		let l0 = buf.remaining();
-		self.inner.write(&mut buf).await?;
-		let l1 = buf.remaining();
+	async fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
+		self.inner.write(buf).await?;
 
-		let dl = usize::abs_diff(l0, l1);
+		let dl = buf.len();
 		self.on_write(dl as u64);
 		Ok(())
 	}
@@ -143,15 +128,10 @@ impl<W: AsyncWrite> AsyncWrite for StatIO<W> {
 impl<R: Read> Read for StatIO<R> {
 	type Error = R::Error;
 
-	fn read<B>(&mut self, mut buf: B) -> Result<(), Self::Error>
-	where
-		B: ContiguousMut,
-	{
-		let l0 = buf.remaining_mut();
-		self.inner.read(&mut buf)?;
-		let l1 = buf.remaining_mut();
+	fn read(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
+		self.inner.read(buf)?;
 
-		let dl = usize::abs_diff(l0, l1);
+		let dl = buf.len();
 		self.on_read(dl as u64);
 		Ok(())
 	}
@@ -160,15 +140,13 @@ impl<R: Read> Read for StatIO<R> {
 impl<R: AsyncRead> AsyncRead for StatIO<R> {
 	type Error = R::Error;
 
-	async fn read<B>(&mut self, mut buf: B) -> Result<(), Self::Error>
-	where
-		B: ContiguousMut,
-	{
-		let l0 = buf.remaining_mut();
-		self.inner.read(&mut buf).await?;
-		let l1 = buf.remaining_mut();
+	async fn read(
+		&mut self,
+		buf: &mut [u8],
+	) -> Result<(), Self::Error> {
+		self.inner.read(buf).await?;
 
-		let dl = usize::abs_diff(l0, l1);
+		let dl = buf.len();
 		self.on_read(dl as u64);
 		Ok(())
 	}

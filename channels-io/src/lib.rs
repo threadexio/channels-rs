@@ -57,25 +57,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-mod bytes;
 mod util;
-
-pub mod buf;
-pub mod buf_mut;
-
-pub use self::buf::{Buf, Contiguous, Walkable};
-pub use self::buf_mut::{BufMut, ContiguousMut, WalkableMut};
-pub use self::bytes::{AsBytes, AsBytesMut};
-
-pub mod chain;
-pub mod cursor;
-pub mod limit;
-pub mod take;
-
-pub use self::chain::{chain, Chain};
-pub use self::cursor::Cursor;
-pub use self::limit::{limit, Limit};
-pub use self::take::{take, Take};
 
 pub mod read;
 pub mod write;

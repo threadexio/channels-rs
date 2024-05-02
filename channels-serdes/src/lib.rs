@@ -5,7 +5,6 @@
 //! ```rust
 //! use std::convert::Infallible;
 //! use channels_serdes::{Serializer, Deserializer};
-//! use channels_io::{Walkable, ContiguousMut, Cursor, Buf};
 //!
 //! struct MyI32;
 //!
@@ -17,18 +16,17 @@
 //! impl Serializer<i32> for MyI32 {
 //!     type Error = Infallible; // serializing an i32 cannot fail
 //!
-//!     fn serialize(&mut self, t: &i32) -> Result<impl Walkable, Self::Error> {
+//!     fn serialize(&mut self, t: &i32) -> Result<Vec<u8>, Self::Error> {
 //!         let vec = t.to_be_bytes().to_vec();
-//!         let buf = Cursor::new(vec);
-//!         Ok(buf)
+//!         Ok(vec)
 //!     }
 //! }
 //!
 //! impl Deserializer<i32> for MyI32 {
 //!     type Error = I32DeserializeError;
 //!
-//!     fn deserialize(&mut self, mut buf: impl ContiguousMut) -> Result<i32, Self::Error> {
-//!         buf.chunk_mut().get(..4)
+//!     fn deserialize(&mut self, buf: &mut [u8]) -> Result<i32, Self::Error> {
+//!         buf.get(..4)
 //!            .map(|slice| -> [u8; 4] { slice.try_into().unwrap() })
 //!            .map(i32::from_be_bytes)
 //!            .ok_or(I32DeserializeError::NotEnough)
@@ -37,13 +35,7 @@
 //!
 //! let mut sd = MyI32;
 //!
-//! let mut serialized: Vec<u8> = sd.serialize(&42)
-//!                        .unwrap()
-//!                        .walk_chunks()
-//!                        .flatten()
-//!                        .copied()
-//!                        .collect();
-//!
+//! let mut serialized: Vec<u8> = sd.serialize(&42).unwrap();
 //! assert_eq!(serialized, [0, 0, 0, 42]);
 //!
 //! let deserialized = sd.deserialize(&mut serialized[..]);
