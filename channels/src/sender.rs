@@ -233,6 +233,19 @@ where
 
 impl<T, W, S> Sender<T, W, S>
 where
+	S: Serializer<T>,
+{
+	#[inline]
+	fn serialize_t<Io>(
+		&mut self,
+		t: &T,
+	) -> Result<Vec<u8>, SendError<S::Error, Io>> {
+		self.serializer.serialize(t).map_err(SendError::Serde)
+	}
+}
+
+impl<T, W, S> Sender<T, W, S>
+where
 	W: AsyncWrite,
 	S: Serializer<T>,
 {
@@ -262,10 +275,7 @@ where
 	where
 		D: Borrow<T>,
 	{
-		let payload = self
-			.serializer
-			.serialize(data.borrow())
-			.map_err(SendError::Serde)?;
+		let payload = self.serialize_t(data.borrow())?;
 
 		crate::protocol::send_async(
 			&self.config,
@@ -314,10 +324,7 @@ where
 	where
 		D: Borrow<T>,
 	{
-		let payload = self
-			.serializer
-			.serialize(data.borrow())
-			.map_err(SendError::Serde)?;
+		let payload = self.serialize_t(data.borrow())?;
 
 		crate::protocol::send_sync(
 			&self.config,

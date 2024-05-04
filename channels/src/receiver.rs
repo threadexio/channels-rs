@@ -272,6 +272,21 @@ where
 
 impl<T, R, D> Receiver<T, R, D>
 where
+	D: Deserializer<T>,
+{
+	#[inline]
+	fn deserialize_t<Io>(
+		&mut self,
+		data: &mut [u8],
+	) -> Result<T, RecvError<D::Error, Io>> {
+		self.deserializer
+			.deserialize(data)
+			.map_err(RecvError::Serde)
+	}
+}
+
+impl<T, R, D> Receiver<T, R, D>
+where
 	R: AsyncRead,
 	D: Deserializer<T>,
 {
@@ -301,9 +316,7 @@ where
 		)
 		.await?;
 
-		self.deserializer
-			.deserialize(&mut payload)
-			.map_err(RecvError::Serde)
+		self.deserialize_t(&mut payload)
 	}
 }
 
@@ -341,9 +354,7 @@ where
 			&mut self.reader,
 		)?;
 
-		self.deserializer
-			.deserialize(&mut payload)
-			.map_err(RecvError::Serde)
+		self.deserialize_t(&mut payload)
 	}
 }
 
