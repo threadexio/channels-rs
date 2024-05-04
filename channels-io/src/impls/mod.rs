@@ -64,9 +64,21 @@ use newtype;
 
 #[allow(unused_imports)]
 mod prelude {
+	pub(super) use crate::{
+		AsyncRead, AsyncWrite, Read, ReadBuf, Write, WriteBuf,
+	};
+
 	pub(super) use super::{
-		super::read::*, super::write::*, impl_newtype_read,
-		impl_newtype_write, newtype,
+		impl_newtype_read, impl_newtype_write, newtype,
+	};
+
+	pub(super) use core::{
+		future::Future,
+		pin::Pin,
+		task::{
+			ready, Context,
+			Poll::{self, Pending, Ready},
+		},
 	};
 }
 

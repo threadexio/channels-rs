@@ -1,6 +1,10 @@
 use core::fmt;
+use core::pin::Pin;
+use core::task::{ready, Context, Poll};
 
-use crate::io::{AsyncRead, AsyncWrite, Read, Write};
+use crate::io::{
+	AsyncRead, AsyncWrite, Read, ReadBuf, Write, WriteBuf,
+};
 
 /// IO statistic information.
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -112,16 +116,25 @@ impl<W: Write> Write for StatIO<W> {
 impl<W: AsyncWrite> AsyncWrite for StatIO<W> {
 	type Error = W::Error;
 
-	async fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
-		self.inner.write(buf).await?;
+	fn poll_write(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &mut WriteBuf,
+	) -> Poll<Result<(), Self::Error>> {
+		let l0 = buf.consumed().len();
+		ready!(Pin::new(&mut self.inner).poll_write(cx, buf))?;
+		let l1 = buf.consumed().len();
 
-		let dl = buf.len();
+		let dl = l1 - l0;
 		self.on_write(dl as u64);
-		Ok(())
+		Poll::Ready(Ok(()))
 	}
 
-	async fn flush(&mut self) -> Result<(), Self::Error> {
-		self.inner.flush().await
+	fn poll_flush(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+	) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut self.inner).poll_flush(cx)
 	}
 }
 
@@ -137,17 +150,20 @@ impl<R: Read> Read for StatIO<R> {
 	}
 }
 
-impl<R: AsyncRead> AsyncRead for StatIO<R> {
+impl<R: AsyncRead + Unpin> AsyncRead for StatIO<R> {
 	type Error = R::Error;
 
-	async fn read(
-		&mut self,
-		buf: &mut [u8],
-	) -> Result<(), Self::Error> {
-		self.inner.read(buf).await?;
+	fn poll_read(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &mut ReadBuf,
+	) -> Poll<Result<(), Self::Error>> {
+		let l0 = buf.filled().len();
+		ready!(Pin::new(&mut self.inner).poll_read(cx, buf))?;
+		let l1 = buf.filled().len();
 
-		let dl = buf.len();
+		let dl = l1 - l0;
 		self.on_read(dl as u64);
-		Ok(())
+		Poll::Ready(Ok(()))
 	}
 }

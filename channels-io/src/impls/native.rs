@@ -1,7 +1,5 @@
 use super::prelude::*;
 
-use crate::util::Future;
-
 newtype! {
 	/// Wrapper IO type for [`Read`] and [`Write`].
 	Native
@@ -50,11 +48,12 @@ where
 {
 	type Error = T::Error;
 
-	fn read(
-		&mut self,
-		buf: &mut [u8],
-	) -> impl Future<Output = Result<(), Self::Error>> {
-		self.0.read(buf)
+	fn poll_read(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &mut ReadBuf,
+	) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut self.0).poll_read(cx, buf)
 	}
 }
 
@@ -66,16 +65,18 @@ where
 {
 	type Error = T::Error;
 
-	fn write(
-		&mut self,
-		buf: &[u8],
-	) -> impl Future<Output = Result<(), Self::Error>> {
-		self.0.write(buf)
+	fn poll_write(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &mut WriteBuf,
+	) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut self.0).poll_write(cx, buf)
 	}
 
-	fn flush(
-		&mut self,
-	) -> impl Future<Output = Result<(), Self::Error>> {
-		self.0.flush()
+	fn poll_flush(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+	) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut self.0).poll_flush(cx)
 	}
 }

@@ -57,15 +57,21 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-mod util;
+mod buf;
+mod convert;
 
+mod async_read;
+mod async_write;
 mod read;
 mod write;
 
-pub use self::util::Container;
+pub use self::buf::{ReadBuf, WriteBuf};
+pub use self::convert::{Container, IntoRead, IntoWrite};
 
-pub use self::read::{AsyncRead, IntoRead, Read};
-pub use self::write::{AsyncWrite, IntoWrite, Write};
+pub use self::async_read::AsyncRead;
+pub use self::async_write::AsyncWrite;
+pub use self::read::Read;
+pub use self::write::Write;
 
 mod impls;
 
