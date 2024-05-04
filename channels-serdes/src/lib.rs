@@ -102,21 +102,25 @@ macro_rules! forward_deserializer_impl {
 	};
 }
 
-impl<T, U: Serializer<T>> Serializer<T> for &mut U {
+impl<T, U: Serializer<T> + ?Sized> Serializer<T> for &mut U {
 	forward_serializer_impl!(U);
 }
 
-impl<T, U: Deserializer<T>> Deserializer<T> for &mut U {
+impl<T, U: Deserializer<T> + ?Sized> Deserializer<T> for &mut U {
 	forward_deserializer_impl!(U);
 }
 
 #[cfg(feature = "alloc")]
-impl<T, U: Serializer<T>> Serializer<T> for alloc::boxed::Box<U> {
+impl<T, U: Serializer<T> + ?Sized> Serializer<T>
+	for alloc::boxed::Box<U>
+{
 	forward_serializer_impl!(U);
 }
 
 #[cfg(feature = "alloc")]
-impl<T, U: Deserializer<T>> Deserializer<T> for alloc::boxed::Box<U> {
+impl<T, U: Deserializer<T> + ?Sized> Deserializer<T>
+	for alloc::boxed::Box<U>
+{
 	forward_deserializer_impl!(U);
 }
 
