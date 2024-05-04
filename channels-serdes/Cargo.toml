@@ -38,8 +38,8 @@ ciborium = { version = "0.2", optional = true }
 crc = { version = "3.0", optional = true }
 flate2 = { version = "1.0", optional = true }
 ring = { version = "0.17", default-features = false, optional = true }
-serde = { version = "1.0", default_features = false, optional = true }
-serde_json = { version = "1.0", default_features = false, features = ["alloc"], optional = true }
+serde = { version = "1.0", default-features = false, optional = true }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
 
 [lints]
 workspace = true
