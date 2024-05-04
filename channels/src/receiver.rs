@@ -38,7 +38,7 @@ impl<T> Receiver<T, (), ()> {
 	///            .deserializer(deserializer)
 	///            .build();
 	/// ```
-	#[must_use]
+	#[inline]
 	pub fn builder() -> Builder<T, (), ()> {
 		Builder::new()
 	}
@@ -68,6 +68,7 @@ impl<T, R> Receiver<T, R, crate::serdes::Bincode> {
 	/// ```
 	///
 	/// [`Bincode`]: crate::serdes::Bincode
+	#[inline]
 	pub fn new(reader: impl IntoRead<R>) -> Self {
 		Self::with_deserializer(reader, crate::serdes::Bincode::new())
 	}
@@ -104,6 +105,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	///     deserializer
 	/// );
 	/// ```
+	#[inline]
 	pub fn with_deserializer(
 		reader: impl IntoRead<R>,
 		deserializer: D,
@@ -136,6 +138,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// println!("{:#?}", rx.config());
 	///
 	/// ```
+	#[inline]
 	pub fn config(&self) -> &Config {
 		&self.config
 	}
@@ -181,6 +184,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	///     }
 	/// }
 	/// ```
+	#[inline]
 	pub fn incoming(&mut self) -> Incoming<'_, T, R, D> {
 		Incoming { receiver: self }
 	}
@@ -198,6 +202,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// assert_eq!(stats.packets(), 0);
 	/// assert_eq!(stats.ops(), 0);
 	/// ```
+	#[inline]
 	#[cfg(feature = "statistics")]
 	pub fn statistics(&self) -> &Statistics {
 		&self.reader.statistics
@@ -231,6 +236,7 @@ where
 	/// let r: &MyReader = rx.get();
 	/// assert_eq!(r.count, 42);
 	/// ```
+	#[inline]
 	pub fn get(&self) -> &R::Inner {
 		self.reader.inner.get_ref()
 	}
@@ -260,11 +266,13 @@ where
 	/// r.count += 10;
 	/// assert_eq!(r.count, 52);
 	/// ```
+	#[inline]
 	pub fn get_mut(&mut self) -> &mut R::Inner {
 		self.reader.inner.get_mut()
 	}
 
 	/// Destruct the receiver and get back the underlying reader.
+	#[inline]
 	pub fn into_reader(self) -> R::Inner {
 		self.reader.inner.into_inner()
 	}
@@ -395,6 +403,7 @@ where
 
 /// A builder for [`Receiver`].
 #[derive(Clone)]
+#[must_use = "builders don't do anything unless you `.build()` them"]
 pub struct Builder<T, R, D> {
 	_marker: PhantomData<fn() -> T>,
 	reader: R,
@@ -416,7 +425,7 @@ impl<T> Builder<T, (), ()> {
 	///            .deserializer(deserializer)
 	///            .build();
 	/// ```
-	#[must_use]
+	#[inline]
 	pub fn new() -> Self {
 		Builder {
 			_marker: PhantomData,
@@ -428,6 +437,7 @@ impl<T> Builder<T, (), ()> {
 }
 
 impl<T> Default for Builder<T, (), ()> {
+	#[inline]
 	fn default() -> Self {
 		Self::new()
 	}
@@ -453,6 +463,7 @@ impl<T, D> Builder<T, (), D> {
 	/// let builder = channels::Receiver::<i32, _, _>::builder()
 	///                 .reader(tokio::io::empty());
 	/// ```
+	#[inline]
 	pub fn reader<R>(
 		self,
 		reader: impl IntoRead<R>,
@@ -477,6 +488,7 @@ impl<T, R> Builder<T, R, ()> {
 	/// let builder = channels::Receiver::<i32, _, _>::builder()
 	///                 .deserializer(deserializer);
 	/// ```
+	#[inline]
 	pub fn deserializer<D>(
 		self,
 		deserializer: D,
@@ -504,7 +516,7 @@ impl<T, R, D> Builder<T, R, D> {
 	/// let rx = Receiver::<i32, _, _>::builder()
 	///             .config(config);
 	/// ```
-	#[must_use]
+	#[inline]
 	pub fn config(mut self, config: Config) -> Self {
 		self.config = Some(config);
 		self
@@ -520,6 +532,7 @@ impl<T, R, D> Builder<T, R, D> {
 	///            .deserializer(channels::serdes::Bincode::new())
 	///            .build();
 	/// ```
+	#[inline]
 	pub fn build(self) -> Receiver<T, R, D> {
 		Receiver {
 			_marker: PhantomData,
@@ -620,6 +633,7 @@ impl<T, R, D> Builder<T, R, D> {
 /// [`Sender`]: crate::Sender
 /// [`use_header_checksum()`]: crate::sender::Config::use_header_checksum()
 #[derive(Clone)]
+#[must_use = "`Config`s don't do anything on their own"]
 pub struct Config {
 	pub(crate) size_estimate: Option<NonZeroUsize>,
 	pub(crate) max_size: Option<NonZeroUsize>,
@@ -627,6 +641,7 @@ pub struct Config {
 }
 
 impl Default for Config {
+	#[inline]
 	fn default() -> Self {
 		Self {
 			size_estimate: None,
@@ -641,6 +656,7 @@ impl Default for Config {
 
 impl Config {
 	/// Get the size estimate of the [`Receiver`].
+	#[inline]
 	#[must_use]
 	pub fn size_estimate(&self) -> usize {
 		self.size_estimate.map_or(0, NonZeroUsize::get)
@@ -648,6 +664,7 @@ impl Config {
 
 	/// Set the size estimate of the [`Receiver`].
 	#[allow(clippy::missing_panics_doc)]
+	#[inline]
 	pub fn set_size_estimate(
 		&mut self,
 		estimate: usize,
@@ -663,13 +680,14 @@ impl Config {
 	}
 
 	/// Set the size estimate of the [`Receiver`].
-	#[must_use]
+	#[inline]
 	pub fn with_size_estimate(mut self, estimate: usize) -> Self {
 		self.set_size_estimate(estimate);
 		self
 	}
 
 	/// Get the max size of the [`Receiver`].
+	#[inline]
 	#[must_use]
 	pub fn max_size(&self) -> usize {
 		self.max_size.map_or(0, NonZeroUsize::get)
@@ -677,6 +695,7 @@ impl Config {
 
 	/// Set the max size of the [`Receiver`].
 	#[allow(clippy::missing_panics_doc)]
+	#[inline]
 	pub fn set_max_size(&mut self, max_size: usize) -> &mut Self {
 		self.max_size = match max_size {
 			0 => None,
@@ -689,7 +708,7 @@ impl Config {
 	}
 
 	/// Set the max size of the [`Receiver`].
-	#[must_use]
+	#[inline]
 	pub fn with_max_size(mut self, max_size: usize) -> Self {
 		self.set_max_size(max_size);
 		self
@@ -697,12 +716,14 @@ impl Config {
 
 	/// Get whether the [`Receiver`] will verify each packet's header with the
 	/// checksum.
+	#[inline]
 	#[must_use]
 	pub fn verify_header_checksum(&self) -> bool {
 		self.verify_header_checksum
 	}
 
 	/// Whether to verify each packet's header with the checksum.
+	#[inline]
 	pub fn set_verify_header_checksum(
 		&mut self,
 		yes: bool,
@@ -712,7 +733,7 @@ impl Config {
 	}
 
 	/// Whether to verify each packet's header with the checksum.
-	#[must_use]
+	#[inline]
 	pub fn with_verify_header_checksum(mut self, yes: bool) -> Self {
 		self.set_verify_header_checksum(yes);
 		self

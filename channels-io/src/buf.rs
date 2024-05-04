@@ -17,6 +17,7 @@ impl<T> BaseBuf<T> {
 impl<T: AsRef<[u8]>> BaseBuf<T> {
 	/// Get a reference to the entire buffer.
 	#[inline]
+	#[must_use]
 	pub fn inner(&self) -> &[u8] {
 		self.inner.as_ref()
 	}
@@ -64,6 +65,7 @@ impl<T: AsRef<[u8]>> BaseBuf<T> {
 impl<T: AsMut<[u8]>> BaseBuf<T> {
 	/// Get a mutable reference to the entire buffer.
 	#[inline]
+	#[must_use]
 	pub fn inner_mut(&mut self) -> &mut [u8] {
 		self.inner.as_mut()
 	}

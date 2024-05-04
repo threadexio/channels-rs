@@ -126,6 +126,7 @@ pub type Pair<T, R, W, Sd> = (Sender<T, W, Sd>, Receiver<T, R, Sd>);
 ///     let received: i32 = rx.recv().await.unwrap();
 /// }
 /// ```
+#[inline]
 pub fn channel<T, R, W>(
 	r: impl io::IntoRead<R>,
 	w: impl io::IntoWrite<W>,

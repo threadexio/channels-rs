@@ -4,6 +4,8 @@ use core::borrow::Borrow;
 use core::fmt;
 use core::marker::PhantomData;
 
+use alloc::vec::Vec;
+
 use crate::error::SendError;
 use crate::io::{AsyncWrite, Container, IntoWrite, Write};
 use crate::protocol::Pcb;
@@ -36,7 +38,7 @@ impl<T> Sender<T, (), ()> {
 	///            .serializer(serializer)
 	///            .build();
 	/// ```
-	#[must_use]
+	#[inline]
 	pub fn builder() -> Builder<T, (), ()> {
 		Builder::new()
 	}
@@ -66,6 +68,7 @@ impl<T, W> Sender<T, W, crate::serdes::Bincode> {
 	/// ```
 	///
 	/// [`Bincode`]: crate::serdes::Bincode
+	#[inline]
 	pub fn new(writer: impl IntoWrite<W>) -> Self {
 		Self::with_serializer(writer, crate::serdes::Bincode::new())
 	}
@@ -102,6 +105,7 @@ impl<T, W, S> Sender<T, W, S> {
 	///     serializer
 	/// );
 	/// ```
+	#[inline]
 	pub fn with_serializer(
 		writer: impl IntoWrite<W>,
 		serializer: S,
@@ -134,6 +138,7 @@ impl<T, W, S> Sender<T, W, S> {
 	/// println!("{:#?}", rx.config());
 	///
 	/// ```
+	#[inline]
 	pub fn config(&self) -> &Config {
 		&self.config
 	}
@@ -151,6 +156,7 @@ impl<T, W, S> Sender<T, W, S> {
 	/// assert_eq!(stats.packets(), 0);
 	/// assert_eq!(stats.ops(), 0);
 	/// ```
+	#[inline]
 	#[cfg(feature = "statistics")]
 	pub fn statistics(&self) -> &Statistics {
 		&self.writer.statistics
@@ -188,6 +194,7 @@ where
 	/// let w: &MyWriter = tx.get();
 	/// assert_eq!(w.count, 42);
 	/// ```
+	#[inline]
 	pub fn get(&self) -> &W::Inner {
 		self.writer.inner.get_ref()
 	}
@@ -221,11 +228,13 @@ where
 	/// w.count += 10;
 	/// assert_eq!(w.count, 52);
 	/// ```
+	#[inline]
 	pub fn get_mut(&mut self) -> &mut W::Inner {
 		self.writer.inner.get_mut()
 	}
 
 	/// Destruct the sender and get back the underlying writer.
+	#[inline]
 	pub fn into_writer(self) -> W::Inner {
 		self.writer.inner.into_inner()
 	}
@@ -353,6 +362,7 @@ where
 
 /// A builder for [`Sender`].
 #[derive(Clone)]
+#[must_use = "builders don't do anything unless you `.build()` them"]
 pub struct Builder<T, W, S> {
 	_marker: PhantomData<fn() -> T>,
 	writer: W,
@@ -374,7 +384,7 @@ impl<T> Builder<T, (), ()> {
 	///            .serializer(serializer)
 	///            .build();
 	/// ```
-	#[must_use]
+	#[inline]
 	pub fn new() -> Self {
 		Builder {
 			_marker: PhantomData,
@@ -386,6 +396,7 @@ impl<T> Builder<T, (), ()> {
 }
 
 impl<T> Default for Builder<T, (), ()> {
+	#[inline]
 	fn default() -> Self {
 		Self::new()
 	}
@@ -411,6 +422,7 @@ impl<T, S> Builder<T, (), S> {
 	/// let builder = channels::Sender::<i32, _, _>::builder()
 	///                 .writer(tokio::io::sink());
 	/// ```
+	#[inline]
 	pub fn writer<W>(
 		self,
 		writer: impl IntoWrite<W>,
@@ -435,6 +447,7 @@ impl<T, W> Builder<T, W, ()> {
 	/// let builder = channels::Sender::<i32, _, _>::builder()
 	///                 .serializer(serializer);
 	/// ```
+	#[inline]
 	pub fn serializer<S>(self, serializer: S) -> Builder<T, W, S> {
 		Builder {
 			_marker: PhantomData,
@@ -459,7 +472,7 @@ impl<T, W, S> Builder<T, W, S> {
 	/// let tx = Sender::<i32, _, _>::builder()
 	///             .config(config);
 	/// ```
-	#[must_use]
+	#[inline]
 	pub fn config(mut self, config: Config) -> Self {
 		self.config = Some(config);
 		self
@@ -475,6 +488,7 @@ impl<T, W, S> Builder<T, W, S> {
 	///            .serializer(channels::serdes::Bincode::new())
 	///            .build();
 	/// ```
+	#[inline]
 	pub fn build(self) -> Sender<T, W, S> {
 		Sender {
 			_marker: PhantomData,
@@ -549,6 +563,7 @@ impl<T, W, S> Builder<T, W, S> {
 ///
 /// [`write()`]: Write::write()
 #[derive(Clone)]
+#[must_use = "`Config`s don't do anything on their own"]
 pub struct Config {
 	flags: u8,
 }
@@ -574,6 +589,7 @@ impl Config {
 }
 
 impl Default for Config {
+	#[inline]
 	fn default() -> Self {
 		Self {
 			flags: Self::FLUSH_ON_SEND
@@ -585,31 +601,35 @@ impl Default for Config {
 
 impl Config {
 	/// Get whether the [`Sender`] will flush the writer after every send.
+	#[inline]
 	#[must_use]
 	pub fn flush_on_send(&self) -> bool {
 		self.get_flag(Self::FLUSH_ON_SEND)
 	}
 
 	/// Whether the [`Sender`] will flush the writer after every send.
+	#[inline]
 	pub fn set_flush_on_send(&mut self, yes: bool) -> &mut Self {
 		self.set_flag(Self::FLUSH_ON_SEND, yes);
 		self
 	}
 
 	/// Whether the [`Sender`] will flush the writer after every send.
-	#[must_use]
+	#[inline]
 	pub fn with_flush_on_send(mut self, yes: bool) -> Self {
 		self.set_flush_on_send(yes);
 		self
 	}
 
 	/// Get whether the [`Sender`] will calculate the checksum for sent packets.
+	#[inline]
 	#[must_use]
 	pub fn use_header_checksum(&self) -> bool {
 		self.get_flag(Self::USE_HEADER_CHECKSUM)
 	}
 
 	/// Whether the [`Sender`] will calculate the checksum for sent packets.
+	#[inline]
 	pub fn set_use_header_checksum(
 		&mut self,
 		yes: bool,
@@ -619,26 +639,28 @@ impl Config {
 	}
 
 	/// Whether the [`Sender`] will calculate the checksum for sent packets.
-	#[must_use]
+	#[inline]
 	pub fn with_use_header_checksum(mut self, yes: bool) -> Self {
 		self.set_use_header_checksum(yes);
 		self
 	}
 
 	/// Get whether the [`Sender`] will coalesce all writes into a single buffer.
+	#[inline]
 	#[must_use]
 	pub fn coalesce_writes(&self) -> bool {
 		self.get_flag(Self::COALESCE_WRITES)
 	}
 
 	/// Whether the [`Sender`] will coalesce all writes into a single buffer.
+	#[inline]
 	pub fn set_coalesce_writes(&mut self, yes: bool) -> &mut Self {
 		self.set_flag(Self::COALESCE_WRITES, yes);
 		self
 	}
 
 	/// Whether the [`Sender`] will coalesce all writes into a single buffer.
-	#[must_use]
+	#[inline]
 	pub fn with_coalesce_writes(mut self, yes: bool) -> Self {
 		self.set_coalesce_writes(yes);
 		self
