@@ -275,7 +275,14 @@ where
 	where
 		D: Borrow<T>,
 	{
-		let payload = self.serialize_t(data.borrow())?;
+		self._send(data.borrow()).await
+	}
+
+	async fn _send(
+		&mut self,
+		data: &T,
+	) -> Result<(), SendError<S::Error, W::Error>> {
+		let payload = self.serialize_t(data)?;
 
 		crate::protocol::send_async(
 			&self.config,
@@ -324,7 +331,14 @@ where
 	where
 		D: Borrow<T>,
 	{
-		let payload = self.serialize_t(data.borrow())?;
+		self._send_blocking(data.borrow())
+	}
+
+	fn _send_blocking(
+		&mut self,
+		data: &T,
+	) -> Result<(), SendError<S::Error, W::Error>> {
+		let payload = self.serialize_t(data)?;
 
 		crate::protocol::send_sync(
 			&self.config,
