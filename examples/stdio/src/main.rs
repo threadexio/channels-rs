@@ -154,9 +154,14 @@ impl Receiver {
 	}
 
 	fn _main(&mut self) {
-		let mut rx = channels::Receiver::<Vec<u8>, _, _>::new(
-			&mut self.reader,
-		);
+		let mut rx = channels::Receiver::<Vec<u8>, _, _>::builder()
+			.reader(&mut self.reader)
+			.deserializer(channels::serdes::Bincode::new())
+			.config(
+				channels::receiver::Config::default()
+					.with_max_size(usize::MAX),
+			)
+			.build();
 
 		loop {
 			let _ = rx.recv_blocking().unwrap();
