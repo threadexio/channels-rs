@@ -1,4 +1,5 @@
 use channels_packet::header::{Header, WithChecksum};
+use channels_packet::id::IdSequence;
 use channels_packet::{Flags, PacketLength, PayloadLength};
 
 use crate::error::SendError;
@@ -29,9 +30,9 @@ impl<Ser, Io> From<SendPayloadError<Io>> for SendError<Ser, Io> {
 }
 
 #[derive(Clone, Default)]
-pub struct State {}
-
-pub type SendPcb = super::Pcb<State>;
+pub struct SendPcb {
+	pub seq: IdSequence,
+}
 
 struct SendPayload<'a, 'p, W> {
 	config: &'a Config,

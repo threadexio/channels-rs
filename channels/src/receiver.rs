@@ -8,7 +8,7 @@ use channels_packet::PacketLength;
 
 use crate::error::RecvError;
 use crate::io::{AsyncRead, Container, IntoRead, Read};
-use crate::protocol::RecvPcb;
+use crate::protocol::Deframer;
 use crate::serdes::Deserializer;
 use crate::util::StatIO;
 
@@ -20,8 +20,7 @@ pub struct Receiver<T, R, D> {
 	_marker: PhantomData<fn() -> T>,
 	reader: StatIO<R>,
 	deserializer: D,
-	pcb: RecvPcb,
-	config: Config,
+	deframer: Deframer,
 }
 
 impl<T> Receiver<T, (), ()> {
@@ -140,7 +139,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		&self.config
+		self.deframer.config()
 	}
 
 	/// Get an iterator over incoming messages.
@@ -318,9 +317,8 @@ where
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
 		let mut payload = crate::protocol::recv_async(
-			&self.config,
-			&mut self.pcb,
 			&mut self.reader,
+			&mut self.deframer,
 		)
 		.await?;
 
@@ -357,9 +355,8 @@ where
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
 		let mut payload = crate::protocol::recv_sync(
-			&self.config,
-			&mut self.pcb,
 			&mut self.reader,
+			&mut self.deframer,
 		)?;
 
 		self.deserialize_t(&mut payload)
@@ -534,12 +531,16 @@ impl<T, R, D> Builder<T, R, D> {
 	/// ```
 	#[inline]
 	pub fn build(self) -> Receiver<T, R, D> {
+		let reader = StatIO::new(self.reader);
+		let deserializer = self.deserializer;
+		let config = self.config.unwrap_or_default();
+		let deframer = Deframer::new(config);
+
 		Receiver {
 			_marker: PhantomData,
-			reader: StatIO::new(self.reader),
-			deserializer: self.deserializer,
-			pcb: RecvPcb::default(),
-			config: self.config.unwrap_or_default(),
+			deserializer,
+			reader,
+			deframer,
 		}
 	}
 }
@@ -776,7 +777,7 @@ where
 		f.debug_struct("Receiver")
 			.field("reader", &self.reader)
 			.field("deserializer", &self.deserializer)
-			.field("config", &self.config)
+			.field("config", self.config())
 			.finish_non_exhaustive()
 	}
 }

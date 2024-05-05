@@ -2,6 +2,8 @@ use core::fmt;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
+use alloc::vec::Vec;
+
 use crate::io::{
 	AsyncRead, AsyncWrite, Read, ReadBuf, Write, WriteBuf,
 };
@@ -169,4 +171,15 @@ impl<R: AsyncRead + Unpin> AsyncRead for StatIO<R> {
 		self.on_read(dl as u64);
 		Poll::Ready(Ok(()))
 	}
+}
+
+/// Grow `vec` by `n` bytes and return the newly allocated bytes as a mutable
+/// slice.
+#[inline]
+pub fn grow_vec_by_n(vec: &mut Vec<u8>, n: usize) -> &mut [u8] {
+	let old_len = vec.len();
+	let new_len = usize::saturating_add(old_len, n);
+
+	vec.resize(new_len, 0);
+	&mut vec[old_len..new_len]
 }

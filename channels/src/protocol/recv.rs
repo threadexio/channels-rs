@@ -1,14 +1,10 @@
 use alloc::vec::Vec;
 
-use channels_packet::header::{
-	Header, VerifyError, VerifyId, WithChecksum,
-};
-use channels_packet::{Flags, PacketLength};
-
 use crate::error::RecvError;
 use crate::io::{AsyncRead, Read};
-use crate::receiver::Config;
 use crate::util::StatIO;
+
+use super::deframer::{DeframeError, DeframeStatus, Deframer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecvPayloadError<Io> {
@@ -21,22 +17,18 @@ pub enum RecvPayloadError<Io> {
 	ZeroSizeFragment,
 }
 
-impl<Io> From<Io> for RecvPayloadError<Io> {
-	fn from(value: Io) -> Self {
-		Self::Io(value)
-	}
-}
-
-impl<Io> RecvPayloadError<Io> {
-	pub fn from_verify_error(value: VerifyError) -> Self {
+impl<Io> From<DeframeError> for RecvPayloadError<Io> {
+	fn from(value: DeframeError) -> Self {
+		use DeframeError as A;
 		use RecvPayloadError as B;
-		use VerifyError as A;
 
 		match value {
-			A::InvalidChecksum => B::ChecksumError,
-			A::InvalidLength => B::InvalidHeader,
+			A::ChecksumError => B::ChecksumError,
+			A::ExceededMaximumSize => B::ExceededMaximumSize,
+			A::InvalidHeader => B::InvalidHeader,
 			A::OutOfOrder => B::OutOfOrder,
 			A::VersionMismatch => B::VersionMismatch,
+			A::ZeroSizeFragment => B::ZeroSizeFragment,
 		}
 	}
 }
@@ -56,17 +48,6 @@ impl<Des, Io> From<RecvPayloadError<Io>> for RecvError<Des, Io> {
 			A::ZeroSizeFragment => B::ZeroSizeFragment,
 		}
 	}
-}
-
-#[derive(Clone, Default)]
-pub struct State {}
-
-pub type RecvPcb = super::Pcb<State>;
-
-struct Recv<'a, R> {
-	config: &'a Config,
-	pcb: &'a mut RecvPcb,
-	reader: &'a mut StatIO<R>,
 }
 
 channels_macros::replace! {
@@ -91,76 +72,33 @@ channels_macros::replace! {
 	code: {
 
 pub async fn recv<R>(
-	config: &Config,
-	pcb: &mut RecvPcb,
 	reader: &mut StatIO<R>,
+	deframer: &mut Deframer,
 ) -> Result<Vec<u8>, RecvPayloadError<R::Error>>
 where
 	R: Read,
 {
-	Recv {
-		config,
-		pcb,
-		reader,
-	}.run() await
-}
+	use DeframeStatus::{NotReady, Ready};
 
-impl<'a, R> Recv<'a, R>
-where
-	R: Read,
-{
-	pub async fn run(
-		self,
-	) -> Result<Vec<u8>, RecvPayloadError<R::Error>> {
-		let mut full_payload = match (self.config.size_estimate, self.config.max_size) {
-			(Some(estimate), Some(max_size)) if max_size < estimate => Vec::with_capacity(max_size.get()),
-			(Some(estimate), _) => Vec::with_capacity(estimate.get()),
-			(None, _) => Vec::new()
-		};
+	#[cfg(not(feature = "statistics"))]
+	reader.statistics.inc_ops();
 
-		loop {
-			let mut header = [0u8; Header::SIZE];
-			self.reader.read(&mut header[..]) await?;
-
-			let with_checksum =
-				if self.config.verify_header_checksum {
-					WithChecksum::Yes
-				} else {
-					WithChecksum::No
-				};
-
-			let header =
-				Header::try_from_bytes(header, with_checksum, VerifyId::Yes(&mut self.pcb.seq))
-					.map_err(RecvPayloadError::from_verify_error)?;
-
-			if header.length == PacketLength::MIN
-				&& header.flags.contains(Flags::MORE_DATA)
-			{
-				return Err(RecvPayloadError::ZeroSizeFragment);
-			}
-
-			let payload_start = full_payload.len();
-			let payload_length =
-				header.length.to_payload_length().as_usize();
-			let payload_buf_new_len = payload_start + payload_length;
-
-			if let Some(max_size) = self.config.max_size {
-				if payload_buf_new_len > max_size.get() {
-					return Err(RecvPayloadError::ExceededMaximumSize);
-				}
-			}
-
-			full_payload.reserve_exact(payload_length);
-			full_payload.resize(payload_buf_new_len, 0);
-
-			self.reader.read(&mut full_payload[payload_start..]) await?;
-
-			if !header.flags.contains(Flags::MORE_DATA) {
-				break;
+	loop {
+		match deframer.deframe({
+			#[cfg(feature = "statistics")]
+			let statistics = &mut reader.statistics;
+			#[cfg(not(feature = "statistics"))]
+			let statistics = &mut Statistics::new();
+			statistics
+		}) {
+			Ready(Ok(payload)) => break Ok(payload),
+			Ready(Err(e)) =>  break Err(e.into()),
+			NotReady(r) => {
+				reader.read(r.buf) await
+					.map_err(RecvPayloadError::Io)?;
+				continue;
 			}
 		}
-
-		Ok(full_payload)
 	}
 }
 
