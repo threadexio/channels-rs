@@ -10,6 +10,7 @@ members = [
 	"benches",
 	"examples",
 	"examples/chat-app",
+	"examples/stdio",
 	"stress-tests",
 	"tests-integration",
 	"tools/dissect"
