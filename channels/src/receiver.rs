@@ -8,7 +8,7 @@ use channels_packet::PacketLength;
 
 use crate::error::RecvError;
 use crate::io::{AsyncRead, Container, IntoRead, Read};
-use crate::protocol::Pcb;
+use crate::protocol::RecvPcb;
 use crate::serdes::Deserializer;
 use crate::util::StatIO;
 
@@ -20,7 +20,7 @@ pub struct Receiver<T, R, D> {
 	_marker: PhantomData<fn() -> T>,
 	reader: StatIO<R>,
 	deserializer: D,
-	pcb: Pcb,
+	pcb: RecvPcb,
 	config: Config,
 }
 
@@ -538,7 +538,7 @@ impl<T, R, D> Builder<T, R, D> {
 			_marker: PhantomData,
 			reader: StatIO::new(self.reader),
 			deserializer: self.deserializer,
-			pcb: Pcb::new(),
+			pcb: RecvPcb::default(),
 			config: self.config.unwrap_or_default(),
 		}
 	}

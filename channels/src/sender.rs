@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 
 use crate::error::SendError;
 use crate::io::{AsyncWrite, Container, IntoWrite, Write};
-use crate::protocol::Pcb;
+use crate::protocol::SendPcb;
 use crate::serdes::Serializer;
 use crate::util::StatIO;
 
@@ -20,7 +20,7 @@ pub struct Sender<T, W, S> {
 	_marker: PhantomData<fn() -> T>,
 	writer: StatIO<W>,
 	serializer: S,
-	pcb: Pcb,
+	pcb: SendPcb,
 	config: Config,
 }
 
@@ -494,7 +494,7 @@ impl<T, W, S> Builder<T, W, S> {
 			_marker: PhantomData,
 			writer: StatIO::new(self.writer),
 			serializer: self.serializer,
-			pcb: Pcb::new(),
+			pcb: SendPcb::default(),
 			config: self.config.unwrap_or_default(),
 		}
 	}

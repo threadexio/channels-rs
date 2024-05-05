@@ -6,8 +6,6 @@ use crate::io::{AsyncWrite, Write};
 use crate::sender::Config;
 use crate::util::StatIO;
 
-use super::Pcb;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SendPayloadError<Io> {
 	Io(Io),
@@ -30,11 +28,16 @@ impl<Ser, Io> From<SendPayloadError<Io>> for SendError<Ser, Io> {
 	}
 }
 
+#[derive(Clone, Default)]
+pub struct State {}
+
+pub type SendPcb = super::Pcb<State>;
+
 struct SendPayload<'a, 'p, W> {
 	config: &'a Config,
 	has_sent_one_packet: bool,
 	payload: &'p [u8],
-	pcb: &'a mut Pcb,
+	pcb: &'a mut SendPcb,
 	writer: &'a mut StatIO<W>,
 }
 
@@ -101,7 +104,7 @@ channels_macros::replace! {
 
 pub async fn send<W>(
 	config: &Config,
-	pcb: &mut Pcb,
+	pcb: &mut SendPcb,
 	writer: &mut StatIO<W>,
 	payload: &[u8],
 ) -> Result<(), SendPayloadError<W::Error>>

@@ -10,8 +10,6 @@ use crate::io::{AsyncRead, Read};
 use crate::receiver::Config;
 use crate::util::StatIO;
 
-use super::Pcb;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecvPayloadError<Io> {
 	ChecksumError,
@@ -60,9 +58,14 @@ impl<Des, Io> From<RecvPayloadError<Io>> for RecvError<Des, Io> {
 	}
 }
 
+#[derive(Clone, Default)]
+pub struct State {}
+
+pub type RecvPcb = super::Pcb<State>;
+
 struct Recv<'a, R> {
 	config: &'a Config,
-	pcb: &'a mut Pcb,
+	pcb: &'a mut RecvPcb,
 	reader: &'a mut StatIO<R>,
 }
 
@@ -89,7 +92,7 @@ channels_macros::replace! {
 
 pub async fn recv<R>(
 	config: &Config,
-	pcb: &mut Pcb,
+	pcb: &mut RecvPcb,
 	reader: &mut StatIO<R>,
 ) -> Result<Vec<u8>, RecvPayloadError<R::Error>>
 where
