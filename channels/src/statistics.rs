@@ -31,7 +31,6 @@ mod real {
 
 		#[inline]
 		pub(crate) fn inc_packets(&mut self) {
-			eprintln!("incrementing packet counter");
 			self.packets += 1;
 		}
 
