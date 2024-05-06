@@ -5,7 +5,7 @@ use channels_packet::{Flags, PacketLength, PayloadLength};
 use crate::error::SendError;
 use crate::io::{AsyncWrite, Write};
 use crate::sender::Config;
-use crate::util::StatIO;
+use crate::statistics::StatIO;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SendPayloadError<Io> {
@@ -155,11 +155,9 @@ where
 				}
 			}
 
-			#[cfg(feature = "statistics")]
 			self.writer.statistics.inc_packets();
 		}
 
-		#[cfg(feature = "statistics")]
 		self.writer.statistics.inc_ops();
 
 		if self.config.flush_on_send() {

@@ -10,10 +10,9 @@ use crate::error::SendError;
 use crate::io::{AsyncWrite, Container, IntoWrite, Write};
 use crate::protocol::SendPcb;
 use crate::serdes::Serializer;
-use crate::util::StatIO;
 
 #[allow(unused_imports)]
-use crate::util::Statistics;
+use crate::statistics::{StatIO, Statistics};
 
 /// The sending-half of the channel.
 pub struct Sender<T, W, S> {

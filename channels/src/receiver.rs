@@ -10,10 +10,9 @@ use crate::error::RecvError;
 use crate::io::{AsyncRead, Container, IntoRead, Read};
 use crate::protocol::Deframer;
 use crate::serdes::Deserializer;
-use crate::util::StatIO;
 
 #[allow(unused_imports)]
-use crate::util::Statistics;
+use crate::statistics::{StatIO, Statistics};
 
 /// The receiving-half of the channel.
 pub struct Receiver<T, R, D> {

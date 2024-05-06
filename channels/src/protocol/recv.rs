@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::error::RecvError;
 use crate::io::{AsyncRead, Read};
-use crate::util::StatIO;
+use crate::statistics::StatIO;
 
 use super::deframer::{DeframeError, DeframeStatus, Deframer};
 
@@ -80,17 +80,10 @@ where
 {
 	use DeframeStatus::{NotReady, Ready};
 
-	#[cfg(not(feature = "statistics"))]
 	reader.statistics.inc_ops();
 
 	loop {
-		match deframer.deframe({
-			#[cfg(feature = "statistics")]
-			let statistics = &mut reader.statistics;
-			#[cfg(not(feature = "statistics"))]
-			let statistics = &mut Statistics::new();
-			statistics
-		}) {
+		match deframer.deframe(&mut reader.statistics) {
 			Ready(Ok(payload)) => break Ok(payload),
 			Ready(Err(e)) =>  break Err(e.into()),
 			NotReady(r) => {

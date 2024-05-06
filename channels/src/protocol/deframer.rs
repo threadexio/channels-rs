@@ -7,7 +7,8 @@ use channels_packet::id::IdSequence;
 use channels_packet::Flags;
 
 use crate::receiver::Config;
-use crate::util::{grow_vec_by_n, Statistics};
+use crate::statistics::Statistics;
+use crate::util::grow_vec_by_n;
 
 #[derive(Clone, Default)]
 struct RecvPcb {

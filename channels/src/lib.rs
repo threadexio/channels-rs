@@ -74,6 +74,7 @@
 extern crate alloc;
 
 mod protocol;
+mod statistics;
 mod util;
 
 pub mod error;
@@ -82,7 +83,7 @@ pub mod receiver;
 pub mod sender;
 
 #[cfg(feature = "statistics")]
-pub use self::util::Statistics;
+pub use self::statistics::Statistics;
 
 pub use self::receiver::Receiver;
 pub use self::sender::Sender;
