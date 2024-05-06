@@ -34,6 +34,7 @@ channels = { path = "./channels", features = ["full"] }
 missing_docs = "deny"
 arithmetic_overflow = "warn"
 missing_debug_implementations = "warn"
+unexpected_cfgs = "allow"
 
 [workspace.lints.clippy]
 all = "warn"
