@@ -10,20 +10,14 @@ use crate::io::{
 mod real {
 	use core::fmt;
 
-	/// IO statistic information.
-	#[derive(Clone, PartialEq, Eq, Hash)]
-	pub struct Statistics {
+	#[derive(Clone, Default, PartialEq, Eq, Hash)]
+	pub(super) struct StatisticsImpl {
 		total_bytes: u64,
 		packets: u64,
 		ops: u64,
 	}
 
-	#[allow(dead_code)]
-	impl Statistics {
-		pub(crate) const fn new() -> Self {
-			Self { total_bytes: 0, packets: 0, ops: 0 }
-		}
-
+	impl StatisticsImpl {
 		#[inline]
 		pub(crate) fn add_total_bytes(&mut self, n: u64) {
 			self.total_bytes += n;
@@ -38,33 +32,24 @@ mod real {
 		pub(crate) fn inc_ops(&mut self) {
 			self.ops += 1;
 		}
-	}
 
-	#[allow(dead_code)]
-	impl Statistics {
-		/// Returns the number of bytes transferred through this reader/writer.
 		#[inline]
-		#[must_use]
 		pub fn total_bytes(&self) -> u64 {
 			self.total_bytes
 		}
 
-		/// Returns the number of packets transferred through this reader/writer.
 		#[inline]
-		#[must_use]
 		pub fn packets(&self) -> u64 {
 			self.packets
 		}
 
-		/// Returns the total number of `send`/`recv` operations.
 		#[inline]
-		#[must_use]
 		pub fn ops(&self) -> u64 {
 			self.ops
 		}
 	}
 
-	impl fmt::Debug for Statistics {
+	impl fmt::Debug for StatisticsImpl {
 		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 			f.debug_struct("Statistics")
 				.field("total_bytes", &self.total_bytes)
@@ -77,25 +62,91 @@ mod real {
 
 #[cfg(not(feature = "statistics"))]
 mod mock {
-	#[derive(Clone, PartialEq, Eq, Hash)]
-	pub(crate) struct Statistics;
+	#[derive(Clone, Default, PartialEq, Eq, Hash)]
+	pub(super) struct StatisticsImpl;
 
-	impl Statistics {
-		pub(crate) const fn new() -> Self {
-			Self
-		}
-
+	impl StatisticsImpl {
 		pub(crate) fn add_total_bytes(&mut self, _: u64) {}
 		pub(crate) fn inc_packets(&mut self) {}
 		pub(crate) fn inc_ops(&mut self) {}
+
+		pub(crate) fn total_bytes(&self) -> u64 {
+			0
+		}
+
+		pub(crate) fn packets(&self) -> u64 {
+			0
+		}
+
+		pub(crate) fn ops(&self) -> u64 {
+			0
+		}
 	}
 }
 
 #[cfg(feature = "statistics")]
-pub use self::real::Statistics;
+use self::real::StatisticsImpl;
 
 #[cfg(not(feature = "statistics"))]
-pub use self::mock::Statistics;
+use self::mock::StatisticsImpl;
+
+/// IO statistic information.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Statistics {
+	inner: StatisticsImpl,
+}
+
+impl Statistics {
+	pub(crate) fn new() -> Self {
+		Self { inner: StatisticsImpl::default() }
+	}
+
+	#[inline]
+	pub(crate) fn add_total_bytes(&mut self, n: u64) {
+		self.inner.add_total_bytes(n);
+	}
+
+	#[inline]
+	pub(crate) fn inc_packets(&mut self) {
+		self.inner.inc_packets();
+	}
+
+	#[inline]
+	pub(crate) fn inc_ops(&mut self) {
+		self.inner.inc_ops();
+	}
+
+	/// Returns the number of bytes transferred through this reader/writer.
+	#[inline]
+	#[must_use]
+	pub fn total_bytes(&self) -> u64 {
+		self.inner.total_bytes()
+	}
+
+	/// Returns the number of packets transferred through this reader/writer.
+	#[inline]
+	#[must_use]
+	pub fn packets(&self) -> u64 {
+		self.inner.packets()
+	}
+
+	/// Returns the total number of `send`/`recv` operations.
+	#[inline]
+	#[must_use]
+	pub fn ops(&self) -> u64 {
+		self.inner.ops()
+	}
+}
+
+impl fmt::Debug for Statistics {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Statistics")
+			.field("total_bytes", &self.total_bytes())
+			.field("packets", &self.packets())
+			.field("ops", &self.ops())
+			.finish()
+	}
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct StatIO<R> {
@@ -115,7 +166,6 @@ impl<R: fmt::Debug> fmt::Debug for StatIO<R> {
 	}
 }
 
-#[allow(unused_variables, clippy::unused_self)]
 impl<R> StatIO<R> {
 	#[inline]
 	pub fn new(reader: R) -> Self {
@@ -186,7 +236,7 @@ impl<R: Read> Read for StatIO<R> {
 	}
 }
 
-impl<R: AsyncRead + Unpin> AsyncRead for StatIO<R> {
+impl<R: AsyncRead> AsyncRead for StatIO<R> {
 	type Error = R::Error;
 
 	fn poll_read(

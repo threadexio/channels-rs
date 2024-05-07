@@ -2,7 +2,7 @@ use std::fmt;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use channels::Statistics;
+use channels::StatisticsImpl;
 
 pub mod units;
 
@@ -73,7 +73,7 @@ where
 
 pub struct TestResults<'a> {
 	pub duration: Duration,
-	pub stats: &'a Statistics,
+	pub stats: &'a StatisticsImpl,
 }
 
 impl fmt::Display for TestResults<'_> {
