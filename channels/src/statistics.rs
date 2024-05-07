@@ -78,7 +78,7 @@ mod real {
 #[cfg(not(feature = "statistics"))]
 mod mock {
 	#[derive(Clone, PartialEq, Eq, Hash)]
-	pub struct Statistics;
+	pub(crate) struct Statistics;
 
 	impl Statistics {
 		pub(crate) const fn new() -> Self {
