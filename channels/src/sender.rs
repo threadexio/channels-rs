@@ -259,6 +259,12 @@ where
 {
 	/// Attempts to send `data` through the channel.
 	///
+	/// # Cancel Safety
+	///
+	/// This method is not cancel safe. Dropping this future will lead to undefined
+	/// behavior. If the method is used in some `select!`-like macro and some other
+	/// branch completes first, then some data may have been sent over the channel.
+	///
 	/// # Example
 	///
 	/// ```no_run
@@ -311,12 +317,11 @@ where
 {
 	/// Attempts to send `data` through the channel.
 	///
-	/// Whether this function blocks execution is dependent on the underlying
-	/// writer.
+	/// # Non-blocking IO
 	///
-	/// **NOTE:** Non-blocking writers (those who return `WouldBlock`) are _not_
-	/// supported and will _not_ work. If you want non-blocking operation prefer
-	/// the asynchronous version of this function, [`Sender::send()`].
+	/// Non-blocking writers (those who return `WouldBlock`) are _not_ supported
+	/// and will _not_ work. If you want non-blocking operation prefer the asynchronous
+	/// version of this function, [`send()`].
 	///
 	/// # Example
 	///
@@ -332,6 +337,8 @@ where
 	/// // or by taking ownership
 	/// tx.send_blocking(data).unwrap();
 	/// ```
+	///
+	/// [`send()`]: fn@Sender::send
 	pub fn send_blocking<D>(
 		&mut self,
 		data: D,

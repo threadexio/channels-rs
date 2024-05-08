@@ -298,6 +298,13 @@ where
 {
 	/// Attempts to receive a type `T` from the channel.
 	///
+	/// # Cancel Safety
+	///
+	/// This method is cancel safe. This means that dropping this future will not
+	/// drop any values. If the method is used as the event in some `select!`-like
+	/// macro and some other branch completes first, then it is guaranteed that
+	/// no values were received.
+	///
 	/// # Example
 	///
 	/// ```no_run
@@ -332,12 +339,11 @@ where
 {
 	/// Attempts to receive a type `T` from the channel.
 	///
-	/// Whether this function blocks execution is dependent on the underlying
-	/// reader.
+	/// # Non-blocking IO
 	///
-	/// **NOTE:** Non-blocking readers (those who return `WouldBlock`) are _not_
-	/// supported and will _not_ work. If you want non-blocking operation prefer
-	/// the asynchronous version of this function, [`Receiver::recv()`].
+	/// Non-blocking readers (those who return `WouldBlock`) are _not_ supported
+	/// and will _not_ work. If you want non-blocking operation prefer the asynchronous
+	/// version of this function, [`recv()`].
 	///
 	/// # Example
 	///
@@ -350,6 +356,8 @@ where
 	/// let received: i32 = rx.recv_blocking().unwrap();
 	/// println!("{received}");
 	/// ```
+	///
+	/// [`recv()`]: fn@Receiver::recv
 	pub fn recv_blocking(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
@@ -390,6 +398,13 @@ where
 	/// Return the next message.
 	///
 	/// This method is the async equivalent of [`Iterator::next()`].
+	///
+	/// # Cancel Safety
+	///
+	/// This method is cancel safe. This means that dropping this future will not
+	/// drop any values. If the method is used as the event in some `select!`-like
+	/// macro and some other branch completes first, then it is guaranteed that
+	/// no values were received.
 	pub async fn next_async(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
