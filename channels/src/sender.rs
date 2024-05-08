@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 
 use crate::error::SendError;
 use crate::io::{AsyncWrite, Container, IntoWrite, Write};
-use crate::protocol::SendPcb;
+use crate::protocol::{SendPcb, SenderCore};
 use crate::serdes::Serializer;
 
 #[allow(unused_imports)]
@@ -17,10 +17,8 @@ use crate::statistics::{StatIO, Statistics};
 /// The sending-half of the channel.
 pub struct Sender<T, W, S> {
 	_marker: PhantomData<fn() -> T>,
-	writer: StatIO<W>,
 	serializer: S,
-	pcb: SendPcb,
-	config: Config,
+	core: SenderCore<W>,
 }
 
 impl<T> Sender<T, (), ()> {
@@ -139,7 +137,7 @@ impl<T, W, S> Sender<T, W, S> {
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		&self.config
+		&self.core.config
 	}
 
 	/// Get statistics on this sender.
@@ -158,7 +156,7 @@ impl<T, W, S> Sender<T, W, S> {
 	#[inline]
 	#[cfg(feature = "statistics")]
 	pub fn statistics(&self) -> &Statistics {
-		&self.writer.statistics
+		&self.core.writer.statistics
 	}
 }
 
@@ -195,7 +193,7 @@ where
 	/// ```
 	#[inline]
 	pub fn get(&self) -> &W::Inner {
-		self.writer.inner.get_ref()
+		self.core.writer.inner.get_ref()
 	}
 
 	/// Get a mutable reference to the underlying writer. Directly writing to
@@ -229,13 +227,13 @@ where
 	/// ```
 	#[inline]
 	pub fn get_mut(&mut self) -> &mut W::Inner {
-		self.writer.inner.get_mut()
+		self.core.writer.inner.get_mut()
 	}
 
 	/// Destruct the sender and get back the underlying writer.
 	#[inline]
 	pub fn into_writer(self) -> W::Inner {
-		self.writer.inner.into_inner()
+		self.core.writer.inner.into_inner()
 	}
 }
 
@@ -297,15 +295,7 @@ where
 		data: &T,
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
-
-		crate::protocol::send_async(
-			&self.config,
-			&mut self.pcb,
-			&mut self.writer,
-			&payload,
-		)
-		.await?;
-
+		self.core.send_async(&payload).await?;
 		Ok(())
 	}
 }
@@ -354,14 +344,7 @@ where
 		data: &T,
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
-
-		crate::protocol::send_sync(
-			&self.config,
-			&mut self.pcb,
-			&mut self.writer,
-			&payload,
-		)?;
-
+		self.core.send_sync(&payload)?;
 		Ok(())
 	}
 }
@@ -496,12 +479,15 @@ impl<T, W, S> Builder<T, W, S> {
 	/// ```
 	#[inline]
 	pub fn build(self) -> Sender<T, W, S> {
+		let config = self.config.unwrap_or_default();
+		let pcb = SendPcb::default();
+		let serializer = self.serializer;
+		let writer = StatIO::new(self.writer);
+
 		Sender {
 			_marker: PhantomData,
-			writer: StatIO::new(self.writer),
-			serializer: self.serializer,
-			pcb: SendPcb::default(),
-			config: self.config.unwrap_or_default(),
+			serializer,
+			core: SenderCore { writer, config, pcb },
 		}
 	}
 }
@@ -704,9 +690,9 @@ where
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Sender")
-			.field("writer", &self.writer)
+			.field("writer", &self.core.writer)
 			.field("serializer", &self.serializer)
-			.field("config", &self.config)
+			.field("config", &self.config())
 			.finish_non_exhaustive()
 	}
 }

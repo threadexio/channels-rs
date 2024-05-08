@@ -6,8 +6,13 @@ use crate::statistics::StatIO;
 
 use super::deframer::{DeframeError, DeframeStatus, Deframer};
 
+pub(crate) struct ReceiverCore<R> {
+	pub(crate) reader: StatIO<R>,
+	pub(crate) deframer: Deframer,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RecvPayloadError<Io> {
+pub enum CoreRecvError<Io> {
 	ChecksumError,
 	ExceededMaximumSize,
 	InvalidHeader,
@@ -17,10 +22,10 @@ pub enum RecvPayloadError<Io> {
 	ZeroSizeFragment,
 }
 
-impl<Io> From<DeframeError> for RecvPayloadError<Io> {
+impl<Io> From<DeframeError> for CoreRecvError<Io> {
 	fn from(value: DeframeError) -> Self {
+		use CoreRecvError as B;
 		use DeframeError as A;
-		use RecvPayloadError as B;
 
 		match value {
 			A::ChecksumError => B::ChecksumError,
@@ -33,10 +38,10 @@ impl<Io> From<DeframeError> for RecvPayloadError<Io> {
 	}
 }
 
-impl<Des, Io> From<RecvPayloadError<Io>> for RecvError<Des, Io> {
-	fn from(value: RecvPayloadError<Io>) -> Self {
+impl<Des, Io> From<CoreRecvError<Io>> for RecvError<Des, Io> {
+	fn from(value: CoreRecvError<Io>) -> Self {
+		use CoreRecvError as A;
 		use RecvError as B;
-		use RecvPayloadError as A;
 
 		match value {
 			A::ChecksumError => B::ChecksumError,
@@ -58,7 +63,6 @@ channels_macros::replace! {
 			(await =>)
 			(recv  => recv_sync)
 			(Read  => Read)
-			(run   => run_sync)
 		]
 		// Asynchronous version
 		[
@@ -66,30 +70,30 @@ channels_macros::replace! {
 			(await => .await)
 			(recv => recv_async)
 			(Read => AsyncRead)
-			(run => run_async)
 		]
 	}
 	code: {
 
-pub async fn recv<R>(
-	reader: &mut StatIO<R>,
-	deframer: &mut Deframer,
-) -> Result<Vec<u8>, RecvPayloadError<R::Error>>
+impl<R> ReceiverCore<R>
 where
 	R: Read,
 {
-	use DeframeStatus::{NotReady, Ready};
+	pub async fn recv(
+		&mut self,
+	) -> Result<Vec<u8>, CoreRecvError<R::Error>> {
+		use DeframeStatus::{NotReady, Ready};
 
-	reader.statistics.inc_ops();
+		self.reader.statistics.inc_ops();
 
-	loop {
-		match deframer.deframe(&mut reader.statistics) {
-			Ready(Ok(payload)) => break Ok(payload),
-			Ready(Err(e)) =>  break Err(e.into()),
-			NotReady(r) => {
-				reader.read(r.buf) await
-					.map_err(RecvPayloadError::Io)?;
-				continue;
+		loop {
+			match self.deframer.deframe(&mut self.reader.statistics) {
+				Ready(Ok(payload)) => break Ok(payload),
+				Ready(Err(e)) =>  break Err(e.into()),
+				NotReady(r) => {
+					self.reader.read(r.buf) await
+						.map_err(CoreRecvError::Io)?;
+					continue;
+				}
 			}
 		}
 	}

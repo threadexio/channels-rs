@@ -7,21 +7,27 @@ use crate::io::{AsyncWrite, Write};
 use crate::sender::Config;
 use crate::statistics::StatIO;
 
+pub(crate) struct SenderCore<W> {
+	pub(crate) writer: StatIO<W>,
+	pub(crate) config: Config,
+	pub(crate) pcb: SendPcb,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SendPayloadError<Io> {
+pub enum CoreSendError<Io> {
 	Io(Io),
 }
 
-impl<Io> From<Io> for SendPayloadError<Io> {
+impl<Io> From<Io> for CoreSendError<Io> {
 	fn from(value: Io) -> Self {
 		Self::Io(value)
 	}
 }
 
-impl<Ser, Io> From<SendPayloadError<Io>> for SendError<Ser, Io> {
-	fn from(value: SendPayloadError<Io>) -> Self {
+impl<Ser, Io> From<CoreSendError<Io>> for SendError<Ser, Io> {
+	fn from(value: CoreSendError<Io>) -> Self {
+		use CoreSendError as A;
 		use SendError as B;
-		use SendPayloadError as A;
 
 		match value {
 			A::Io(x) => B::Io(x),
@@ -142,7 +148,6 @@ channels_macros::replace! {
 			(await =>)
 			(send  => send_sync)
 			(Write => Write)
-			(run   => run_sync)
 		]
 		// Asynchronous version
 		[
@@ -150,52 +155,51 @@ channels_macros::replace! {
 			(await => .await)
 			(send => send_async)
 			(Write => AsyncWrite)
-			(run => run_async)
 		]
 	}
 	code: {
 
-pub async fn send<W>(
-	config: &Config,
-	pcb: &mut SendPcb,
-	writer: &mut StatIO<W>,
-	payload: &[u8],
-) -> Result<(), SendPayloadError<W::Error>>
+impl<W> SenderCore<W>
 where
-	W: Write
+	W: Write,
 {
-	let with_checksum = if config.use_header_checksum() {
-		WithChecksum::Yes
-	} else {
-		WithChecksum::No
-	};
-
-	let mut buf = Vec::new();
-
-	for packet in as_packets(pcb, payload) {
-		let header_bytes = packet.header.to_bytes(with_checksum);
-
-		if config.coalesce_writes() {
-			buf.reserve_exact(packet.header.length.as_usize());
-			buf.extend_from_slice(&header_bytes);
-			buf.extend_from_slice(packet.payload);
-			writer.write(&buf) await?;
-			buf.clear();
+	pub async fn send(
+		&mut self,
+		data: &[u8],
+	) -> Result<(), CoreSendError<W::Error>> {
+		let with_checksum = if self.config.use_header_checksum() {
+			WithChecksum::Yes
 		} else {
-			writer.write(&header_bytes) await?;
-			writer.write(packet.payload) await?;
+			WithChecksum::No
+		};
+
+		let mut buf = Vec::new();
+
+		for packet in as_packets(&mut self.pcb, data) {
+			let header_bytes = packet.header.to_bytes(with_checksum);
+
+			if self.config.coalesce_writes() {
+				buf.reserve_exact(packet.header.length.as_usize());
+				buf.extend_from_slice(&header_bytes);
+				buf.extend_from_slice(packet.payload);
+				self.writer.write(&buf) await?;
+				buf.clear();
+			} else {
+				self.writer.write(&header_bytes) await?;
+				self.writer.write(packet.payload) await?;
+			}
+
+			self.writer.statistics.inc_packets();
 		}
 
-		writer.statistics.inc_packets();
+		if self.config.flush_on_send() {
+			self.writer.flush() await?;
+		}
+
+		self.writer.statistics.inc_ops();
+
+		Ok(())
 	}
-
-	if config.flush_on_send() {
-		writer.flush() await?;
-	}
-
-	writer.statistics.inc_ops();
-
-	Ok(())
 }
 
 	}

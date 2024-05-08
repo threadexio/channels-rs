@@ -2,6 +2,6 @@ mod deframer;
 mod recv;
 mod send;
 
-pub use self::deframer::Deframer;
-pub use self::recv::{recv_async, recv_sync};
-pub use self::send::{send_async, send_sync, SendPcb};
+pub(crate) use self::deframer::Deframer;
+pub(crate) use self::recv::ReceiverCore;
+pub(crate) use self::send::{SendPcb, SenderCore};
