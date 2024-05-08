@@ -34,51 +34,103 @@ pub struct SendPcb {
 	pub seq: IdSequence,
 }
 
-struct SendPayload<'a, 'p, W> {
-	config: &'a Config,
-	has_sent_one_packet: bool,
-	payload: &'p [u8],
-	pcb: &'a mut SendPcb,
-	writer: &'a mut StatIO<W>,
+struct Packet<'a> {
+	header: Header,
+	payload: &'a [u8],
 }
 
-impl<'a, 'p, W> SendPayload<'a, 'p, W> {
-	/// Get the header for the next packet.
-	///
-	/// Returns [`Some`] with the header of the next packet that should be
-	/// sent or [`None`] if no packet should be sent.
-	fn next_header(&mut self) -> Option<Header> {
-		match (self.payload.len(), self.has_sent_one_packet) {
-			// If there is no more data and we have already sent
-			// one packet, then exit.
-			(0, true) => None,
-			// If there is no more data and we have not sent any
-			// packets, then send one packet with no payload.
-			(0, false) => Some(Header {
-				length: PacketLength::MIN,
-				flags: Flags::empty(),
-				id: self.pcb.seq.advance(),
-			}),
-			// If the remaining data is more than what fits inside
-			// one packet, return a header for a full packet.
-			(rem, _) if rem > PayloadLength::MAX.as_usize() => {
-				Some(Header {
-					length: PayloadLength::MAX.to_packet_length(),
-					flags: Flags::MORE_DATA,
-					id: self.pcb.seq.advance(),
-				})
-			},
-			// If the remaining data is equal or less than what
-			// fits inside one packet, return a header for exactly
-			// that amount of data.
-			#[allow(clippy::cast_possible_truncation)]
-			(rem, _) => Some(Header {
-				length: PayloadLength::new_saturating(rem as u16)
-					.to_packet_length(),
-				flags: Flags::empty(),
-				id: self.pcb.seq.advance(),
-			}),
-		}
+struct PayloadBuf<'a> {
+	inner: &'a [u8],
+}
+
+impl<'a> PayloadBuf<'a> {
+	fn remaining(&self) -> usize {
+		self.inner.len()
+	}
+
+	fn consume(&mut self, n: usize) -> &'a [u8] {
+		let (ret, inner) = self.inner.split_at(n);
+		self.inner = inner;
+		ret
+	}
+}
+
+struct AsPackets<'a> {
+	payload: PayloadBuf<'a>,
+	pcb: &'a mut SendPcb,
+
+	has_one_packet: bool,
+}
+
+fn as_packets<'a>(
+	pcb: &'a mut SendPcb,
+	payload: &'a [u8],
+) -> AsPackets<'a> {
+	AsPackets {
+		pcb,
+		has_one_packet: false,
+		payload: PayloadBuf { inner: payload },
+	}
+}
+
+impl<'a> Iterator for AsPackets<'a> {
+	type Item = Packet<'a>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		let packet =
+			match (self.payload.remaining(), self.has_one_packet) {
+				// If there is no more data and we have already sent
+				// one packet, then exit.
+				(0, true) => return None,
+				// If there is no more data and we have not sent any
+				// packets, then send one packet with no payload.
+				(0, false) => Packet {
+					header: Header {
+						length: PacketLength::MIN,
+						flags: Flags::empty(),
+						id: self.pcb.seq.advance(),
+					},
+					payload: &[],
+				},
+				// If the remaining data is more than what fits inside
+				// one packet, return a header for a full packet.
+				(len, _) if len > PayloadLength::MAX.as_usize() => {
+					Packet {
+						header: Header {
+							length: PayloadLength::MAX
+								.to_packet_length(),
+							flags: Flags::MORE_DATA,
+							id: self.pcb.seq.advance(),
+						},
+						payload: self
+							.payload
+							.consume(PayloadLength::MAX.as_usize()),
+					}
+				},
+				// If the remaining data is equal or less than what
+				// fits inside one packet, return a header for exactly
+				// that amount of data.
+				(len, _) => Packet {
+					header: Header {
+						// SAFETY: `len` is less that PayloadLength::MAX and since
+						//         `PayloadLength` is a u16, `len` can be cast to
+						//         u16 without losses.
+						#[allow(clippy::cast_possible_truncation)]
+						length: PayloadLength::new(len as u16)
+							.expect(
+								"len should be a valid PayloadLength",
+							)
+							.to_packet_length(),
+						flags: Flags::empty(),
+						id: self.pcb.seq.advance(),
+					},
+					payload: self.payload.consume(len),
+				},
+			};
+
+		self.has_one_packet = true;
+
+		Some(packet)
 	}
 }
 
@@ -112,60 +164,38 @@ pub async fn send<W>(
 where
 	W: Write
 {
-	SendPayload {
-		config,
-		has_sent_one_packet: false,
-		payload,
-		pcb,
-		writer,
-	}.run() await
-}
+	let with_checksum = if config.use_header_checksum() {
+		WithChecksum::Yes
+	} else {
+		WithChecksum::No
+	};
 
-impl<'a, 'b, W> SendPayload<'a, 'b, W>
-where
-	W: Write,
-{
-	pub async fn run(mut self) -> Result<(), SendPayloadError<W::Error>> {
-		while let Some(header) = self.next_header() {
-			self.has_sent_one_packet = true;
+	let mut buf = Vec::new();
 
-			let with_checksum =
-				if self.config.use_header_checksum() {
-					WithChecksum::Yes
-				} else {
-					WithChecksum::No
-				};
+	for packet in as_packets(pcb, payload) {
+		let header_bytes = packet.header.to_bytes(with_checksum);
 
-			let payload_length = header.length.to_payload_length().as_usize();
-			let header = header.to_bytes(with_checksum);
-
-			if payload_length == 0 {
-				self.writer.write(&header) await?;
-			} else {
-				let payload = &self.payload[..payload_length];
-				self.payload = &self.payload[payload_length..];
-
-
-				if self.config.coalesce_writes() {
-					let packet = [&header, payload].concat();
-					self.writer.write(&packet) await?;
-				} else {
-					self.writer.write(&header) await?;
-					self.writer.write(payload) await?;
-				}
-			}
-
-			self.writer.statistics.inc_packets();
+		if config.coalesce_writes() {
+			buf.reserve_exact(packet.header.length.as_usize());
+			buf.extend_from_slice(&header_bytes);
+			buf.extend_from_slice(packet.payload);
+			writer.write(&buf) await?;
+			buf.clear();
+		} else {
+			writer.write(&header_bytes) await?;
+			writer.write(packet.payload) await?;
 		}
 
-		self.writer.statistics.inc_ops();
-
-		if self.config.flush_on_send() {
-			self.writer.flush() await?;
-		}
-
-		Ok(())
+		writer.statistics.inc_packets();
 	}
+
+	if config.flush_on_send() {
+		writer.flush() await?;
+	}
+
+	writer.statistics.inc_ops();
+
+	Ok(())
 }
 
 	}
