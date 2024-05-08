@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 
 use crate::error::SendError;
 use crate::io::{AsyncWrite, Container, IntoWrite, Write};
-use crate::protocol::{SendPcb, SenderCore};
+use crate::protocol::SenderCore;
 use crate::serdes::Serializer;
 
 #[allow(unused_imports)]
@@ -480,14 +480,13 @@ impl<T, W, S> Builder<T, W, S> {
 	#[inline]
 	pub fn build(self) -> Sender<T, W, S> {
 		let config = self.config.unwrap_or_default();
-		let pcb = SendPcb::default();
 		let serializer = self.serializer;
 		let writer = StatIO::new(self.writer);
 
 		Sender {
 			_marker: PhantomData,
 			serializer,
-			core: SenderCore { writer, config, pcb },
+			core: SenderCore::new(writer, config),
 		}
 	}
 }
@@ -553,6 +552,22 @@ impl<T, W, S> Builder<T, W, S> {
 ///
 /// **Default:** `true`
 ///
+/// ## Keep write allocations
+///
+/// If the "Coalesce writes" flag is set, then the sender will allocate a new
+/// buffer in which it will assemble each packet before it is written to the
+/// writer. This buffer is then deallocated at the end of the `send` operation.
+///
+/// This flag tells the sender to _not_ deallocate that buffer and instead reuse
+/// it in the next `send` operation. Keep in mind that the buffer will be grown,
+/// if needed, and thus deallocated and reallocated. This flag generally speeds
+/// up senders who send quickly and who live for a large amount of time.
+///
+/// Side effect of this flag, is that senders hold on to that buffer until they
+/// are dropped. In certain cases, where memory is limited, this might not be ideal.
+///
+/// **Default:** `false`
+///
 /// [`write()`]: Write::write()
 #[derive(Clone)]
 #[must_use = "`Config`s don't do anything on their own"]
@@ -564,6 +579,7 @@ impl Config {
 	const FLUSH_ON_SEND: u8 = 1 << 0;
 	const USE_HEADER_CHECKSUM: u8 = 1 << 1;
 	const COALESCE_WRITES: u8 = 1 << 2;
+	const KEEP_WRITE_ALLOCATIONS: u8 = 1 << 3;
 
 	#[inline]
 	fn get_flag(&self, flag: u8) -> bool {
@@ -657,6 +673,30 @@ impl Config {
 		self.set_coalesce_writes(yes);
 		self
 	}
+
+	/// Get the "Keep write allocations" flag.
+	#[inline]
+	#[must_use]
+	pub fn keep_write_allocations(&self) -> bool {
+		self.get_flag(Self::KEEP_WRITE_ALLOCATIONS)
+	}
+
+	/// Set the "Keep write allocations" flag.
+	#[inline]
+	pub fn set_keep_write_allocations(
+		&mut self,
+		yes: bool,
+	) -> &mut Self {
+		self.set_flag(Self::KEEP_WRITE_ALLOCATIONS, yes);
+		self
+	}
+
+	/// Set the "Keep write allocations" flag.
+	#[inline]
+	pub fn with_keep_write_allocations(mut self, yes: bool) -> Self {
+		self.set_keep_write_allocations(yes);
+		self
+	}
 }
 
 impl fmt::Debug for Config {
@@ -665,6 +705,10 @@ impl fmt::Debug for Config {
 			.field("flush_on_send", &self.flush_on_send())
 			.field("use_header_checksum", &self.use_header_checksum())
 			.field("coalesce_writes", &self.coalesce_writes())
+			.field(
+				"keep_write_allocations",
+				&self.keep_write_allocations(),
+			)
 			.finish()
 	}
 }

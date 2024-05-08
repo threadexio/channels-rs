@@ -4,4 +4,4 @@ mod send;
 
 pub(crate) use self::deframer::Deframer;
 pub(crate) use self::recv::ReceiverCore;
-pub(crate) use self::send::{SendPcb, SenderCore};
+pub(crate) use self::send::SenderCore;

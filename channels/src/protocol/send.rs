@@ -1,3 +1,5 @@
+use core::mem;
+
 use channels_packet::header::{Header, WithChecksum};
 use channels_packet::id::IdSequence;
 use channels_packet::{Flags, PacketLength, PayloadLength};
@@ -10,7 +12,17 @@ use crate::statistics::StatIO;
 pub(crate) struct SenderCore<W> {
 	pub(crate) writer: StatIO<W>,
 	pub(crate) config: Config,
-	pub(crate) pcb: SendPcb,
+	pcb: SendPcb,
+	write_buf: Vec<u8>,
+}
+
+impl<W> SenderCore<W> {
+	pub fn new(writer: StatIO<W>, config: Config) -> Self {
+		let write_buf = Vec::new();
+		let pcb = SendPcb::default();
+
+		Self { writer, config, pcb, write_buf }
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -140,6 +152,24 @@ impl<'a> Iterator for AsPackets<'a> {
 	}
 }
 
+/// Estimate the total size of all of the packets needed to hold `payload`.
+fn estimate_total_size(payload: &[u8]) -> usize {
+	let n_packets = payload.len() / PayloadLength::MAX.as_usize();
+	let rem = payload.len() % PayloadLength::MAX.as_usize();
+
+	// SAFETY: `rem` is the result of a modulo operation with `PayloadLength::MAX`.
+	//         The divisor is less than `u16::MAX`, so the result must also be
+	//         less than `u16::MAX`. Casting to u16 is safe.
+	#[allow(clippy::cast_possible_truncation)]
+	let rem = rem as u16;
+
+	let rem = PayloadLength::new(rem)
+		.expect("rem should be smaller than PayloadLength::MAX");
+
+	(n_packets * PacketLength::MAX.as_usize())
+		+ rem.to_packet_length().as_usize()
+}
+
 channels_macros::replace! {
 	replace: {
 		// Synchronous version
@@ -173,23 +203,32 @@ where
 			WithChecksum::No
 		};
 
-		let mut buf = Vec::new();
+		if self.config.coalesce_writes() {
+			let estimated_size = estimate_total_size(data);
+			self.write_buf.clear();
+			self.write_buf.reserve(estimated_size);
+		}
 
 		for packet in as_packets(&mut self.pcb, data) {
 			let header_bytes = packet.header.to_bytes(with_checksum);
 
 			if self.config.coalesce_writes() {
-				buf.reserve_exact(packet.header.length.as_usize());
-				buf.extend_from_slice(&header_bytes);
-				buf.extend_from_slice(packet.payload);
-				self.writer.write(&buf) await?;
-				buf.clear();
+				self.write_buf.extend_from_slice(&header_bytes);
+				self.write_buf.extend_from_slice(packet.payload);
 			} else {
 				self.writer.write(&header_bytes) await?;
 				self.writer.write(packet.payload) await?;
 			}
 
 			self.writer.statistics.inc_packets();
+		}
+
+		if self.config.coalesce_writes() {
+			self.writer.write(&self.write_buf) await?;
+
+			if !self.config.keep_write_allocations() {
+				let _ = mem::take(&mut self.write_buf);
+			}
 		}
 
 		if self.config.flush_on_send() {
