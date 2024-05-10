@@ -54,9 +54,10 @@
 //! | `full-serdes` | Features: `aead`, `bincode`, `borsh`, `cbor`, `crc`, `deflate`, `hmac`, `json`                  |
 //! | `core2`       | Adds support for sending/receiving types with [`core2`].                                        |
 //! | `futures`     | Adds support for sending/receiving types asynchronously with [`futures`].                       |
+//! | `smol`        | Adds support for sending/receiving types asynchronously with [`smol`].                          |
 //! | `std`         | Adds support for sending/receiving types over [`Read`] and [`Write`].                           |
 //! | `tokio`       | Adds support for sending/receiving types asynchronously with [`tokio`].                         |
-//! | `full-io`     | Features: `core2`, `futures`, `std`, `tokio`                                                    |
+//! | `full-io`     | Features: `core2`, `futures`, `smol`, `std`, `tokio`                                                    |
 //! | `full`        | Every feature in this table.                                                                    |
 //!
 //! [`core2`]: https://docs.rs/core2

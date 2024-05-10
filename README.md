@@ -89,6 +89,7 @@ Channels implements a communication protocol that allows sending and receiving d
 - [`tokio::io::{AsyncRead, AsyncWrite}`](https://docs.rs/tokio/latest/tokio/io)
 - [`futures::io::{AsyncRead, AsyncWrite}`](https://docs.rs/futures/latest/futures/io)
 - [`core2::io::{Read, Write}`](https://docs.rs/core2)
+- [`smol::io::{AsyncRead, AsyncWrite}`](https://docs.rs/smol)
 
 You can find out more about how the underlying communication protocol works [here][spec].
 

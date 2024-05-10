@@ -123,3 +123,10 @@ if_feature! {
 		pub use self::core2::Core2;
 	}
 }
+
+if_feature! {
+	if "smol" {
+		mod smol;
+		pub use self::smol::Smol;
+	}
+}
