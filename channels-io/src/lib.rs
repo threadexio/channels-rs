@@ -7,7 +7,7 @@
 //! [`tokio`] and [`futures`] with no additional code and no hacky workarounds.
 //!
 //! ```rust,no_run
-//! use channels_io::{IntoWrite, AsyncWrite};
+//! use channels_io::{IntoWrite, AsyncWrite, Futures};
 //!
 //! async fn write_data<W>(writer: impl IntoWrite<W>) -> Result<(), W::Error>
 //! where
@@ -45,7 +45,10 @@
 //!         .await
 //!         .unwrap();
 //!
-//!     write_data(&mut file).await.unwrap();
+//!     // If there is a compiler error here about multiple impls that satisfying
+//!     // a bound, you might have to specify explicitly which implementation to
+//!     // use with the turbofish syntax, like bellow:
+//!     write_data::<Futures<_>>(&mut file).await.unwrap();
 //! }
 //! ```
 //!

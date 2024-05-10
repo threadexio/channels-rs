@@ -5,7 +5,7 @@ newtype! {
 	Smol
 }
 
-impl_newtype_read! { Smol: ::smol::io::AsyncRead }
+impl_newtype_read! { Smol: ::smol::io::AsyncRead + Unpin }
 
 impl<T> AsyncRead for Smol<T>
 where
@@ -35,7 +35,7 @@ where
 	}
 }
 
-impl_newtype_write! { Smol: ::smol::io::AsyncWrite }
+impl_newtype_write! { Smol: ::smol::io::AsyncWrite+ Unpin }
 
 impl<T> AsyncWrite for Smol<T>
 where
