@@ -2,7 +2,7 @@ use core::fmt;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
-use crate::io::{AsyncRead, AsyncWrite, Read, Write, WriteBuf};
+use crate::io::{AsyncRead, AsyncWrite, Read, Write};
 
 #[cfg(feature = "statistics")]
 mod real {
@@ -184,41 +184,40 @@ impl<R> StatIO<R> {
 impl<W: Write> Write for StatIO<W> {
 	type Error = W::Error;
 
-	fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
-		self.inner.write(buf)?;
-
-		let dl = buf.len();
-		self.on_write(dl as u64);
-		Ok(())
+	fn write_slice(
+		&mut self,
+		buf: &[u8],
+	) -> Result<usize, Self::Error> {
+		let n = self.inner.write_slice(buf)?;
+		self.on_write(n as u64);
+		Ok(n)
 	}
 
-	fn flush(&mut self) -> Result<(), Self::Error> {
-		self.inner.flush()
+	fn flush_once(&mut self) -> Result<(), Self::Error> {
+		self.inner.flush_once()
 	}
 }
 
 impl<W: AsyncWrite> AsyncWrite for StatIO<W> {
 	type Error = W::Error;
 
-	fn poll_write(
+	fn poll_write_slice(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut WriteBuf,
-	) -> Poll<Result<(), Self::Error>> {
-		let l0 = buf.consumed().len();
-		ready!(Pin::new(&mut self.inner).poll_write(cx, buf))?;
-		let l1 = buf.consumed().len();
-
-		let dl = l1 - l0;
-		self.on_write(dl as u64);
-		Poll::Ready(Ok(()))
+		buf: &[u8],
+	) -> Poll<Result<usize, Self::Error>> {
+		let n = ready!(
+			Pin::new(&mut self.inner).poll_write_slice(cx, buf)
+		)?;
+		self.on_write(n as u64);
+		Poll::Ready(Ok(n))
 	}
 
-	fn poll_flush(
+	fn poll_flush_once(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.inner).poll_flush(cx)
+		Pin::new(&mut self.inner).poll_flush_once(cx)
 	}
 }
 

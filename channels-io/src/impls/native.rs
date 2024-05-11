@@ -33,6 +33,17 @@ where
 {
 	type Error = T::Error;
 
+	fn write_slice(
+		&mut self,
+		buf: &[u8],
+	) -> Result<usize, Self::Error> {
+		self.0.write_slice(buf)
+	}
+
+	fn flush_once(&mut self) -> Result<(), Self::Error> {
+		self.0.flush_once()
+	}
+
 	fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
 		self.0.write(buf)
 	}
@@ -85,5 +96,20 @@ where
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
 		Pin::new(&mut self.0).poll_flush(cx)
+	}
+
+	fn poll_write_slice(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &[u8],
+	) -> Poll<Result<usize, Self::Error>> {
+		Pin::new(&mut self.0).poll_write_slice(cx, buf)
+	}
+
+	fn poll_flush_once(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context,
+	) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut self.0).poll_flush_once(cx)
 	}
 }

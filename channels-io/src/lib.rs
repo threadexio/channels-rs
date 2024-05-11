@@ -74,7 +74,7 @@ pub use self::convert::{Container, IntoRead, IntoWrite};
 
 pub use self::async_read::AsyncRead;
 pub use self::async_write::AsyncWrite;
-pub use self::error::ReadError;
+pub use self::error::{IoError, ReadError, WriteError};
 pub use self::read::Read;
 pub use self::write::Write;
 

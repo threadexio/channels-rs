@@ -2,13 +2,21 @@ use super::prelude::*;
 
 use ::std::io::ErrorKind as E;
 
+impl IoError for ::std::io::Error {
+	fn should_retry(&self) -> bool {
+		self.kind() == E::Interrupted
+	}
+}
+
 impl ReadError for ::std::io::Error {
 	fn eof() -> Self {
 		Self::from(E::UnexpectedEof)
 	}
+}
 
-	fn should_retry(&self) -> bool {
-		self.kind() == E::Interrupted
+impl WriteError for ::std::io::Error {
+	fn write_zero() -> Self {
+		Self::from(E::WriteZero)
 	}
 }
 
@@ -41,25 +49,14 @@ where
 {
 	type Error = ::std::io::Error;
 
-	fn write(&mut self, mut buf: &[u8]) -> Result<(), Self::Error> {
-		while !buf.is_empty() {
-			match self.0.write(buf) {
-				Ok(i) => buf = &buf[i..],
-				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) => return Err(e),
-			}
-		}
-
-		Ok(())
+	fn write_slice(
+		&mut self,
+		buf: &[u8],
+	) -> Result<usize, Self::Error> {
+		self.0.write(buf)
 	}
 
-	fn flush(&mut self) -> Result<(), Self::Error> {
-		loop {
-			match self.0.flush() {
-				Ok(()) => break Ok(()),
-				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) => break Err(e),
-			}
-		}
+	fn flush_once(&mut self) -> Result<(), Self::Error> {
+		self.0.flush()
 	}
 }

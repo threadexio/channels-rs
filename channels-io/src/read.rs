@@ -1,4 +1,4 @@
-use crate::{ReadBuf, ReadError};
+use crate::{IoError, ReadBuf, ReadError};
 
 /// This trait allows reading bytes from a source.
 ///

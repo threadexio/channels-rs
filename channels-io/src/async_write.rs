@@ -2,7 +2,7 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
-use crate::WriteBuf;
+use crate::{IoError, WriteBuf, WriteError};
 
 /// This trait is the asynchronous version of [`Write`].
 ///
@@ -12,7 +12,7 @@ pub trait AsyncWrite: Unpin {
 	///
 	/// [`write()`]: AsyncWrite::write
 	/// [`flush()`]: AsyncWrite::flush
-	type Error;
+	type Error: WriteError;
 
 	/// Asynchronously write `buf` to the writer.
 	///
@@ -44,13 +44,72 @@ pub trait AsyncWrite: Unpin {
 		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut WriteBuf,
-	) -> Poll<Result<(), Self::Error>>;
+	) -> Poll<Result<(), Self::Error>> {
+		default_poll_write(self, cx, buf)
+	}
+
+	/// Poll the writer and try to write some bytes from `buf` to it.
+	///
+	/// This method writes bytes from `buf` and reports back how many bytes it
+	/// wrote.
+	fn poll_write_slice(
+		self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &[u8],
+	) -> Poll<Result<usize, Self::Error>>;
 
 	/// Poll the writer and try to flush it.
 	fn poll_flush(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
+	) -> Poll<Result<(), Self::Error>> {
+		default_poll_flush(self, cx)
+	}
+
+	/// Poll the writer and try to flush it only once.
+	fn poll_flush_once(
+		self: Pin<&mut Self>,
+		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>>;
+}
+
+fn default_poll_write<T>(
+	mut writer: Pin<&mut T>,
+	cx: &mut Context,
+	buf: &mut WriteBuf,
+) -> Poll<Result<(), T::Error>>
+where
+	T: AsyncWrite + ?Sized,
+{
+	while !buf.remaining().is_empty() {
+		match ready!(writer
+			.as_mut()
+			.poll_write_slice(cx, buf.remaining()))
+		{
+			Ok(0) => return Poll::Ready(Err(T::Error::write_zero())),
+			Ok(n) => buf.advance(n),
+			Err(e) if e.should_retry() => continue,
+			Err(e) => return Poll::Ready(Err(e)),
+		}
+	}
+
+	Poll::Ready(Ok(()))
+}
+
+fn default_poll_flush<T>(
+	mut writer: Pin<&mut T>,
+	cx: &mut Context,
+) -> Poll<Result<(), T::Error>>
+where
+	T: AsyncWrite + ?Sized,
+{
+	loop {
+		match ready!(writer.as_mut().poll_flush_once(cx)) {
+			Ok(()) => return Poll::Ready(Ok(())),
+			Err(e) if e.should_retry() => continue,
+			Err(e) => return Poll::Ready(Err(e)),
+		}
+	}
 }
 
 #[allow(missing_debug_implementations)]
@@ -77,12 +136,7 @@ where
 		cx: &mut Context<'_>,
 	) -> Poll<Self::Output> {
 		let Self { ref mut writer, ref mut buf, .. } = *self;
-
-		while !buf.remaining().is_empty() {
-			ready!(Pin::new(&mut **writer).poll_write(cx, buf))?;
-		}
-
-		Poll::Ready(Ok(()))
+		Pin::new(&mut **writer).poll_write(cx, buf)
 	}
 }
 
@@ -108,7 +162,8 @@ where
 		mut self: Pin<&mut Self>,
 		cx: &mut Context<'_>,
 	) -> Poll<Self::Output> {
-		Pin::new(&mut self.writer).poll_flush(cx)
+		let Self { ref mut writer, .. } = *self;
+		Pin::new(&mut **writer).poll_flush(cx)
 	}
 }
 
@@ -121,14 +176,33 @@ macro_rules! forward_impl_async_write {
 			cx: &mut Context,
 			buf: &mut WriteBuf,
 		) -> Poll<Result<(), Self::Error>> {
-			T::poll_write(Pin::new(&mut **self), cx, buf)
+			let this = Pin::new(&mut **self);
+			T::poll_write(this, cx, buf)
+		}
+
+		fn poll_write_slice(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context,
+			buf: &[u8],
+		) -> Poll<Result<usize, Self::Error>> {
+			let this = Pin::new(&mut **self);
+			T::poll_write_slice(this, cx, buf)
 		}
 
 		fn poll_flush(
 			mut self: Pin<&mut Self>,
 			cx: &mut Context,
 		) -> Poll<Result<(), Self::Error>> {
-			T::poll_flush(Pin::new(&mut **self), cx)
+			let this = Pin::new(&mut **self);
+			T::poll_flush(this, cx)
+		}
+
+		fn poll_flush_once(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context,
+		) -> Poll<Result<(), Self::Error>> {
+			let this = Pin::new(&mut **self);
+			T::poll_flush_once(this, cx)
 		}
 	};
 }

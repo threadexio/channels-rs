@@ -4,13 +4,23 @@ use super::prelude::*;
 use ::smol::io::ErrorKind as E;
 
 #[cfg(not(feature = "std"))]
+impl IoError for ::smol::io::Error {
+	fn should_retry(&self) -> bool {
+		self.kind() == E::Interrupted
+	}
+}
+
+#[cfg(not(feature = "std"))]
 impl ReadError for ::smol::io::Error {
 	fn eof() -> Self {
 		Self::from(E::UnexpectedEof)
 	}
+}
 
-	fn should_retry(&self) -> bool {
-		self.kind() == E::Interrupted
+#[cfg(not(feature = "std"))]
+impl WriteError for ::smol::io::Error {
+	fn write_zero() -> Self {
+		Self::from(E::WriteZero)
 	}
 }
 
@@ -44,35 +54,18 @@ where
 {
 	type Error = ::smol::io::Error;
 
-	fn poll_write(
+	fn poll_write_slice(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut WriteBuf,
-	) -> Poll<Result<(), Self::Error>> {
-		while !buf.remaining().is_empty() {
-			match ready!(
-				Pin::new(&mut self.0).poll_write(cx, buf.remaining())
-			) {
-				Ok(0) => break,
-				Ok(n) => buf.advance(n),
-				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) => return Ready(Err(e)),
-			}
-		}
-
-		Ready(Ok(()))
+		buf: &[u8],
+	) -> Poll<Result<usize, Self::Error>> {
+		Pin::new(&mut self.0).poll_write(cx, buf)
 	}
 
-	fn poll_flush(
+	fn poll_flush_once(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		loop {
-			match ready!(Pin::new(&mut self.0).poll_flush(cx)) {
-				Ok(()) => return Ready(Ok(())),
-				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) => return Ready(Err(e)),
-			}
-		}
+		Pin::new(&mut self.0).poll_flush(cx)
 	}
 }
