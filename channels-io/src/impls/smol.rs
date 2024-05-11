@@ -1,26 +1,25 @@
 use super::prelude::*;
 
-#[allow(unused_imports)]
-use ::smol::io::ErrorKind as E;
-
 #[cfg(not(feature = "std"))]
-impl IoError for ::smol::io::Error {
-	fn should_retry(&self) -> bool {
-		self.kind() == E::Interrupted
+mod smol_error_impls {
+	use ::smol::io::ErrorKind as E;
+
+	impl IoError for ::smol::io::Error {
+		fn should_retry(&self) -> bool {
+			self.kind() == E::Interrupted
+		}
 	}
-}
 
-#[cfg(not(feature = "std"))]
-impl ReadError for ::smol::io::Error {
-	fn eof() -> Self {
-		Self::from(E::UnexpectedEof)
+	impl ReadError for ::smol::io::Error {
+		fn eof() -> Self {
+			Self::from(E::UnexpectedEof)
+		}
 	}
-}
 
-#[cfg(not(feature = "std"))]
-impl WriteError for ::smol::io::Error {
-	fn write_zero() -> Self {
-		Self::from(E::WriteZero)
+	impl WriteError for ::smol::io::Error {
+		fn write_zero() -> Self {
+			Self::from(E::WriteZero)
+		}
 	}
 }
 
