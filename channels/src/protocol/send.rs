@@ -1,5 +1,7 @@
 use core::mem;
 
+use alloc::vec::Vec;
+
 use channels_packet::header::{Header, WithChecksum};
 use channels_packet::id::IdSequence;
 use channels_packet::{Flags, PacketLength, PayloadLength};

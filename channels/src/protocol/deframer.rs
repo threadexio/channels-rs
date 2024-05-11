@@ -1,5 +1,7 @@
 use core::mem;
 
+use alloc::vec::Vec;
+
 use channels_packet::header::{
 	Header, VerifyError, VerifyId, WithChecksum,
 };

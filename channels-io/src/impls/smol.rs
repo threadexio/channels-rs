@@ -2,6 +2,7 @@ use super::prelude::*;
 
 #[cfg(not(feature = "std"))]
 mod smol_error_impls {
+	use crate::{IoError, ReadError, WriteError};
 	use ::smol::io::ErrorKind as E;
 
 	impl IoError for ::smol::io::Error {

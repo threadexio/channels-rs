@@ -2,6 +2,8 @@
 
 use core::fmt;
 
+use alloc::vec::Vec;
+
 use ring::hmac;
 
 use crate::{Deserializer, Serializer};

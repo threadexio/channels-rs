@@ -1,6 +1,8 @@
 //! The [`mod@borsh`] serializer which automatically works with all
 //! types that implement [`borsh::BorshSerialize`] and [`borsh::BorshDeserialize`].
 
+use alloc::vec::Vec;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{Deserializer, Serializer};
