@@ -63,6 +63,7 @@ mod mock {
 	#[derive(Clone, Default, PartialEq, Eq, Hash)]
 	pub(super) struct StatisticsImpl;
 
+	#[allow(clippy::unused_self)]
 	impl StatisticsImpl {
 		pub(crate) fn add_total_bytes(&mut self, _: u64) {}
 		pub(crate) fn inc_packets(&mut self) {}
@@ -95,6 +96,7 @@ pub struct Statistics {
 }
 
 impl Statistics {
+	#[allow(clippy::default_constructed_unit_structs)]
 	pub(crate) fn new() -> Self {
 		Self { inner: StatisticsImpl::default() }
 	}
@@ -152,6 +154,7 @@ pub struct StatIO<R> {
 	pub(crate) statistics: Statistics,
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl<R: fmt::Debug> fmt::Debug for StatIO<R> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let mut debug = f.debug_struct("StatIO");
