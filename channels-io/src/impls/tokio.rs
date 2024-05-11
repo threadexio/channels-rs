@@ -1,5 +1,7 @@
 use super::prelude::*;
 
+use ::std::io::ErrorKind as E;
+
 newtype! {
 	/// Wrapper IO type for [`tokio::io::AsyncRead`] and [`tokio::io::AsyncWrite`].
 	Tokio
@@ -13,30 +15,15 @@ where
 {
 	type Error = ::tokio::io::Error;
 
-	fn poll_read(
+	fn poll_read_slice(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut ReadBuf,
-	) -> Poll<Result<(), Self::Error>> {
-		use ::std::io::ErrorKind as E;
-
-		while !buf.unfilled().is_empty() {
-			let mut read_buf =
-				tokio::io::ReadBuf::new(buf.unfilled_mut());
-
-			match ready!(
-				Pin::new(&mut self.0).poll_read(cx, &mut read_buf)
-			) {
-				Ok(()) => match read_buf.filled().len() {
-					0 => break,
-					n => buf.advance(n),
-				},
-				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) => return Ready(Err(e)),
-			}
-		}
-
-		Ready(Ok(()))
+		buf: &mut [u8],
+	) -> Poll<Result<usize, Self::Error>> {
+		let mut read_buf = ::tokio::io::ReadBuf::new(buf);
+		ready!(Pin::new(&mut self.0).poll_read(cx, &mut read_buf))?;
+		let n = read_buf.filled().len();
+		Poll::Ready(Ok(n))
 	}
 }
 
@@ -53,8 +40,6 @@ where
 		cx: &mut Context,
 		buf: &mut WriteBuf,
 	) -> Poll<Result<(), Self::Error>> {
-		use ::std::io::ErrorKind as E;
-
 		while !buf.remaining().is_empty() {
 			match ready!(
 				Pin::new(&mut self.0).poll_write(cx, buf.remaining())
@@ -73,8 +58,6 @@ where
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		use ::std::io::ErrorKind as E;
-
 		loop {
 			match ready!(Pin::new(&mut self.0).poll_flush(cx)) {
 				Ok(()) => return Ready(Ok(())),

@@ -2,7 +2,7 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
-use crate::ReadBuf;
+use crate::{ReadBuf, ReadError};
 
 /// This trait is the asynchronous version of [`Read`].
 ///
@@ -11,7 +11,7 @@ pub trait AsyncRead: Unpin {
 	/// Error type for [`read()`].
 	///
 	/// [`read()`]: AsyncRead::read
-	type Error;
+	type Error: ReadError;
 
 	/// Asynchronously read some bytes into `buf`.
 	///
@@ -32,7 +32,39 @@ pub trait AsyncRead: Unpin {
 		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut ReadBuf,
-	) -> Poll<Result<(), Self::Error>>;
+	) -> Poll<Result<(), Self::Error>> {
+		default_poll_read(self, cx, buf)
+	}
+
+	/// Poll the reader once and read some bytes into the slice `buf`.
+	///
+	/// This method reads bytes directly into `buf` and reports how many bytes it
+	/// read.
+	fn poll_read_slice(
+		self: Pin<&mut Self>,
+		cx: &mut Context,
+		buf: &mut [u8],
+	) -> Poll<Result<usize, Self::Error>>;
+}
+
+fn default_poll_read<T: AsyncRead + ?Sized>(
+	mut reader: Pin<&mut T>,
+	cx: &mut Context,
+	buf: &mut ReadBuf,
+) -> Poll<Result<(), T::Error>> {
+	while !buf.unfilled().is_empty() {
+		match ready!(reader
+			.as_mut()
+			.poll_read_slice(cx, buf.unfilled_mut()))
+		{
+			Ok(0) => return Poll::Ready(Err(T::Error::eof())),
+			Ok(n) => buf.advance(n),
+			Err(e) if e.should_retry() => continue,
+			Err(e) => return Poll::Ready(Err(e)),
+		}
+	}
+
+	Poll::Ready(Ok(()))
 }
 
 #[allow(missing_debug_implementations)]
@@ -58,13 +90,8 @@ where
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Self::Output> {
-		let Self { ref mut reader, ref mut buf, .. } = *self;
-
-		while !buf.unfilled().is_empty() {
-			ready!(Pin::new(&mut **reader).poll_read(cx, buf))?;
-		}
-
-		Poll::Ready(Ok(()))
+		let Self { ref mut reader, ref mut buf } = *self;
+		Pin::new(&mut **reader).poll_read(cx, buf)
 	}
 }
 
@@ -79,6 +106,15 @@ macro_rules! forward_impl_async_read {
 		) -> Poll<Result<(), Self::Error>> {
 			let this = Pin::new(&mut **self);
 			<$to>::poll_read(this, cx, buf)
+		}
+
+		fn poll_read_slice(
+			mut self: Pin<&mut Self>,
+			cx: &mut Context,
+			buf: &mut [u8],
+		) -> Poll<Result<usize, Self::Error>> {
+			let this = Pin::new(&mut **self);
+			<$to>::poll_read_slice(this, cx, buf)
 		}
 	};
 }

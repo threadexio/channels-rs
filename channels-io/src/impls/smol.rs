@@ -1,5 +1,19 @@
 use super::prelude::*;
 
+#[allow(unused_imports)]
+use ::smol::io::ErrorKind as E;
+
+#[cfg(not(feature = "std"))]
+impl ReadError for ::smol::io::Error {
+	fn eof() -> Self {
+		Self::from(E::UnexpectedEof)
+	}
+
+	fn should_retry(&self) -> bool {
+		self.kind() == E::Interrupted
+	}
+}
+
 newtype! {
 	/// Wrapper IO type for [`smol::io::AsyncRead`] and [`smol::io::AsyncWrite`].
 	Smol
@@ -13,25 +27,12 @@ where
 {
 	type Error = ::smol::io::Error;
 
-	fn poll_read(
+	fn poll_read_slice(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut ReadBuf,
-	) -> Poll<Result<(), Self::Error>> {
-		use ::smol::io::ErrorKind as E;
-
-		while !buf.unfilled().is_empty() {
-			match ready!(Pin::new(&mut self.0)
-				.poll_read(cx, buf.unfilled_mut()))
-			{
-				Ok(0) => break,
-				Ok(n) => buf.advance(n),
-				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) => return Ready(Err(e)),
-			}
-		}
-
-		Ready(Ok(()))
+		buf: &mut [u8],
+	) -> Poll<Result<usize, Self::Error>> {
+		Pin::new(&mut self.0).poll_read(cx, buf)
 	}
 }
 
@@ -48,8 +49,6 @@ where
 		cx: &mut Context,
 		buf: &mut WriteBuf,
 	) -> Poll<Result<(), Self::Error>> {
-		use ::smol::io::ErrorKind as E;
-
 		while !buf.remaining().is_empty() {
 			match ready!(
 				Pin::new(&mut self.0).poll_write(cx, buf.remaining())
@@ -68,8 +67,6 @@ where
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		use ::smol::io::ErrorKind as E;
-
 		loop {
 			match ready!(Pin::new(&mut self.0).poll_flush(cx)) {
 				Ok(()) => return Ready(Ok(())),

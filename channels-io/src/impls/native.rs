@@ -16,6 +16,13 @@ where
 	fn read(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
 		self.0.read(buf)
 	}
+
+	fn read_slice(
+		&mut self,
+		buf: &mut [u8],
+	) -> Result<usize, Self::Error> {
+		self.0.read_slice(buf)
+	}
 }
 
 impl_newtype_write! { Native: Write }
@@ -48,12 +55,12 @@ where
 {
 	type Error = T::Error;
 
-	fn poll_read(
+	fn poll_read_slice(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut ReadBuf,
-	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.0).poll_read(cx, buf)
+		buf: &mut [u8],
+	) -> Poll<Result<usize, Self::Error>> {
+		Pin::new(&mut self.0).poll_read_slice(cx, buf)
 	}
 }
 

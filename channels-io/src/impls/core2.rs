@@ -1,5 +1,17 @@
 use super::prelude::*;
 
+use ::core2::io::ErrorKind as E;
+
+impl ReadError for ::core2::io::Error {
+	fn eof() -> Self {
+		Self::from(E::UnexpectedEof)
+	}
+
+	fn should_retry(&self) -> bool {
+		self.kind() == E::UnexpectedEof
+	}
+}
+
 newtype! {
 	/// Wrapper IO type for [`core2::io::Read`] and [`core2::io::Write`].
 	Core2
@@ -13,20 +25,11 @@ where
 {
 	type Error = ::core2::io::Error;
 
-	fn read(
+	fn read_slice(
 		&mut self,
-		mut buf: &mut [u8],
-	) -> Result<(), Self::Error> {
-		while !buf.is_empty() {
-			use ::core2::io::ErrorKind as E;
-			match self.0.read(buf) {
-				Ok(i) => buf = &mut buf[i..],
-				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) => return Err(e),
-			}
-		}
-
-		Ok(())
+		buf: &mut [u8],
+	) -> Result<usize, Self::Error> {
+		self.0.read(buf)
 	}
 }
 
@@ -40,7 +43,6 @@ where
 
 	fn write(&mut self, mut buf: &[u8]) -> Result<(), Self::Error> {
 		while !buf.is_empty() {
-			use ::core2::io::ErrorKind as E;
 			match self.0.write(buf) {
 				Ok(i) => buf = &buf[i..],
 				Err(e) if e.kind() == E::Interrupted => continue,
@@ -53,7 +55,6 @@ where
 
 	fn flush(&mut self) -> Result<(), Self::Error> {
 		loop {
-			use ::core2::io::ErrorKind as E;
 			match self.0.flush() {
 				Ok(()) => break Ok(()),
 				Err(e) if e.kind() == E::Interrupted => continue,

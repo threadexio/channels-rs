@@ -1,5 +1,7 @@
 use super::prelude::*;
 
+use ::std::io::ErrorKind as E;
+
 newtype! {
 	/// Wrapper IO type for [`futures::AsyncRead`] and [`futures::AsyncWrite`].
 	Futures
@@ -13,25 +15,12 @@ where
 {
 	type Error = ::futures::io::Error;
 
-	fn poll_read(
+	fn poll_read_slice(
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: &mut ReadBuf,
-	) -> Poll<Result<(), Self::Error>> {
-		use ::std::io::ErrorKind as E;
-
-		while !buf.unfilled().is_empty() {
-			match ready!(Pin::new(&mut self.0)
-				.poll_read(cx, buf.unfilled_mut()))
-			{
-				Ok(0) => break,
-				Ok(n) => buf.advance(n),
-				Err(e) if e.kind() == E::Interrupted => continue,
-				Err(e) => return Ready(Err(e)),
-			}
-		}
-
-		Ready(Ok(()))
+		buf: &mut [u8],
+	) -> Poll<Result<usize, Self::Error>> {
+		Pin::new(&mut self.0).poll_read(cx, buf)
 	}
 }
 
@@ -48,8 +37,6 @@ where
 		cx: &mut Context,
 		buf: &mut WriteBuf,
 	) -> Poll<Result<(), Self::Error>> {
-		use ::std::io::ErrorKind as E;
-
 		while !buf.remaining().is_empty() {
 			match ready!(
 				Pin::new(&mut self.0).poll_write(cx, buf.remaining())
@@ -68,8 +55,6 @@ where
 		mut self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		use ::std::io::ErrorKind as E;
-
 		loop {
 			match ready!(Pin::new(&mut self.0).poll_flush(cx)) {
 				Ok(()) => return Ready(Ok(())),
