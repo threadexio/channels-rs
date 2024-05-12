@@ -2,6 +2,9 @@ use super::prelude::*;
 
 newtype! {
 	/// Wrapper IO type for [`futures::AsyncRead`] and [`futures::AsyncWrite`].
+	///
+	/// [`futures::AsyncRead`]: ::futures::AsyncRead
+	/// [`futures::AsyncWrite`]:  ::futures::AsyncWrite
 	Futures
 }
 

@@ -26,6 +26,9 @@ mod smol_error_impls {
 
 newtype! {
 	/// Wrapper IO type for [`smol::io::AsyncRead`] and [`smol::io::AsyncWrite`].
+	///
+	/// [`smol::io::AsyncRead`]: ::smol::io::AsyncRead
+	/// [`smol::io::AsyncWrite`]: ::smol::io::AsyncWrite
 	Smol
 }
 

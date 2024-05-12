@@ -22,6 +22,9 @@ impl WriteError for ::core2::io::Error {
 
 newtype! {
 	/// Wrapper IO type for [`core2::io::Read`] and [`core2::io::Write`].
+	///
+	/// [`core2::io::Read`]: ::core2::io::Read
+	/// [`core2::io::Write`]: ::core2::io::Write
 	Core2
 }
 

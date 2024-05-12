@@ -2,6 +2,9 @@ use super::prelude::*;
 
 newtype! {
 	/// Wrapper IO type for [`tokio::io::AsyncRead`] and [`tokio::io::AsyncWrite`].
+	///
+	/// [`tokio::io::AsyncRead`]: ::tokio::io::AsyncRead
+	/// [`tokio::io::AsyncWrite`]: ::tokio::io::AsyncWrite
 	Tokio
 }
 

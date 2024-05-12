@@ -54,6 +54,10 @@
 //!
 //! As you can see `write_data` is called both with types from [`tokio`] and
 //! [`async-std`] (aka [`futures`]). The same logic applies to synchronous code.
+//!
+//! [`async-std`]: https://docs.rs/async-std
+//! [`futures`]: https://docs.rs/futures
+//! [`tokio`]: https://docs.rs/tokio
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
