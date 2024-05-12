@@ -155,21 +155,26 @@ impl<'a> Iterator for AsPackets<'a> {
 }
 
 /// Estimate the total size of all of the packets needed to hold `payload`.
-fn estimate_total_size(payload: &[u8]) -> usize {
-	let n_packets = payload.len() / PayloadLength::MAX.as_usize();
-	let rem = payload.len() % PayloadLength::MAX.as_usize();
+fn estimate_total_size(payload_len: usize) -> usize {
+	let n_full_packets = payload_len / PayloadLength::MAX.as_usize();
+	let rem_bytes = payload_len % PayloadLength::MAX.as_usize();
 
-	// SAFETY: `rem` is the result of a modulo operation with `PayloadLength::MAX`.
-	//         The divisor is less than `u16::MAX`, so the result must also be
-	//         less than `u16::MAX`. Casting to u16 is safe.
-	#[allow(clippy::cast_possible_truncation)]
-	let rem = rem as u16;
+	let mut size = n_full_packets * PacketLength::MAX.as_usize();
 
-	let rem = PayloadLength::new(rem)
-		.expect("rem should be smaller than PayloadLength::MAX");
+	if rem_bytes != 0 || n_full_packets == 0 {
+		// SAFETY: `rem` is the result of a modulo operation with `PayloadLength::MAX`.
+		//         The divisor is less than `u16::MAX`, so the result must also be
+		//         less than `u16::MAX`. Casting to u16 is safe.
+		#[allow(clippy::cast_possible_truncation)]
+		let rem = rem_bytes as u16;
 
-	(n_packets * PacketLength::MAX.as_usize())
-		+ rem.to_packet_length().as_usize()
+		let rem = PayloadLength::new(rem)
+			.expect("rem should be smaller than PayloadLength::MAX");
+
+		size += rem.to_packet_length().as_usize();
+	}
+
+	size
 }
 
 channels_macros::replace! {
@@ -206,7 +211,7 @@ where
 		};
 
 		if self.config.coalesce_writes() {
-			let estimated_size = estimate_total_size(data);
+			let estimated_size = estimate_total_size(data.len());
 			self.write_buf.clear();
 			self.write_buf.reserve(estimated_size);
 		}
@@ -243,5 +248,91 @@ where
 	}
 }
 
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_estimate_total_size() {
+		#[derive(Clone, Copy)]
+		struct TestVector {
+			id: &'static str,
+			input: usize,
+			expected: usize,
+		}
+
+		static TEST_VECTORS: &[TestVector] = &[
+			TestVector {
+				id: "no payload",
+				input: 0,
+				expected: PacketLength::MIN.as_usize(),
+			},
+			TestVector {
+				id: "1 byte payload",
+				input: 1,
+				expected: PayloadLength::new_saturating(1)
+					.to_packet_length()
+					.as_usize(),
+			},
+			TestVector {
+				id: "full packet - 1",
+				input: PayloadLength::MAX.as_usize() - 1,
+				expected: PayloadLength::new_saturating(
+					PayloadLength::MAX.as_u16() - 1,
+				)
+				.to_packet_length()
+				.as_usize(),
+			},
+			TestVector {
+				id: "full packet",
+				input: PayloadLength::MAX.as_usize(),
+				expected: PacketLength::MAX.as_usize(),
+			},
+			TestVector {
+				id: "full packet + 1",
+				input: PayloadLength::MAX.as_usize() + 1,
+				expected: PacketLength::MAX.as_usize()
+					+ PayloadLength::new_saturating(1)
+						.to_packet_length()
+						.as_usize(),
+			},
+			TestVector {
+				id: "2 full packets - 1",
+				input: 2 * PayloadLength::MAX.as_usize() - 1,
+				expected: PacketLength::MAX.as_usize()
+					+ PayloadLength::new_saturating(
+						PayloadLength::MAX.as_u16() - 1,
+					)
+					.to_packet_length()
+					.as_usize(),
+			},
+			TestVector {
+				id: "2 full packets",
+				input: 2 * PayloadLength::MAX.as_usize(),
+				expected: 2 * PacketLength::MAX.as_usize(),
+			},
+			TestVector {
+				id: "2 full packets + 1",
+				input: 2 * PayloadLength::MAX.as_usize() + 1,
+				expected: 2 * PacketLength::MAX.as_usize()
+					+ PayloadLength::new_saturating(1)
+						.to_packet_length()
+						.as_usize(),
+			},
+		];
+
+		fn test(test_case: TestVector) {
+			assert_eq!(
+				estimate_total_size(test_case.input),
+				test_case.expected,
+				"test case \"{}\" failed",
+				test_case.id
+			);
+		}
+
+		TEST_VECTORS.iter().copied().for_each(test);
 	}
 }
