@@ -57,7 +57,7 @@
 //! | `smol`        | Adds support for sending/receiving types asynchronously with [`smol`].                          |
 //! | `std`         | Adds support for sending/receiving types over [`Read`] and [`Write`].                           |
 //! | `tokio`       | Adds support for sending/receiving types asynchronously with [`tokio`].                         |
-//! | `full-io`     | Features: `core2`, `futures`, `smol`, `std`, `tokio`                                                    |
+//! | `full-io`     | Features: `core2`, `futures`, `smol`, `std`, `tokio`                                            |
 //! | `full`        | Every feature in this table.                                                                    |
 //!
 //! [`core2`]: https://docs.rs/core2
@@ -69,6 +69,7 @@
 //! [`futures`]: https://docs.rs/futures
 //! [`Read`]: std::io::Read
 //! [`Write`]: std::io::Write
+//! [`smol`]: https://docs.rs/smol
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(clippy::print_stdout, clippy::print_stderr)]
