@@ -66,6 +66,7 @@ extern crate alloc;
 
 mod buf;
 mod convert;
+mod transaction;
 
 mod async_read;
 mod async_write;
@@ -75,6 +76,7 @@ mod write;
 
 pub use self::buf::{ReadBuf, WriteBuf};
 pub use self::convert::{Container, IntoRead, IntoWrite};
+pub use self::transaction::WriteTransaction;
 
 pub use self::async_read::AsyncRead;
 pub use self::async_write::AsyncWrite;
