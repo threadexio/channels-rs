@@ -1,5 +1,3 @@
-#![allow(missing_docs)] // TODO: docs
-
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
@@ -17,6 +15,30 @@ use crate::{AsyncWrite, Write};
 /// and call it once, if needed, when finished. When a buffer is not provided, it
 /// passes through the [`Write`] and [`AsyncWrite`] implementations to the underlying
 /// writer in a "1-1" manner.
+///
+///
+/// # Example
+///
+/// ```rust
+/// use channels_io::{Write, WriteTransaction, IntoWrite};
+///
+/// let mut writer = std::io::empty().into_write();
+///
+/// // with buffering
+/// let mut buf = Vec::with_capacity(256);
+/// let mut transaction = WriteTransaction::buffered(&mut writer, &mut buf);
+///
+/// transaction.write(b"some data").unwrap();
+/// transaction.write(b"some more data").unwrap();
+/// transaction.finish_sync().unwrap();
+///
+/// // without buffering
+/// let mut transaction = WriteTransaction::unbuffered(&mut writer);
+///
+/// transaction.write(b"some data").unwrap();
+/// transaction.write(b"some more data").unwrap();
+/// transaction.finish_sync().unwrap();
+/// ```
 ///
 /// [`write()`]: fn@Write::write
 /// [`flush()`]: fn@Write::flush
