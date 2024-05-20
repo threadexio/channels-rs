@@ -200,3 +200,193 @@ impl<'a, W: AsyncWrite + ?Sized> WriteTransaction<'a, W> {
 		Ok(())
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use core::marker::PhantomData;
+
+	use super::*;
+
+	use crate::{IoError, WriteError};
+
+	#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+	struct Error;
+
+	impl IoError for Error {
+		fn should_retry(&self) -> bool {
+			false
+		}
+	}
+
+	impl WriteError for Error {
+		fn write_zero() -> Self {
+			Self
+		}
+	}
+
+	#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+	struct Sync;
+	#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+	struct Async;
+
+	#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+	struct MockWriter<M> {
+		_marker: PhantomData<M>,
+		written: usize,
+		write_calls: usize,
+		flush_calls: usize,
+	}
+
+	impl Write for MockWriter<Sync> {
+		type Error = Error;
+
+		fn write_slice(
+			&mut self,
+			buf: &[u8],
+		) -> Result<usize, Self::Error> {
+			self.written += buf.len();
+			self.write_calls += 1;
+			Ok(buf.len())
+		}
+
+		fn flush_once(&mut self) -> Result<(), Self::Error> {
+			self.flush_calls += 1;
+			Ok(())
+		}
+	}
+
+	impl AsyncWrite for MockWriter<Async> {
+		type Error = Error;
+
+		fn poll_write_slice(
+			mut self: Pin<&mut Self>,
+			_: &mut Context,
+			buf: &[u8],
+		) -> Poll<Result<usize, Self::Error>> {
+			self.written += buf.len();
+			self.write_calls += 1;
+			Poll::Ready(Ok(buf.len()))
+		}
+
+		fn poll_flush_once(
+			mut self: Pin<&mut Self>,
+			_: &mut Context,
+		) -> Poll<Result<(), Self::Error>> {
+			self.flush_calls += 1;
+			Poll::Ready(Ok(()))
+		}
+	}
+
+	const DATA: &[u8] = b"123456789";
+	const ROUNDS: usize = 10;
+
+	#[test]
+	fn test_unbuffered_sync() {
+		let mut writer = MockWriter::<Sync>::default();
+
+		{
+			let mut transaction =
+				WriteTransaction::unbuffered(&mut writer);
+
+			for _ in 0..ROUNDS {
+				assert_eq!(transaction.write(DATA), Ok(()));
+			}
+			assert_eq!(transaction.finish_sync(), Ok(()));
+		}
+
+		validate_unbuffered(&writer);
+	}
+
+	#[tokio::test]
+	async fn test_unbuffered_async() {
+		let mut writer = MockWriter::<Async>::default();
+
+		{
+			let mut transaction =
+				WriteTransaction::unbuffered(&mut writer);
+
+			for _ in 0..ROUNDS {
+				assert_eq!(transaction.write(DATA).await, Ok(()));
+			}
+			assert_eq!(transaction.finish_async().await, Ok(()));
+		}
+
+		validate_unbuffered(&writer);
+	}
+
+	fn validate_unbuffered<M>(writer: &MockWriter<M>) {
+		assert_eq!(
+			writer.write_calls, ROUNDS,
+			"write was not called the expected times"
+		);
+		assert_eq!(
+			writer.written,
+			DATA.len() * ROUNDS,
+			"the expected number of bytes were not written"
+		);
+	}
+
+	#[test]
+	fn test_buffered_sync() {
+		let mut writer = MockWriter::<Sync>::default();
+		let mut buf = Vec::with_capacity(1024);
+
+		{
+			let mut transaction =
+				WriteTransaction::buffered(&mut writer, &mut buf);
+
+			for _ in 0..ROUNDS {
+				assert_eq!(transaction.write(DATA), Ok(()));
+			}
+			assert_eq!(transaction.flush(), Ok(()));
+			assert_eq!(transaction.finish_sync(), Ok(()));
+		}
+
+		validate_buffered(&writer, &buf);
+	}
+
+	#[tokio::test]
+	async fn test_buffered_async() {
+		let mut writer = MockWriter::<Async>::default();
+		let mut buf = Vec::with_capacity(1024);
+
+		{
+			let mut transaction =
+				WriteTransaction::buffered(&mut writer, &mut buf);
+
+			for _ in 0..ROUNDS {
+				assert_eq!(transaction.write(DATA).await, Ok(()));
+			}
+			assert_eq!(transaction.flush().await, Ok(()));
+			assert_eq!(transaction.finish_async().await, Ok(()));
+		}
+
+		validate_buffered(&writer, &buf);
+	}
+
+	fn validate_buffered<M>(writer: &MockWriter<M>, buf: &[u8]) {
+		assert_eq!(
+			writer.write_calls, 1,
+			"write was not called only 1 time"
+		);
+		assert_eq!(
+			writer.written,
+			DATA.len() * ROUNDS,
+			"the expected number of bytes were not written"
+		);
+		assert_eq!(writer.flush_calls, 1, "flush was not called");
+
+		let mut iter = buf.chunks_exact(DATA.len());
+		for x in &mut iter {
+			assert_eq!(
+				x, DATA,
+				"the buffer does not have the expected data"
+			);
+		}
+		assert_eq!(
+			iter.remainder(),
+			&[],
+			"more data was written to the buffer than expected"
+		);
+	}
+}
