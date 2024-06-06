@@ -77,7 +77,7 @@ mod write;
 mod transaction;
 #[cfg(feature = "alloc")]
 pub use self::transaction::{
-	AsyncWriteTransaction, WriteTransactionKind, WriteTransaction,
+	AsyncWriteTransaction, WriteTransaction, WriteTransactionKind,
 };
 
 pub use self::buf::{ReadBuf, WriteBuf};
