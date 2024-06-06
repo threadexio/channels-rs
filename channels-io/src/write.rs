@@ -1,4 +1,7 @@
-use crate::{IoError, WriteBuf, WriteError};
+use crate::{
+	IoError, WriteBuf, WriteError, WriteTransaction,
+	WriteTransactionKind,
+};
 
 /// This trait allows writing bytes to a writer.
 ///
@@ -50,6 +53,28 @@ pub trait Write {
 	///
 	/// [`flush()`]: fn@Write::flush
 	fn flush_once(&mut self) -> Result<(), Self::Error>;
+
+	/// Create a "by reference" adapter that takes the current instance of [`Write`]
+	/// by mutable reference.
+	fn by_ref(&mut self) -> &mut Self
+	where
+		Self: Sized,
+	{
+		self
+	}
+
+	/// Create a transaction that uses this instance of [`Write`].
+	///
+	/// This is a convenience wrapper for: [`WriteTransaction::new()`]
+	fn transaction(
+		self,
+		kind: WriteTransactionKind,
+	) -> WriteTransaction<'_, Self>
+	where
+		Self: Sized,
+	{
+		WriteTransaction::new(self, kind)
+	}
 }
 
 fn default_write<T>(

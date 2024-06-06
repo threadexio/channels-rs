@@ -7,7 +7,7 @@ use channels_packet::id::IdSequence;
 use channels_packet::{Flags, PacketLength, PayloadLength};
 
 use crate::error::SendError;
-use crate::io::{AsyncWrite, Write, WriteTransaction};
+use crate::io::{AsyncWrite, Write, WriteTransactionKind};
 use crate::sender::Config;
 use crate::statistics::StatIO;
 
@@ -185,7 +185,7 @@ channels_macros::replace! {
 			(await =>)
 			(send  => send_sync)
 			(Write => Write)
-			(finish => finish_sync)
+			(WriteTransaction => WriteTransaction)
 		]
 		// Asynchronous version
 		[
@@ -193,7 +193,7 @@ channels_macros::replace! {
 			(await => .await)
 			(send => send_async)
 			(Write => AsyncWrite)
-			(finish => finish_async)
+			(WriteTransaction => AsyncWriteTransaction)
 		]
 	}
 	code: {
@@ -216,27 +216,28 @@ where
 			let estimated_size = estimate_total_size(data.len());
 
 			self.write_buf.clear();
-			self.write_buf.reserve(estimated_size);
+			self.write_buf.reserve_exact(estimated_size);
 
-			WriteTransaction::buffered(&mut self.writer, &mut self.write_buf)
+			self.writer.by_ref().transaction(WriteTransactionKind::Buffered(&mut self.write_buf))
 		} else{
-			WriteTransaction::unbuffered(&mut self.writer)
+			self.writer.by_ref().transaction(WriteTransactionKind::Unbuffered)
 		};
 
 		for packet in as_packets(&mut self.pcb, data) {
 			let header_bytes = packet.header.to_bytes(with_checksum);
 
-			transaction.write(&header_bytes) await?;
-			transaction.write(packet.payload) await?;
+			transaction
+				.add(&header_bytes) await
+				.add(packet.payload) await;
 
 			transaction.writer_mut().statistics.inc_packets();
 		}
 
-		if self.config.flush_on_send() {
-			transaction.flush() await?;
-		}
-
 		transaction.finish() await?;
+
+		if self.config.flush_on_send() {
+			self.writer.flush() await?;
+		}
 
 		if self.config.coalesce_writes() && !self.config.keep_write_allocations() {
 			let _ = mem::take(&mut self.write_buf);

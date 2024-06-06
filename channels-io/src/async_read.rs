@@ -45,6 +45,15 @@ pub trait AsyncRead: Unpin {
 		cx: &mut Context,
 		buf: &mut [u8],
 	) -> Poll<Result<usize, Self::Error>>;
+
+	/// Create a "by reference" adapter that takes the current instance of [`AsyncRead`]
+	/// by mutable reference.
+	fn by_ref(&mut self) -> &mut Self
+	where
+		Self: Sized,
+	{
+		self
+	}
 }
 
 fn default_poll_read<T: AsyncRead + ?Sized>(

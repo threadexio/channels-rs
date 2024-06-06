@@ -2,7 +2,10 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
-use crate::{IoError, WriteBuf, WriteError};
+use crate::{
+	AsyncWriteTransaction, IoError, WriteBuf, WriteError,
+	WriteTransactionKind,
+};
 
 /// This trait is the asynchronous version of [`Write`].
 ///
@@ -71,6 +74,28 @@ pub trait AsyncWrite: Unpin {
 		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>>;
+
+	/// Create a "by reference" adapter that takes the current instance of [`AsyncWrite`]
+	/// by mutable reference.
+	fn by_ref(&mut self) -> &mut Self
+	where
+		Self: Sized,
+	{
+		self
+	}
+
+	/// Create a transaction that uses this instance of [`AsyncWrite`].
+	///
+	/// This is a convenience wrapper for: [`AsyncWriteTransaction::new()`]
+	fn transaction(
+		self,
+		kind: WriteTransactionKind,
+	) -> AsyncWriteTransaction<'_, Self>
+	where
+		Self: Sized,
+	{
+		AsyncWriteTransaction::new(self, kind)
+	}
 }
 
 fn default_poll_write<T>(

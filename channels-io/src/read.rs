@@ -33,6 +33,15 @@ pub trait Read {
 		&mut self,
 		buf: &mut [u8],
 	) -> Result<usize, Self::Error>;
+
+	/// Create a "by reference" adapter that takes the current instance of [`Read`]
+	/// by mutable reference.
+	fn by_ref(&mut self) -> &mut Self
+	where
+		Self: Sized,
+	{
+		self
+	}
 }
 
 fn default_read<T>(

@@ -30,6 +30,10 @@ futures = { version = "0.3", default-features = false, features = ["std"], optio
 smol = { version = "2", optional = true }
 tokio = { version = "1", optional = true }
 
+[dependencies.channels-macros]
+version = "0.1.0"
+path = "../channels-macros"
+
 [dev-dependencies]
 async-std = { version = "1" }
 futures = { version = "0.3" }
