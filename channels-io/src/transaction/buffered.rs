@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::{AsyncWrite, Write};
 
 #[derive(Debug)]
