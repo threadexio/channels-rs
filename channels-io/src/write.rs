@@ -1,7 +1,5 @@
-use crate::{
-	IoError, WriteBuf, WriteError, WriteTransaction,
-	WriteTransactionKind,
-};
+use crate::transaction::{WriteTransaction, WriteTransactionKind};
+use crate::{IoError, WriteBuf, WriteError};
 
 /// This trait allows writing bytes to a writer.
 ///

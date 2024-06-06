@@ -1,3 +1,5 @@
+//! IO transactions.
+
 use alloc::vec::Vec;
 
 use channels_macros::replace;
@@ -136,9 +138,8 @@ replace! {
 #[cfg_attr(cfg_sync, doc = r#"
 use std::fs::File;
 
-use channels_io::{
-    IntoWrite, Write, WriteTransaction, WriteTransactionKind,
-};
+use channels_io::{IntoWrite, Write};
+use channels_io::transaction::{WriteTransaction, WriteTransactionKind};
 
 fn write_hello<W: Write>(transaction: &mut WriteTransaction<W>) {
     transaction.add(b"Hello").add(b", ").add(b"world!\n");
@@ -172,9 +173,8 @@ fn my_fn() {
 #[cfg_attr(cfg_async, doc = r#"
 use tokio::fs::File;
 
-use channels_io::{
-    IntoWrite, AsyncWrite, AsyncWriteTransaction, WriteTransactionKind,
-};
+use channels_io::{IntoWrite, AsyncWrite};
+use channels_io::transaction::{AsyncWriteTransaction, WriteTransactionKind};
 
 async fn write_hello<W: AsyncWrite>(transaction: &mut AsyncWriteTransaction<'_, W>) {
     transaction

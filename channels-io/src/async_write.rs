@@ -2,10 +2,10 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
-use crate::{
-	AsyncWriteTransaction, IoError, WriteBuf, WriteError,
-	WriteTransactionKind,
+use crate::transaction::{
+	AsyncWriteTransaction, WriteTransactionKind,
 };
+use crate::{IoError, WriteBuf, WriteError};
 
 /// This trait is the asynchronous version of [`Write`].
 ///

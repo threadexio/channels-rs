@@ -7,7 +7,8 @@ use channels_packet::id::IdSequence;
 use channels_packet::{Flags, PacketLength, PayloadLength};
 
 use crate::error::SendError;
-use crate::io::{AsyncWrite, Write, WriteTransactionKind};
+use crate::io::transaction::WriteTransactionKind;
+use crate::io::{AsyncWrite, Write};
 use crate::sender::Config;
 use crate::statistics::StatIO;
 
