@@ -69,9 +69,10 @@ mod convert;
 
 mod async_read;
 mod async_write;
-mod error;
 mod read;
 mod write;
+
+pub mod error;
 
 #[cfg(feature = "alloc")]
 pub mod transaction;
@@ -81,7 +82,6 @@ pub use self::convert::{Container, IntoRead, IntoWrite};
 
 pub use self::async_read::AsyncRead;
 pub use self::async_write::AsyncWrite;
-pub use self::error::{IoError, ReadError, WriteError};
 pub use self::read::Read;
 pub use self::write::Write;
 

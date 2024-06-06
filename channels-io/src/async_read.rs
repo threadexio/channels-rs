@@ -2,7 +2,8 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
-use crate::{IoError, ReadBuf, ReadError};
+use crate::error::{IoError, ReadError};
+use crate::ReadBuf;
 
 /// This trait is the asynchronous version of [`Read`].
 ///

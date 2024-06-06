@@ -2,7 +2,8 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
-use crate::{IoError, WriteBuf, WriteError};
+use crate::error::{IoError, WriteError};
+use crate::WriteBuf;
 
 #[cfg(feature = "alloc")]
 use crate::transaction::{

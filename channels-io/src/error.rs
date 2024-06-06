@@ -1,7 +1,9 @@
+//! Error traits that describe IO errors.
+
 /// Common functionality for [`ReadError`] and [`WriteError`].
 ///
-/// [`ReadError`]: trait@crate::ReadError
-/// [`WriteError`]: trait@crate::WriteError
+/// [`ReadError`]: trait@ReadError
+/// [`WriteError`]: trait@WriteError
 pub trait IoError {
 	/// Checks whether the given error indicates that the operation should be retried.
 	fn should_retry(&self) -> bool;

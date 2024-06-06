@@ -65,8 +65,8 @@ use newtype;
 #[allow(unused_imports)]
 mod prelude {
 	pub(super) use crate::{
-		AsyncRead, AsyncWrite, IoError, Read, ReadBuf, ReadError,
-		Write, WriteBuf, WriteError,
+		error::{IoError, ReadError, WriteError},
+		AsyncRead, AsyncWrite, Read, ReadBuf, Write, WriteBuf,
 	};
 
 	pub(super) use super::{
