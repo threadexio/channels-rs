@@ -1,5 +1,7 @@
-use crate::transaction::{WriteTransaction, WriteTransactionKind};
 use crate::{IoError, WriteBuf, WriteError};
+
+#[cfg(feature = "alloc")]
+use crate::transaction::{WriteTransaction, WriteTransactionKind};
 
 /// This trait allows writing bytes to a writer.
 ///
@@ -64,6 +66,7 @@ pub trait Write {
 	/// Create a transaction that uses this instance of [`Write`].
 	///
 	/// This is a convenience wrapper for: [`WriteTransaction::new()`]
+	#[cfg(feature = "alloc")]
 	fn transaction(
 		self,
 		kind: WriteTransactionKind,

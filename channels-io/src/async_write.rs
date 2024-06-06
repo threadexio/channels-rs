@@ -2,10 +2,12 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
+use crate::{IoError, WriteBuf, WriteError};
+
+#[cfg(feature = "alloc")]
 use crate::transaction::{
 	AsyncWriteTransaction, WriteTransactionKind,
 };
-use crate::{IoError, WriteBuf, WriteError};
 
 /// This trait is the asynchronous version of [`Write`].
 ///
@@ -87,6 +89,7 @@ pub trait AsyncWrite: Unpin {
 	/// Create a transaction that uses this instance of [`AsyncWrite`].
 	///
 	/// This is a convenience wrapper for: [`AsyncWriteTransaction::new()`]
+	#[cfg(feature = "alloc")]
 	fn transaction(
 		self,
 		kind: WriteTransactionKind,
