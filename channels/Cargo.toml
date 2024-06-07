@@ -1,6 +1,6 @@
 [package]
 name = "channels"
-version = "0.11.2"
+version = "0.12.0"
 authors = ["1337"]
 edition = "2021"
 description = """
@@ -32,11 +32,11 @@ path = "../channels-io"
 features = ["alloc"]
 
 [dependencies.channels-packet]
-version = "0.1.1"
+version = "0.1.2"
 path = "../channels-packet"
 
 [dependencies.channels-serdes]
-version = "0.1.2"
+version = "0.2.0"
 path = "../channels-serdes"
 
 [dev-dependencies]
