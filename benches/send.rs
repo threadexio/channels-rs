@@ -1,29 +1,114 @@
-use criterion::{
-	black_box, criterion_group, criterion_main, Criterion,
-};
+use std::convert::Infallible;
 
-use benches::{complex, simple, Complex, Simple};
-use std::io::empty;
+use criterion::{criterion_group, criterion_main, Criterion};
 
-fn send_simple(c: &mut Criterion) {
-	let mut sender = channels::Sender::<Simple, _, _>::new(empty());
+use channels::io::IntoWrite;
+use channels::sender::{Config, Sender};
+use channels::serdes::Serializer;
 
-	let data = simple();
+struct FastSerializer;
 
-	c.bench_function("send simple", |b| {
-		b.iter(|| sender.send_blocking(black_box(&data)).unwrap())
+impl Serializer<()> for FastSerializer {
+	type Error = Infallible;
+
+	fn serialize(&mut self, _: &()) -> Result<Vec<u8>, Self::Error> {
+		Ok(Vec::new())
+	}
+}
+
+fn make_sender<W>(
+	writer: impl IntoWrite<W>,
+	config: Config,
+) -> Sender<(), W, FastSerializer> {
+	Sender::builder()
+		.serializer(FastSerializer)
+		.writer(writer)
+		.config(config)
+		.build()
+}
+
+fn tokio_rt() -> tokio::runtime::Runtime {
+	tokio::runtime::Builder::new_current_thread()
+		.enable_all()
+		.build()
+		.unwrap()
+}
+
+fn bench_send_sync(c: &mut Criterion, id: &str, config: Config) {
+	let mut sender = make_sender(std::io::empty(), config);
+
+	c.bench_function(id, |b| {
+		b.iter(|| {
+			sender.send_blocking(()).unwrap();
+		})
 	});
 }
 
-fn send_complex(c: &mut Criterion) {
-	let mut sender = channels::Sender::<Complex, _, _>::new(empty());
+fn bench_send_async(c: &mut Criterion, id: &str, config: Config) {
+	let mut sender = make_sender(tokio::io::empty(), config);
 
-	let data = complex();
+	let rt = tokio_rt();
 
-	c.bench_function("send complex", |b| {
-		b.iter(|| sender.send_blocking(black_box(&data)).unwrap())
+	c.bench_function(id, |b| {
+		b.iter(|| {
+			rt.block_on(async {
+				sender.send(()).await.unwrap();
+			})
+		})
 	});
 }
 
-criterion_group!(benches, send_simple, send_complex);
-criterion_main!(benches);
+struct SendBenchmark {
+	variant: &'static str,
+	config: Config,
+}
+
+fn send_benchmarks() -> Vec<SendBenchmark> {
+	[
+		SendBenchmark {
+			variant: "default",
+			config: Config::default(),
+		},
+		SendBenchmark {
+			variant: "no_alloc",
+			config: Config::default().with_coalesce_writes(false),
+		},
+		SendBenchmark {
+			variant: "no_header_checksum",
+			config: Config::default().with_use_header_checksum(false),
+		},
+		SendBenchmark {
+			variant: "no_flush",
+			config: Config::default().with_flush_on_send(false),
+		},
+		SendBenchmark {
+			variant: "tuned",
+			config: Config::default()
+				.with_coalesce_writes(false)
+				.with_flush_on_send(false)
+				.with_keep_write_allocations(false)
+				.with_use_header_checksum(false),
+		},
+	]
+	.into()
+}
+
+fn send_benches_all(c: &mut Criterion) {
+	send_benchmarks().iter().for_each(|bench| {
+		let SendBenchmark { variant, config } = bench;
+
+		bench_send_sync(
+			c,
+			&format!("sync_send ({variant})"),
+			config.clone(),
+		);
+		bench_send_async(
+			c,
+			&format!("async_send ({variant})"),
+			config.clone(),
+		);
+	});
+}
+
+criterion_group!(send_bench, send_benches_all);
+criterion_main!(send_bench);

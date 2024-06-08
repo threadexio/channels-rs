@@ -10,7 +10,9 @@ channels = { workspace = true, features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
+async-std = { version = "1" }
 criterion = "0.5.1"
+tokio = { version = "1", features = ["full"] }
 
 [[bench]]
 name = "send"
