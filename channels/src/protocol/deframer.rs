@@ -64,20 +64,22 @@ impl HeaderBuf {
 			"header must be complete before parsing"
 		);
 
-		let with_checksum = if config.verify_header_checksum {
+		let with_checksum = if config.verify_header_checksum() {
 			WithChecksum::Yes
 		} else {
 			WithChecksum::No
 		};
 
+		let verify_id = if config.verify_packet_order() {
+			VerifyId::Yes(&mut pcb.seq)
+		} else {
+			VerifyId::No
+		};
+
 		let bytes = self.inner;
 		self.complete = false;
 
-		Header::try_from_bytes(
-			bytes,
-			with_checksum,
-			VerifyId::Yes(&mut pcb.seq),
-		)
+		Header::try_from_bytes(bytes, with_checksum, verify_id)
 	}
 }
 

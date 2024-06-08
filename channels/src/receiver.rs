@@ -636,12 +636,49 @@ impl<T, R, D> Builder<T, R, D> {
 ///
 /// [`Sender`]: crate::Sender
 /// [`use_header_checksum()`]: crate::sender::Config::use_header_checksum()
+///
+/// ## Verify packet order
+///
+/// Verify that received packets are in order.
+///
+/// Using the library atop of mediums which do not guarantee any sort of ordering
+/// between packets, such as UDP, can present some problems. Each channels packet
+/// contains an wrapping numeric ID that is used to check whether packets are
+/// received in the order they were sent. UDP for example, does not guarantee in
+/// which order packets reach their destination. Supposing a sender tries to send
+/// packets with IDs 1, 2 and 3, it is therefore possible that UDP delivers packets
+/// 2 or 3 before 1. This would immediately trigger an error of [`OutOfOrder`].
+/// This behavior might not be what you want. This flag specifies whether the
+/// receiver should check the ID of each packet and verify that it was received
+/// in the correct order. If it is not set, then it is impossible for an [`OutOfOrder`]
+/// error to occur.
+///
+/// [`OutOfOrder`]: RecvError::OutOfOrder
 #[derive(Clone)]
 #[must_use = "`Config`s don't do anything on their own"]
 pub struct Config {
 	pub(crate) size_estimate: Option<NonZeroUsize>,
 	pub(crate) max_size: Option<NonZeroUsize>,
-	pub(crate) verify_header_checksum: bool,
+	pub(crate) flags: u8,
+}
+
+impl Config {
+	const VERIFY_HEADER_CHECKSUM: u8 = 1 << 0;
+	const VERIFY_PACKET_ORDER: u8 = 1 << 1;
+
+	#[inline]
+	fn get_flag(&self, flag: u8) -> bool {
+		self.flags & flag != 0
+	}
+
+	#[inline]
+	fn set_flag(&mut self, flag: u8, value: bool) {
+		if value {
+			self.flags |= flag;
+		} else {
+			self.flags &= !flag;
+		}
+	}
 }
 
 impl Default for Config {
@@ -653,7 +690,7 @@ impl Default for Config {
 				NonZeroUsize::new(PacketLength::MAX.as_usize())
 					.expect("PacketLength::MAX should not be 0"),
 			),
-			verify_header_checksum: true,
+			flags: Self::VERIFY_PACKET_ORDER,
 		}
 	}
 }
@@ -723,7 +760,7 @@ impl Config {
 	#[inline]
 	#[must_use]
 	pub fn verify_header_checksum(&self) -> bool {
-		self.verify_header_checksum
+		self.get_flag(Self::VERIFY_HEADER_CHECKSUM)
 	}
 
 	/// Whether to verify each packet's header with the checksum.
@@ -732,7 +769,7 @@ impl Config {
 		&mut self,
 		yes: bool,
 	) -> &mut Self {
-		self.verify_header_checksum = yes;
+		self.set_flag(Self::VERIFY_HEADER_CHECKSUM, yes);
 		self
 	}
 
@@ -740,6 +777,30 @@ impl Config {
 	#[inline]
 	pub fn with_verify_header_checksum(mut self, yes: bool) -> Self {
 		self.set_verify_header_checksum(yes);
+		self
+	}
+
+	/// Get whether to verify packet order.
+	#[inline]
+	#[must_use]
+	pub fn verify_packet_order(&self) -> bool {
+		self.get_flag(Self::VERIFY_PACKET_ORDER)
+	}
+
+	/// Whether to verify packet order.
+	#[inline]
+	pub fn set_verify_packet_order(
+		&mut self,
+		yes: bool,
+	) -> &mut Self {
+		self.set_flag(Self::VERIFY_PACKET_ORDER, yes);
+		self
+	}
+
+	/// Whether to verify packet order.
+	#[inline]
+	pub fn with_verify_packet_order(mut self, yes: bool) -> Self {
+		self.set_verify_packet_order(yes);
 		self
 	}
 }
