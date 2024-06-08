@@ -18,3 +18,8 @@ tokio = { version = "1", features = ["full"] }
 name = "send"
 path = "send.rs"
 harness = false
+
+[[bench]]
+name = "recv"
+path = "recv.rs"
+harness = false
