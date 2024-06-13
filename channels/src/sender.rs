@@ -259,9 +259,10 @@ where
 	///
 	/// # Cancel Safety
 	///
-	/// This method is not cancel safe. Dropping this future will lead to undefined
-	/// behavior. If the method is used in some `select!`-like macro and some other
-	/// branch completes first, then some data may have been sent over the channel.
+	/// This method is **NOT** cancel safe. Dropping this future means data might
+	/// get lost.  If the method is used in some `select!`-like macro and some other
+	/// branch completes first, then only a part of the data may have been sent
+	/// over the channel.
 	///
 	/// # Example
 	///

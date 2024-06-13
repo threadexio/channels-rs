@@ -284,10 +284,11 @@ where
 	///
 	/// # Cancel Safety
 	///
-	/// This method is cancel safe. This means that dropping this future will not
-	/// drop any values. If the method is used as the event in some `select!`-like
-	/// macro and some other branch completes first, then it is guaranteed that
-	/// no values were received.
+	/// This method is **NOT** cancel safe. This means that dropping this future
+	/// might drop some data. If the method is used as the event in some `select!`-like
+	/// macro and some other branch completes first, then it is possible that data
+	/// was received but dropped. This will result in errors in further [`recv()`]
+	/// calls.
 	///
 	/// # Example
 	///
@@ -303,6 +304,8 @@ where
 	///     println!("{received}");
 	/// }
 	/// ```
+	///
+	/// [`recv()`]: fn@Self::recv
 	pub async fn recv(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
@@ -382,10 +385,10 @@ where
 	///
 	/// # Cancel Safety
 	///
-	/// This method is cancel safe. This means that dropping this future will not
-	/// drop any values. If the method is used as the event in some `select!`-like
-	/// macro and some other branch completes first, then it is guaranteed that
-	/// no values were received.
+	/// This method is **NOT** cancel safe. This means that dropping this future
+	/// might drop some data. If the method is used as the event in some `select!`-like
+	/// macro and some other branch completes first, then it is possible that data
+	/// was received but dropped.
 	pub async fn next_async(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
