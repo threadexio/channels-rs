@@ -8,7 +8,7 @@ use channels_packet::PacketLength;
 
 use crate::error::RecvError;
 use crate::io::{AsyncRead, Container, IntoRead, Read};
-use crate::protocol::{Deframer, ReceiverCore};
+use crate::protocol::ReceiverCore;
 use crate::serdes::Deserializer;
 
 #[allow(unused_imports)]
@@ -137,7 +137,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		self.core.deframer.config()
+		&self.core.config
 	}
 
 	/// Get an iterator over incoming messages.
@@ -277,21 +277,6 @@ where
 
 impl<T, R, D> Receiver<T, R, D>
 where
-	D: Deserializer<T>,
-{
-	#[inline]
-	fn deserialize_t<Io>(
-		&mut self,
-		data: &mut [u8],
-	) -> Result<T, RecvError<D::Error, Io>> {
-		self.deserializer
-			.deserialize(data)
-			.map_err(RecvError::Serde)
-	}
-}
-
-impl<T, R, D> Receiver<T, R, D>
-where
 	R: AsyncRead,
 	D: Deserializer<T>,
 {
@@ -321,8 +306,11 @@ where
 	pub async fn recv(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let mut payload = self.core.recv_async().await?;
-		self.deserialize_t(&mut payload)
+		let payload = self.core.recv_async().await?;
+
+		self.deserializer
+			.deserialize(payload)
+			.map_err(RecvError::Serde)
 	}
 }
 
@@ -355,8 +343,11 @@ where
 	pub fn recv_blocking(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let mut payload = self.core.recv_sync()?;
-		self.deserialize_t(&mut payload)
+		let payload = self.core.recv_sync()?;
+
+		self.deserializer
+			.deserialize(payload)
+			.map_err(RecvError::Serde)
 	}
 }
 
@@ -536,14 +527,13 @@ impl<T, R, D> Builder<T, R, D> {
 	#[inline]
 	pub fn build(self) -> Receiver<T, R, D> {
 		let config = self.config.unwrap_or_default();
-		let deframer = Deframer::new(config);
 		let deserializer = self.deserializer;
 		let reader = StatIO::new(self.reader);
 
 		Receiver {
 			_marker: PhantomData,
 			deserializer,
-			core: ReceiverCore { reader, deframer },
+			core: ReceiverCore::new(reader, config),
 		}
 	}
 }
