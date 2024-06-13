@@ -1,6 +1,6 @@
 [package]
 name = "channels"
-version = "0.12.0"
+version = "0.12.1"
 authors = ["1337"]
 edition = "2021"
 description = """
@@ -27,7 +27,7 @@ version = "0.1.0"
 path = "../channels-macros"
 
 [dependencies.channels-io]
-version = "0.1.0"
+version = "0.1.1"
 path = "../channels-io"
 features = ["alloc"]
 
