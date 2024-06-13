@@ -210,7 +210,7 @@ async fn my_fn() {
 "#)]
 /// ```
 ///
-/// [`WriteTransactionKind`]: struct@WriteTransactionKind
+/// [`WriteTransactionKind`]: enum@WriteTransactionKind
 /// [`add()`]: fn@Self::add
 /// [`finish()`]: fn@Self::finish
 /// [`Result<..., ...>`]: enum@Result
@@ -247,7 +247,7 @@ impl<'a, W: Write> WriteTransaction<'a, W> {
 	///
 	/// See: [`WriteTransactionKind`].
 	///
-	/// [`WriteTransactionKind`]: struct@WriteTransactionKind
+	/// [`WriteTransactionKind`]: enum@WriteTransactionKind
 	#[inline]
 	pub fn new(writer: W, kind: WriteTransactionKind<'a>) -> Self {
 		Self {
@@ -276,8 +276,8 @@ impl<'a, W: Write> WriteTransaction<'a, W> {
 	/// [`None`]. From the moment this method returns [`Some(...)`], all further
 	/// calls to [`add()`] will be no-ops.
 	///
-	/// [`Some(...)`]: enum@Some
-	/// [`None`]: enum@None
+	/// [`Some(...)`]: Option::Some
+	/// [`None`]: Option::None
 	/// [`add()`]: fn@Self::add
 	pub fn last_error(&self) -> Option<&W::Error> {
 		self.result.as_ref().err()
@@ -319,7 +319,7 @@ impl<'a, W: Write> WriteTransaction<'a, W> {
 	/// that when [`finish()`] returns, all data given to the transaction will
 	/// be written to the writer.
 	///
-	/// [`WriteTransactionKind`]: struct@WriteTransactionKind
+	/// [`WriteTransactionKind`]: enum@WriteTransactionKind
 	/// [`finish()`]: fn@Self::finish
 	pub async fn add(&mut self, buf: &[u8]) -> &mut Self {
 		if self.result.is_ok() {
@@ -342,7 +342,9 @@ impl<'a, W: Write> WriteTransaction<'a, W> {
 	/// in this method. Either way, the writer is left in an invalid state and
 	/// it is not known if or how much data was written to the writer.
 	///
-	/// [`WriteTransactionKind`]: struct@WriteTransactionKind
+	/// [`WriteTransactionKind`]: enum@WriteTransactionKind
+	/// [`Err(...)`]: Result::Err
+	/// [`add()`]: fn@Self::add
 	#[must_use = "unchecked transaction result"]
 	pub async fn finish(mut self) -> Result<(), W::Error> {
 		match self.result {
