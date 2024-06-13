@@ -14,7 +14,7 @@ use core::fmt;
 ///
 /// ```not_rust
 /// ┌────────────────────────────────┬──────────────────────┐
-/// │             filled             │       unfilled       │
+/// │             cursor             │       unfilled       │
 /// └────────────────────────────────▲──────────────────────┘
 ///                                  └ cursor
 /// ```
@@ -86,6 +86,25 @@ impl<'a> ReadBuf<'a> {
 		}
 
 		unsafe { self.set_pos(usize::saturating_add(self.pos, n)) };
+	}
+
+	/// Advance the inner cursor by `n` bytes and return the bytes between the
+	/// old and the new cursor as a slice.
+	///
+	/// # Panics
+	///
+	/// If `n` will cause the cursor to go out of bounds.
+	#[inline]
+	pub fn consume(&mut self, n: usize) -> &mut [u8] {
+		if n == 0 {
+			return &mut [];
+		}
+
+		let old_pos = self.pos;
+		self.advance(n);
+		let new_pos = self.pos;
+
+		&mut self.inner[old_pos..new_pos]
 	}
 }
 
@@ -168,6 +187,25 @@ impl<'a> WriteBuf<'a> {
 		}
 
 		unsafe { self.set_pos(usize::saturating_add(self.pos, n)) };
+	}
+
+	/// Advance the inner cursor by `n` bytes and return the bytes between the
+	/// old and the new cursor as a slice.
+	///
+	/// # Panics
+	///
+	/// If `n` will cause the cursor to go out of bounds.
+	#[inline]
+	pub fn consume(&mut self, n: usize) -> &'a [u8] {
+		if n == 0 {
+			return &[];
+		}
+
+		let old_pos = self.pos;
+		self.advance(n);
+		let new_pos = self.pos;
+
+		&self.inner[old_pos..new_pos]
 	}
 }
 

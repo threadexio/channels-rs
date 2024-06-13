@@ -8,23 +8,24 @@ use channels_packet::{Flags, PacketLength, PayloadLength};
 
 use crate::error::SendError;
 use crate::io::transaction::WriteTransactionKind;
-use crate::io::{AsyncWrite, Write};
+use crate::io::{AsyncWrite, Write, WriteBuf};
 use crate::sender::Config;
 use crate::statistics::StatIO;
 
 pub(crate) struct SenderCore<W> {
 	pub(crate) writer: StatIO<W>,
 	pub(crate) config: Config,
+
 	pcb: SendPcb,
-	write_buf: Vec<u8>,
+	send_buf: Vec<u8>,
 }
 
 impl<W> SenderCore<W> {
 	pub fn new(writer: StatIO<W>, config: Config) -> Self {
-		let write_buf = Vec::new();
+		let send_buf = Vec::new();
 		let pcb = SendPcb::default();
 
-		Self { writer, config, pcb, write_buf }
+		Self { writer, config, pcb, send_buf }
 	}
 }
 
@@ -60,24 +61,8 @@ struct Packet<'a> {
 	payload: &'a [u8],
 }
 
-struct PayloadBuf<'a> {
-	inner: &'a [u8],
-}
-
-impl<'a> PayloadBuf<'a> {
-	fn remaining(&self) -> usize {
-		self.inner.len()
-	}
-
-	fn consume(&mut self, n: usize) -> &'a [u8] {
-		let (ret, inner) = self.inner.split_at(n);
-		self.inner = inner;
-		ret
-	}
-}
-
 struct AsPackets<'a> {
-	payload: PayloadBuf<'a>,
+	payload: WriteBuf<'a>,
 	pcb: &'a mut SendPcb,
 
 	has_one_packet: bool,
@@ -90,7 +75,7 @@ fn as_packets<'a>(
 	AsPackets {
 		pcb,
 		has_one_packet: false,
-		payload: PayloadBuf { inner: payload },
+		payload: WriteBuf::new(payload),
 	}
 }
 
@@ -98,56 +83,55 @@ impl<'a> Iterator for AsPackets<'a> {
 	type Item = Packet<'a>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		let packet =
-			match (self.payload.remaining(), self.has_one_packet) {
-				// If there is no more data and we have already sent
-				// one packet, then exit.
-				(0, true) => return None,
-				// If there is no more data and we have not sent any
-				// packets, then send one packet with no payload.
-				(0, false) => Packet {
+		let packet = match (
+			self.payload.remaining().len(),
+			self.has_one_packet,
+		) {
+			// If there is no more data and we have already sent
+			// one packet, then exit.
+			(0, true) => return None,
+			// If there is no more data and we have not sent any
+			// packets, then send one packet with no payload.
+			(0, false) => Packet {
+				header: Header {
+					length: PacketLength::MIN,
+					flags: Flags::empty(),
+					id: self.pcb.seq.advance(),
+				},
+				payload: &[],
+			},
+			// If the remaining data is more than what fits inside
+			// one packet, return a header for a full packet.
+			(len, _) if len > PayloadLength::MAX.as_usize() => {
+				Packet {
 					header: Header {
-						length: PacketLength::MIN,
-						flags: Flags::empty(),
+						length: PayloadLength::MAX.to_packet_length(),
+						flags: Flags::MORE_DATA,
 						id: self.pcb.seq.advance(),
 					},
-					payload: &[],
+					payload: self
+						.payload
+						.consume(PayloadLength::MAX.as_usize()),
+				}
+			},
+			// If the remaining data is equal or less than what
+			// fits inside one packet, return a header for exactly
+			// that amount of data.
+			(len, _) => Packet {
+				header: Header {
+					// SAFETY: `len` is less that PayloadLength::MAX and since
+					//         `PayloadLength` is a u16, `len` can be cast to
+					//         u16 without losses.
+					#[allow(clippy::cast_possible_truncation)]
+					length: PayloadLength::new(len as u16)
+						.expect("len should be a valid PayloadLength")
+						.to_packet_length(),
+					flags: Flags::empty(),
+					id: self.pcb.seq.advance(),
 				},
-				// If the remaining data is more than what fits inside
-				// one packet, return a header for a full packet.
-				(len, _) if len > PayloadLength::MAX.as_usize() => {
-					Packet {
-						header: Header {
-							length: PayloadLength::MAX
-								.to_packet_length(),
-							flags: Flags::MORE_DATA,
-							id: self.pcb.seq.advance(),
-						},
-						payload: self
-							.payload
-							.consume(PayloadLength::MAX.as_usize()),
-					}
-				},
-				// If the remaining data is equal or less than what
-				// fits inside one packet, return a header for exactly
-				// that amount of data.
-				(len, _) => Packet {
-					header: Header {
-						// SAFETY: `len` is less that PayloadLength::MAX and since
-						//         `PayloadLength` is a u16, `len` can be cast to
-						//         u16 without losses.
-						#[allow(clippy::cast_possible_truncation)]
-						length: PayloadLength::new(len as u16)
-							.expect(
-								"len should be a valid PayloadLength",
-							)
-							.to_packet_length(),
-						flags: Flags::empty(),
-						id: self.pcb.seq.advance(),
-					},
-					payload: self.payload.consume(len),
-				},
-			};
+				payload: self.payload.consume(len),
+			},
+		};
 
 		self.has_one_packet = true;
 
@@ -207,24 +191,28 @@ where
 		&mut self,
 		data: &[u8],
 	) -> Result<(), CoreSendError<W::Error>> {
-		let with_checksum = if self.config.use_header_checksum() {
+		let Self {
+			config, pcb, send_buf, writer
+		} = self;
+
+		let with_checksum = if config.use_header_checksum() {
 			WithChecksum::Yes
 		} else {
 			WithChecksum::No
 		};
 
-		let mut transaction = if self.config.coalesce_writes() {
+		let mut transaction = if config.coalesce_writes() {
 			let estimated_size = estimate_total_size(data.len());
 
-			self.write_buf.clear();
-			self.write_buf.reserve_exact(estimated_size);
+			send_buf.clear();
+			send_buf.reserve_exact(estimated_size);
 
-			self.writer.by_ref().transaction(WriteTransactionKind::Buffered(&mut self.write_buf))
+			writer.by_ref().transaction(WriteTransactionKind::Buffered(send_buf))
 		} else{
-			self.writer.by_ref().transaction(WriteTransactionKind::Unbuffered)
+			writer.by_ref().transaction(WriteTransactionKind::Unbuffered)
 		};
 
-		for packet in as_packets(&mut self.pcb, data) {
+		for packet in as_packets(pcb, data) {
 			let header_bytes = packet.header.to_bytes(with_checksum);
 
 			transaction
@@ -236,15 +224,15 @@ where
 
 		transaction.finish() await?;
 
-		if self.config.flush_on_send() {
-			self.writer.flush() await?;
+		if config.flush_on_send() {
+			writer.flush() await?;
 		}
 
-		if self.config.coalesce_writes() && !self.config.keep_write_allocations() {
-			let _ = mem::take(&mut self.write_buf);
+		if config.coalesce_writes() && !config.keep_write_allocations() {
+			let _ = mem::take(send_buf);
 		}
 
-		self.writer.statistics.inc_ops();
+		writer.statistics.inc_ops();
 
 		Ok(())
 	}
