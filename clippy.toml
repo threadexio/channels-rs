@@ -1,6 +1,7 @@
 allowed-duplicate-crates = [
 	"bitflags",
 	"event-listener-strategy",
+	"hermit-abi",
 	"windows-sys",
 	"windows-targets",
 	"windows_aarch64_gnullvm",
