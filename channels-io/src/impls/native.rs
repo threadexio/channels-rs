@@ -13,10 +13,6 @@ where
 {
 	type Error = T::Error;
 
-	fn read(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
-		self.0.read(buf)
-	}
-
 	fn read_slice(
 		&mut self,
 		buf: &mut [u8],
@@ -43,14 +39,6 @@ where
 	fn flush_once(&mut self) -> Result<(), Self::Error> {
 		self.0.flush_once()
 	}
-
-	fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
-		self.0.write(buf)
-	}
-
-	fn flush(&mut self) -> Result<(), Self::Error> {
-		self.0.flush()
-	}
 }
 
 newtype! {
@@ -62,7 +50,7 @@ impl_newtype_read! { NativeAsync: AsyncRead }
 
 impl<T> AsyncRead for NativeAsync<T>
 where
-	T: AsyncRead,
+	T: AsyncRead + Unpin,
 {
 	type Error = T::Error;
 
@@ -79,24 +67,9 @@ impl_newtype_write! { NativeAsync: AsyncWrite }
 
 impl<T> AsyncWrite for NativeAsync<T>
 where
-	T: AsyncWrite,
+	T: AsyncWrite + Unpin,
 {
 	type Error = T::Error;
-
-	fn poll_write(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context,
-		buf: &mut WriteBuf,
-	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.0).poll_write(cx, buf)
-	}
-
-	fn poll_flush(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context,
-	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.0).poll_flush(cx)
-	}
 
 	fn poll_write_slice(
 		mut self: Pin<&mut Self>,

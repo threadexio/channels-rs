@@ -1,216 +1,236 @@
-use core::fmt;
+use core::mem;
 
-/// A mutable buffer used for reading data.
-///
-/// This buffer has an internal cursor so it can remember how much data is
-/// contained in it.
-///
-/// The buffer consists of 2 parts; the "filled" part and the "unfilled" part.
-/// In the "filled" part lives the data that has been read into the buffer. The
-/// "unfilled" part is the part of the buffer that is available for new data to
-/// be placed in.
-///
-/// The buffer looks like this in memory:
-///
-/// ```not_rust
-/// ┌────────────────────────────────┬──────────────────────┐
-/// │             cursor             │       unfilled       │
-/// └────────────────────────────────▲──────────────────────┘
-///                                  └ cursor
-/// ```
-pub struct ReadBuf<'a> {
-	inner: &'a mut [u8],
+/// An immutable buffer that contains an internal cursor.
+pub trait Buf {
+	/// Get the number of bytes remaining in the buffer.
+	fn remaining(&self) -> usize;
+
+	/// Get the remaining bytes of the buffer as a slice.
+	///
+	/// This method is allowed to return slices smaller than what [`Buf::remaining()`]
+	/// describes. This allows non contiguous representation of the buffer in memory.
+	fn chunk(&self) -> &[u8];
+
+	/// Advance the internal cursor of the buffer by `n` bytes.
+	///
+	/// # Panics
+	///
+	/// If `n` is a value that would cause the cursor to go out of bounds.
+	fn advance(&mut self, n: usize);
+
+	/// Check whether the buffer has any data left in it.
+	fn has_remaining(&self) -> bool {
+		self.remaining() != 0
+	}
+}
+
+macro_rules! forward_impl_buf {
+	($to:ty) => {
+		fn remaining(&self) -> usize {
+			<$to>::remaining(self)
+		}
+
+		fn chunk(&self) -> &[u8] {
+			<$to>::chunk(self)
+		}
+
+		fn advance(&mut self, n: usize) {
+			<$to>::advance(self, n);
+		}
+
+		fn has_remaining(&self) -> bool {
+			<$to>::has_remaining(self)
+		}
+	};
+}
+
+impl<T: Buf + ?Sized> Buf for &mut T {
+	forward_impl_buf!(T);
+}
+
+#[cfg(feature = "alloc")]
+impl<T: Buf + ?Sized> Buf for alloc::boxed::Box<T> {
+	forward_impl_buf!(T);
+}
+
+impl Buf for &[u8] {
+	fn remaining(&self) -> usize {
+		self.len()
+	}
+
+	fn chunk(&self) -> &[u8] {
+		self
+	}
+
+	fn advance(&mut self, n: usize) {
+		*self = &self[n..];
+	}
+}
+
+/// A mutable and initialized buffer that contains an internal cursor.
+pub trait BufMut {
+	/// Get the number of bytes this buffer can hold.
+	fn remaining_mut(&self) -> usize;
+
+	/// Get the remaining part of the buffer as a mutable slice.
+	///
+	/// This method is allowed to return slices smaller than what [`BufMut::remaining_mut()`]
+	/// describes. This allows non contiguous representation of the buffer in memory.
+	fn chunk_mut(&mut self) -> &mut [u8];
+
+	/// Advance the internal cursor of the buffer by `n` bytes.
+	///
+	/// # Panics
+	///
+	/// If `n` is a value that would cause the cursor to go out of bounds.
+	fn advance_mut(&mut self, n: usize);
+
+	/// Check whether the buffer has any data left in it.
+	fn has_remaining_mut(&self) -> bool {
+		self.remaining_mut() != 0
+	}
+}
+
+macro_rules! forward_impl_buf_mut {
+	($to:ty) => {
+		fn remaining_mut(&self) -> usize {
+			<$to>::remaining_mut(self)
+		}
+
+		fn chunk_mut(&mut self) -> &mut [u8] {
+			<$to>::chunk_mut(self)
+		}
+
+		fn advance_mut(&mut self, n: usize) {
+			<$to>::advance_mut(self, n)
+		}
+
+		fn has_remaining_mut(&self) -> bool {
+			<$to>::has_remaining_mut(self)
+		}
+	};
+}
+
+impl<T: BufMut + ?Sized> BufMut for &mut T {
+	forward_impl_buf_mut!(T);
+}
+
+#[cfg(feature = "alloc")]
+impl<T: BufMut + ?Sized> BufMut for alloc::boxed::Box<T> {
+	forward_impl_buf_mut!(T);
+}
+
+impl BufMut for &mut [u8] {
+	fn remaining_mut(&self) -> usize {
+		self.len()
+	}
+
+	fn chunk_mut(&mut self) -> &mut [u8] {
+		self
+	}
+
+	fn advance_mut(&mut self, n: usize) {
+		let tmp = mem::take(self);
+		*self = &mut tmp[n..];
+	}
+}
+
+/// A cursor that adds [`Buf`] and/or [`BufMut`] functionality to types that can
+/// be represented by byte slices.
+#[derive(Debug, Clone)]
+pub struct Cursor<T> {
+	inner: T,
 	pos: usize,
 }
 
-impl<'a> ReadBuf<'a> {
-	/// Create a new [`ReadBuf`] from `buf`.
-	#[inline]
-	#[must_use]
-	pub fn new(buf: &'a mut [u8]) -> Self {
-		Self { inner: buf, pos: 0 }
+impl<T> Cursor<T> {
+	/// Create a new [`Cursor`] which has its position initialized to 0.
+	pub fn new(inner: T) -> Self {
+		Self { inner, pos: 0 }
 	}
 
-	/// Get a reference to the filled part of the buffer.
-	#[inline]
-	#[must_use]
-	pub fn filled(&self) -> &[u8] {
-		&self.inner[..self.pos]
+	/// Get a reference to the underlying type.
+	pub fn get(&self) -> &T {
+		&self.inner
 	}
 
-	/// Get a mutable reference to the filled part of the buffer.
-	#[inline]
-	#[must_use]
-	pub fn filled_mut(&mut self) -> &mut [u8] {
-		&mut self.inner[..self.pos]
+	/// Get a mutable reference to the underlying type.
+	///
+	/// # Safety
+	///
+	/// Care should be taken to ensure that any resizing of the underlying type
+	/// does not silently cause the cursor to go out of bounds.
+	pub fn get_mut(&mut self) -> &mut T {
+		&mut self.inner
 	}
 
-	/// Get a reference to the unfilled part of the buffer.
-	#[inline]
-	#[must_use]
-	pub fn unfilled(&self) -> &[u8] {
-		&self.inner[self.pos..]
+	/// Get the position of the cursor.
+	pub fn pos(&self) -> usize {
+		self.pos
 	}
 
-	/// Get a mutable reference to the unfilled part of the buffer.
-	#[inline]
-	#[must_use]
-	pub fn unfilled_mut(&mut self) -> &mut [u8] {
-		&mut self.inner[self.pos..]
+	/// Set the position of the cursor without doing any bounds checks.
+	///
+	/// # Safety
+	///
+	/// `pos` must point inside the buffer.
+	pub unsafe fn set_pos_unchecked(&mut self, pos: usize) {
+		self.pos = pos;
 	}
+}
 
-	/// Set the position of the inner cursor.
+impl<T: AsRef<[u8]>> Cursor<T> {
+	/// Set the position of the cursor.
 	///
 	/// # Panics
 	///
-	/// If `new_pos` > `buf.len()`
-	#[inline]
-	#[allow(clippy::missing_safety_doc)]
-	pub unsafe fn set_pos(&mut self, new_pos: usize) {
+	/// If `pos` is out of bounds.
+	pub fn set_pos(&mut self, pos: usize) {
 		assert!(
-			new_pos <= self.inner.len(),
-			"new_pos must not point outside the buffer"
+			pos <= self.as_slice().len(),
+			"pos should point inside the buffer"
 		);
-		self.pos = new_pos;
+		unsafe { self.set_pos_unchecked(pos) }
 	}
 
-	/// Advance the inner cursor by `n` bytes.
-	///
-	/// # Panics
-	///
-	/// If `n` will cause the cursor to go out of bounds.
-	#[inline]
-	pub fn advance(&mut self, n: usize) {
-		if n == 0 {
-			return;
-		}
-
-		unsafe { self.set_pos(usize::saturating_add(self.pos, n)) };
-	}
-
-	/// Advance the inner cursor by `n` bytes and return the bytes between the
-	/// old and the new cursor as a slice.
-	///
-	/// # Panics
-	///
-	/// If `n` will cause the cursor to go out of bounds.
-	#[inline]
-	pub fn consume(&mut self, n: usize) -> &mut [u8] {
-		if n == 0 {
-			return &mut [];
-		}
-
-		let old_pos = self.pos;
-		self.advance(n);
-		let new_pos = self.pos;
-
-		&mut self.inner[old_pos..new_pos]
+	fn as_slice(&self) -> &[u8] {
+		self.inner.as_ref()
 	}
 }
 
-impl fmt::Debug for ReadBuf<'_> {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_list().entries(self.filled().iter()).finish()
+impl<T: AsRef<[u8]>> Buf for Cursor<T> {
+	fn remaining(&self) -> usize {
+		usize::checked_sub(self.as_slice().len(), self.pos)
+			.expect("pos should never be greater than the length")
+	}
+
+	fn chunk(&self) -> &[u8] {
+		&self.as_slice()[self.pos..]
+	}
+
+	fn advance(&mut self, n: usize) {
+		self.pos = usize::saturating_add(self.pos, n);
 	}
 }
 
-/// An immutable buffer used for writing data.
-///
-/// This buffer has an internal cursor so it can remember how much data has been
-/// "taken out" of it.
-///
-/// The buffer consists of 2 parts; the "consumed" part and the "remaining" part.
-/// The "consumed" part holds all of the data that has been "taken out" of the
-/// buffer. The "remaining" parts holds all of the data that is yet to be "taken
-/// out". "Taking out" data from the buffer does not change its size in memory,
-/// but rather advances the internal cursor to change the size of each part.
-///
-/// The buffer looks like this in memory:
-///
-/// ```not_rust
-/// ┌────────────────────────────────┬──────────────────────┐
-/// │            consumed            │       remaining      │
-/// └────────────────────────────────▲──────────────────────┘
-///                                  └ cursor
-/// ```
-pub struct WriteBuf<'a> {
-	inner: &'a [u8],
-	pos: usize,
-}
-
-impl<'a> WriteBuf<'a> {
-	/// Create a new [`WriteBuf`] from `buf`.
-	#[inline]
-	#[must_use]
-	pub fn new(buf: &'a [u8]) -> Self {
-		Self { inner: buf, pos: 0 }
-	}
-
-	/// Get a reference to the consumed part of the buffer.
-	#[inline]
-	#[must_use]
-	pub fn consumed(&self) -> &'a [u8] {
-		&self.inner[..self.pos]
-	}
-
-	/// Get a reference to the remaining part of the buffer.
-	#[inline]
-	#[must_use]
-	pub fn remaining(&self) -> &'a [u8] {
-		&self.inner[self.pos..]
-	}
-
-	/// Set the position of the inner cursor.
-	///
-	/// # Panics
-	///
-	/// If `new_pos` > `buf.len()`
-	#[inline]
-	#[allow(clippy::missing_safety_doc)]
-	pub unsafe fn set_pos(&mut self, new_pos: usize) {
-		assert!(
-			new_pos <= self.inner.len(),
-			"new_pos must not point outside the buffer"
-		);
-		self.pos = new_pos;
-	}
-
-	/// Advance the inner cursor by `n` bytes.
-	///
-	/// # Panics
-	///
-	/// If `n` will cause the cursor to go out of bounds.
-	#[inline]
-	pub fn advance(&mut self, n: usize) {
-		if n == 0 {
-			return;
-		}
-
-		unsafe { self.set_pos(usize::saturating_add(self.pos, n)) };
-	}
-
-	/// Advance the inner cursor by `n` bytes and return the bytes between the
-	/// old and the new cursor as a slice.
-	///
-	/// # Panics
-	///
-	/// If `n` will cause the cursor to go out of bounds.
-	#[inline]
-	pub fn consume(&mut self, n: usize) -> &'a [u8] {
-		if n == 0 {
-			return &[];
-		}
-
-		let old_pos = self.pos;
-		self.advance(n);
-		let new_pos = self.pos;
-
-		&self.inner[old_pos..new_pos]
+impl<T: AsRef<[u8]> + AsMut<[u8]>> Cursor<T> {
+	fn as_slice_mut(&mut self) -> &mut [u8] {
+		self.inner.as_mut()
 	}
 }
 
-impl fmt::Debug for WriteBuf<'_> {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_list().entries(self.remaining().iter()).finish()
+impl<T: AsRef<[u8]> + AsMut<[u8]>> BufMut for Cursor<T> {
+	fn remaining_mut(&self) -> usize {
+		usize::checked_sub(self.as_slice().len(), self.pos)
+			.expect("pos should never be greater than the length")
+	}
+
+	fn chunk_mut(&mut self) -> &mut [u8] {
+		let pos = self.pos;
+		&mut self.as_slice_mut()[pos..]
+	}
+
+	fn advance_mut(&mut self, n: usize) {
+		self.pos = usize::saturating_add(self.pos, n);
 	}
 }

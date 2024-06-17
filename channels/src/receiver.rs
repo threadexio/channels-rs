@@ -7,7 +7,7 @@ use core::num::NonZeroUsize;
 use channels_packet::PacketLength;
 
 use crate::error::RecvError;
-use crate::io::{AsyncRead, Container, IntoRead, Read};
+use crate::io::{AsyncReadExt, Container, IntoRead, ReadExt};
 use crate::protocol::ReceiverCore;
 use crate::serdes::Deserializer;
 
@@ -277,7 +277,7 @@ where
 
 impl<T, R, D> Receiver<T, R, D>
 where
-	R: AsyncRead,
+	R: AsyncReadExt + Unpin,
 	D: Deserializer<T>,
 {
 	/// Attempts to receive a type `T` from the channel.
@@ -309,17 +309,17 @@ where
 	pub async fn recv(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let payload = self.core.recv_async().await?;
+		let mut payload = self.core.recv_async().await?;
 
 		self.deserializer
-			.deserialize(payload)
+			.deserialize(&mut payload)
 			.map_err(RecvError::Serde)
 	}
 }
 
 impl<T, R, D> Receiver<T, R, D>
 where
-	R: Read,
+	R: ReadExt,
 	D: Deserializer<T>,
 {
 	/// Attempts to receive a type `T` from the channel.
@@ -346,10 +346,10 @@ where
 	pub fn recv_blocking(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let payload = self.core.recv_sync()?;
+		let mut payload = self.core.recv_sync()?;
 
 		self.deserializer
-			.deserialize(payload)
+			.deserialize(&mut payload)
 			.map_err(RecvError::Serde)
 	}
 }
@@ -364,7 +364,7 @@ pub struct Incoming<'a, T, R, D> {
 
 impl<'a, T, R, D> Iterator for Incoming<'a, T, R, D>
 where
-	R: Read,
+	R: ReadExt,
 	D: Deserializer<T>,
 {
 	type Item = Result<T, RecvError<D::Error, R::Error>>;
@@ -376,7 +376,7 @@ where
 
 impl<'a, T, R, D> Incoming<'a, T, R, D>
 where
-	R: AsyncRead,
+	R: AsyncReadExt + Unpin,
 	D: Deserializer<T>,
 {
 	/// Return the next message.

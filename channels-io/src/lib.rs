@@ -7,11 +7,11 @@
 //! [`tokio`] and [`futures`] with no additional code and no hacky workarounds.
 //!
 //! ```rust,no_run
-//! use channels_io::{IntoWrite, AsyncWrite, Futures};
+//! use channels_io::{IntoWrite, AsyncWrite, AsyncWriteExt, Futures};
 //!
 //! async fn write_data<W>(writer: impl IntoWrite<W>) -> Result<(), W::Error>
 //! where
-//!     W: AsyncWrite
+//!     W: AsyncWrite + Unpin
 //! {
 //!     let mut writer = writer.into_write();
 //!
@@ -77,13 +77,13 @@ pub mod error;
 #[cfg(feature = "alloc")]
 pub mod transaction;
 
-pub use self::buf::{ReadBuf, WriteBuf};
+pub use self::buf::{Buf, BufMut, Cursor};
 pub use self::convert::{Container, IntoRead, IntoWrite};
 
-pub use self::async_read::AsyncRead;
-pub use self::async_write::AsyncWrite;
-pub use self::read::Read;
-pub use self::write::Write;
+pub use self::async_read::{AsyncRead, AsyncReadExt};
+pub use self::async_write::{AsyncWrite, AsyncWriteExt};
+pub use self::read::{Read, ReadExt};
+pub use self::write::{Write, WriteExt};
 
 mod impls;
 

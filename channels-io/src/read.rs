@@ -1,27 +1,12 @@
+use crate::buf::BufMut;
 use crate::error::{IoError, ReadError};
-use crate::ReadBuf;
 
 /// This trait allows reading bytes from a source.
 ///
 /// Types implementing this trait are called "readers".
-///
-/// Readers have only one method, [`Read::read()`] which will attempt to read some
-/// bytes into the provided buffer.
 pub trait Read {
-	/// Error type for [`Read::read()`].
+	/// Error type for [`ReadExt::read()`].
 	type Error: ReadError;
-
-	/// Read some bytes into `buf`.
-	///
-	/// Upon return, this function must guarantee that either: a) `buf` has no
-	/// more space to fill, `buf.has_remaining_mut()` should return `false`. b)
-	/// an error has occurred that _cannot_ be handled immediately.
-	///
-	/// If `buf` has been filled with data, then this function must return with
-	/// [`Ok((())`](Ok). In any other case it must return an [`Err`].
-	fn read(&mut self, buf: &mut [u8]) -> Result<(), Self::Error> {
-		default_read(self, buf)
-	}
 
 	/// Read some bytes into the slice `buf`.
 	///
@@ -34,6 +19,23 @@ pub trait Read {
 		&mut self,
 		buf: &mut [u8],
 	) -> Result<usize, Self::Error>;
+}
+
+/// Read bytes from a reader.
+///
+/// Extension trait for all [`Read`] types.
+pub trait ReadExt: Read {
+	/// Read some bytes into `buf`.
+	///
+	/// This method will try to read bytes into `buf` repeatedly until either a)
+	/// `buf` has been filled, b) an error occurs or c) the reader reaches EOF.
+	/// If the reader reaches EOF, this method will return an error.
+	fn read<B>(&mut self, buf: B) -> Result<(), Self::Error>
+	where
+		B: BufMut,
+	{
+		default_read(self, buf)
+	}
 
 	/// Create a "by reference" adapter that takes the current instance of [`Read`]
 	/// by mutable reference.
@@ -45,19 +47,20 @@ pub trait Read {
 	}
 }
 
-fn default_read<T>(
+impl<T: Read + ?Sized> ReadExt for T {}
+
+fn default_read<T, B>(
 	reader: &mut T,
-	buf: &mut [u8],
+	mut buf: B,
 ) -> Result<(), T::Error>
 where
-	T: Read + ?Sized,
+	T: ReadExt + ?Sized,
+	B: BufMut,
 {
-	let mut buf = ReadBuf::new(buf);
-
-	while !buf.unfilled().is_empty() {
-		match reader.read_slice(buf.unfilled_mut()) {
+	while buf.has_remaining_mut() {
+		match reader.read_slice(buf.chunk_mut()) {
 			Ok(0) => return Err(T::Error::eof()),
-			Ok(n) => buf.advance(n),
+			Ok(n) => buf.advance_mut(n),
 			Err(e) if e.should_retry() => continue,
 			Err(e) => return Err(e),
 		}
@@ -69,13 +72,6 @@ where
 macro_rules! forward_impl_read {
 	($to:ty) => {
 		type Error = <$to>::Error;
-
-		fn read(
-			&mut self,
-			buf: &mut [u8],
-		) -> Result<(), Self::Error> {
-			<$to>::read(self, buf)
-		}
 
 		fn read_slice(
 			&mut self,

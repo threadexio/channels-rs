@@ -66,7 +66,7 @@ use newtype;
 mod prelude {
 	pub(super) use crate::{
 		error::{IoError, ReadError, WriteError},
-		AsyncRead, AsyncWrite, Read, ReadBuf, Write, WriteBuf,
+		AsyncRead, AsyncWrite, Read, Write,
 	};
 
 	pub(super) use super::{

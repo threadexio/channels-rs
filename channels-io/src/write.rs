@@ -1,39 +1,17 @@
+use crate::buf::Buf;
 use crate::error::{IoError, WriteError};
-use crate::WriteBuf;
 
 #[cfg(feature = "alloc")]
-use crate::transaction::{WriteTransaction, WriteTransactionKind};
+use crate::transaction::{
+	WriteTransactionKind, WriteTransactionVariant,
+};
 
 /// This trait allows writing bytes to a writer.
 ///
 /// Types implementing this trait are called "writers".
-///
-/// Writers have only one method, [`Write::write()`] which will attempt to write
-/// some bytes to the sink.
 pub trait Write {
-	/// Error type for [`Write::write()`].
+	/// Error type for [`WriteExt::write()`].
 	type Error: WriteError;
-
-	/// Write `buf` to the writer.
-	///
-	/// Upon return, this function must guarantee that either: a) `buf` has been
-	/// fully written, `buf.has_remaining()` should return `false`. b)
-	/// an error has occurred that _cannot_ be handled immediately.
-	///
-	/// If `buf` has been written to the writer, then this function must return
-	/// with [`Ok(())`](Ok). In any other case it must return an [`Err`].
-	fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
-		default_write(self, buf)
-	}
-
-	/// Flush this writer ensuring all bytes reach their destination.
-	///
-	/// Upon return, this function must ensure that all bytes written to the
-	/// writer by previous calls to [`Write::write()`] have reached their
-	/// destination.
-	fn flush(&mut self) -> Result<(), Self::Error> {
-		default_flush(self)
-	}
 
 	/// Write some bytes from `buf` to the writer.
 	///
@@ -41,7 +19,7 @@ pub trait Write {
 	/// bytes from `buf` and reports back to the caller how many bytes it wrote.
 	/// [`write()`] should, usually, be preferred.
 	///
-	/// [`write()`]: fn@Write::write
+	/// [`write()`]: fn@WriteExt::write
 	fn write_slice(
 		&mut self,
 		buf: &[u8],
@@ -52,11 +30,36 @@ pub trait Write {
 	/// This function is the lower level building block of [`flush()`]. It flushes
 	/// the writer only once. [`flush()`] should, usually, be preferred.
 	///
-	/// [`flush()`]: fn@Write::flush
+	/// [`flush()`]: fn@WriteExt::flush
 	fn flush_once(&mut self) -> Result<(), Self::Error>;
+}
 
-	/// Create a "by reference" adapter that takes the current instance of [`Write`]
-	/// by mutable reference.
+/// Write bytes to a writer.
+///
+/// Extension trait for all [`Write`] types.
+pub trait WriteExt: Write {
+	/// Write `buf` to the writer.
+	///
+	/// This method will try to write bytes from `buf` to the writer repeatedly
+	/// until either a) `buf` has no more bytes left, b) an error occurs or c)
+	/// the writer reaches EOF. If the writer reaches EOF, this method will return
+	/// an error.
+	fn write<B>(&mut self, buf: B) -> Result<(), Self::Error>
+	where
+		B: Buf,
+	{
+		default_write(self, buf)
+	}
+
+	/// Flush this writer ensuring all bytes reach their destination.
+	///
+	/// Upon return, this function must ensure that all bytes written to the
+	/// writer  have reached their destination.
+	fn flush(&mut self) -> Result<(), Self::Error> {
+		default_flush(self)
+	}
+
+	/// Create a "by reference" adapter that takes this writer by mutable reference.
 	fn by_ref(&mut self) -> &mut Self
 	where
 		Self: Sized,
@@ -64,32 +67,33 @@ pub trait Write {
 		self
 	}
 
-	/// Create a transaction that uses this instance of [`Write`].
+	/// Create a transaction that uses this writer.
 	///
 	/// This is a convenience wrapper for: [`WriteTransaction::new()`]
 	#[cfg(feature = "alloc")]
 	fn transaction(
 		self,
 		kind: WriteTransactionKind,
-	) -> WriteTransaction<'_, Self>
+	) -> WriteTransactionVariant<'_, Self>
 	where
 		Self: Sized,
 	{
-		WriteTransaction::new(self, kind)
+		WriteTransactionVariant::new(self, kind)
 	}
 }
 
-fn default_write<T>(
+impl<T: Write + ?Sized> WriteExt for T {}
+
+fn default_write<T, B>(
 	writer: &mut T,
-	buf: &[u8],
+	mut buf: B,
 ) -> Result<(), T::Error>
 where
-	T: Write + ?Sized,
+	T: WriteExt + ?Sized,
+	B: Buf,
 {
-	let mut buf = WriteBuf::new(buf);
-
-	while !buf.remaining().is_empty() {
-		match writer.write_slice(buf.remaining()) {
+	while buf.has_remaining() {
+		match writer.write_slice(buf.chunk()) {
 			Ok(0) => return Err(T::Error::write_zero()),
 			Ok(n) => buf.advance(n),
 			Err(e) if e.should_retry() => continue,
@@ -102,7 +106,7 @@ where
 
 fn default_flush<T>(writer: &mut T) -> Result<(), T::Error>
 where
-	T: Write + ?Sized,
+	T: WriteExt + ?Sized,
 {
 	loop {
 		match writer.flush_once() {
@@ -116,14 +120,6 @@ where
 macro_rules! forward_impl_write {
 	($to:ty) => {
 		type Error = <$to>::Error;
-
-		fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
-			<$to>::write(self, buf)
-		}
-
-		fn flush(&mut self) -> Result<(), Self::Error> {
-			<$to>::flush(self)
-		}
 
 		fn write_slice(
 			&mut self,

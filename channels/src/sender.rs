@@ -252,7 +252,7 @@ where
 
 impl<T, W, S> Sender<T, W, S>
 where
-	W: AsyncWrite,
+	W: AsyncWrite + Unpin,
 	S: Serializer<T>,
 {
 	/// Attempts to send `data` through the channel.

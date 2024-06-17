@@ -7,10 +7,13 @@ use channels_packet::id::IdSequence;
 use channels_packet::{Flags, PacketLength, PayloadLength};
 
 use crate::error::SendError;
-use crate::io::transaction::WriteTransactionKind;
-use crate::io::{AsyncWrite, Write, WriteBuf};
+use crate::io::transaction::{
+	AsyncWriteTransaction, WriteTransaction, WriteTransactionKind,
+};
+use crate::io::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 use crate::sender::Config;
 use crate::statistics::StatIO;
+use crate::util::ConsumeSlice;
 
 pub(crate) struct SenderCore<W> {
 	pub(crate) writer: StatIO<W>,
@@ -62,7 +65,7 @@ struct Packet<'a> {
 }
 
 struct AsPackets<'a> {
-	payload: WriteBuf<'a>,
+	payload: ConsumeSlice<'a>,
 	pcb: &'a mut SendPcb,
 
 	has_one_packet: bool,
@@ -75,7 +78,7 @@ fn as_packets<'a>(
 	AsPackets {
 		pcb,
 		has_one_packet: false,
-		payload: WriteBuf::new(payload),
+		payload: ConsumeSlice::new(payload),
 	}
 }
 
@@ -83,55 +86,56 @@ impl<'a> Iterator for AsPackets<'a> {
 	type Item = Packet<'a>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		let packet = match (
-			self.payload.remaining().len(),
-			self.has_one_packet,
-		) {
-			// If there is no more data and we have already sent
-			// one packet, then exit.
-			(0, true) => return None,
-			// If there is no more data and we have not sent any
-			// packets, then send one packet with no payload.
-			(0, false) => Packet {
-				header: Header {
-					length: PacketLength::MIN,
-					flags: Flags::empty(),
-					id: self.pcb.seq.advance(),
-				},
-				payload: &[],
-			},
-			// If the remaining data is more than what fits inside
-			// one packet, return a header for a full packet.
-			(len, _) if len > PayloadLength::MAX.as_usize() => {
-				Packet {
+		let packet =
+			match (self.payload.remaining(), self.has_one_packet) {
+				// If there is no more data and we have already sent
+				// one packet, then exit.
+				(0, true) => return None,
+				// If there is no more data and we have not sent any
+				// packets, then send one packet with no payload.
+				(0, false) => Packet {
 					header: Header {
-						length: PayloadLength::MAX.to_packet_length(),
-						flags: Flags::MORE_DATA,
+						length: PacketLength::MIN,
+						flags: Flags::empty(),
 						id: self.pcb.seq.advance(),
 					},
-					payload: self
-						.payload
-						.consume(PayloadLength::MAX.as_usize()),
-				}
-			},
-			// If the remaining data is equal or less than what
-			// fits inside one packet, return a header for exactly
-			// that amount of data.
-			(len, _) => Packet {
-				header: Header {
-					// SAFETY: `len` is less that PayloadLength::MAX and since
-					//         `PayloadLength` is a u16, `len` can be cast to
-					//         u16 without losses.
-					#[allow(clippy::cast_possible_truncation)]
-					length: PayloadLength::new(len as u16)
-						.expect("len should be a valid PayloadLength")
-						.to_packet_length(),
-					flags: Flags::empty(),
-					id: self.pcb.seq.advance(),
+					payload: &[],
 				},
-				payload: self.payload.consume(len),
-			},
-		};
+				// If the remaining data is more than what fits inside
+				// one packet, return a header for a full packet.
+				(len, _) if len > PayloadLength::MAX.as_usize() => {
+					Packet {
+						header: Header {
+							length: PayloadLength::MAX
+								.to_packet_length(),
+							flags: Flags::MORE_DATA,
+							id: self.pcb.seq.advance(),
+						},
+						payload: self
+							.payload
+							.consume(PayloadLength::MAX.as_usize()),
+					}
+				},
+				// If the remaining data is equal or less than what
+				// fits inside one packet, return a header for exactly
+				// that amount of data.
+				(len, _) => Packet {
+					header: Header {
+						// SAFETY: `len` is less that PayloadLength::MAX and since
+						//         `PayloadLength` is a u16, `len` can be cast to
+						//         u16 without losses.
+						#[allow(clippy::cast_possible_truncation)]
+						length: PayloadLength::new(len as u16)
+							.expect(
+								"len should be a valid PayloadLength",
+							)
+							.to_packet_length(),
+						flags: Flags::empty(),
+						id: self.pcb.seq.advance(),
+					},
+					payload: self.payload.consume(len),
+				},
+			};
 
 		self.has_one_packet = true;
 
@@ -177,7 +181,7 @@ channels_macros::replace! {
 			(async => async)
 			(await => .await)
 			(send => send_async)
-			(Write => AsyncWrite)
+			(Write => AsyncWrite + Unpin)
 			(WriteTransaction => AsyncWriteTransaction)
 		]
 	}
@@ -215,18 +219,17 @@ where
 		for packet in as_packets(pcb, data) {
 			let header_bytes = packet.header.to_bytes(with_checksum);
 
-			transaction
-				.add(&header_bytes) await
-				.add(packet.payload) await;
+			transaction.write(header_bytes.as_slice()) await?;
+			transaction.write(packet.payload) await?;
 
 			transaction.writer_mut().statistics.inc_packets();
 		}
 
-		transaction.finish() await?;
-
 		if config.flush_on_send() {
-			writer.flush() await?;
+			transaction.flush() await?;
 		}
+
+		transaction.finish() await?;
 
 		if config.coalesce_writes() && !config.keep_write_allocations() {
 			let _ = mem::take(send_buf);

@@ -201,7 +201,7 @@ impl<W: Write> Write for StatIO<W> {
 	}
 }
 
-impl<W: AsyncWrite> AsyncWrite for StatIO<W> {
+impl<W: AsyncWrite + Unpin> AsyncWrite for StatIO<W> {
 	type Error = W::Error;
 
 	fn poll_write_slice(
@@ -237,7 +237,7 @@ impl<R: Read> Read for StatIO<R> {
 	}
 }
 
-impl<R: AsyncRead> AsyncRead for StatIO<R> {
+impl<R: AsyncRead + Unpin> AsyncRead for StatIO<R> {
 	type Error = R::Error;
 
 	fn poll_read_slice(
