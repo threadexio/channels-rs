@@ -16,22 +16,165 @@ use crate::receiver::Config;
 use crate::statistics::{StatIO, Statistics};
 use crate::util::grow_vec_by_n;
 
-pub(crate) struct ReceiverCore<R> {
-	pub(crate) reader: StatIO<R>,
-	pub(crate) config: Config,
-	state: RecvStateMachine,
+/// A collection of all things needed to parse a header.
+struct RecvPcb {
+	seq: IdSequence,
 }
 
-impl<R> ReceiverCore<R> {
-	pub fn new(reader: StatIO<R>, config: Config) -> Self {
-		let state = RecvStateMachine {
-			pcb: RecvPcb::default(),
-			header: None,
-			header_buf: Cursor::new([0u8; Header::SIZE]),
-			payload: Cursor::new(make_payload_buf(&config)),
-		};
+/// Instructions for calling code on how much data to read and where to place it.
+struct ReadInstructions<'a> {
+	// The `+ Send` bound is needed so that `ReadInstructions` is `Send`. This
+	// is required for the async version to be able to use it.
+	buf: &'a mut (dyn BufMut + Send),
+}
 
-		Self { reader, config, state }
+/// An enum representing the status of the [`Decoder`].
+enum DecodeStatus<'a, T> {
+	/// This variant signals that the decoder was able to produce a value.
+	Ready(T),
+	/// This variant signals that the decoder does not have enough data to produce
+	/// a value and wants data read into the buffer specified by the [`ReadInstructions`]
+	/// it contains.
+	WantsRead(ReadInstructions<'a>),
+}
+
+/// Decoder for the channels protocol.
+///
+/// The decoder is a simple state machine that reads as many packets as needed
+/// in order to produce a complete payload. The calling code of the decoder must
+/// call [`Decoder::decode()`] repeatedly until it either returns a payload
+/// (returned in the form of a [`Vec<u8>`]) or an error. If, at any point,
+/// [`Decoder::decode()`] needs more data to continue, signalled by [`DecodeStatus::WantsRead`],
+/// the caller must fullfil that request immediately before the decoder can proceed.
+struct Decoder {
+	header_buf: Cursor<[u8; Header::SIZE]>,
+	last_header: Option<Header>,
+	payload_buf: Cursor<Vec<u8>>,
+	pcb: RecvPcb,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum DecodeError {
+	ChecksumError,
+	ExceededMaximumSize,
+	InvalidHeader,
+	OutOfOrder,
+	VersionMismatch,
+	ZeroSizeFragment,
+}
+
+impl From<VerifyError> for DecodeError {
+	fn from(value: VerifyError) -> Self {
+		use {DecodeError as B, VerifyError as A};
+
+		match value {
+			A::InvalidChecksum => B::ChecksumError,
+			A::InvalidLength => B::InvalidHeader,
+			A::OutOfOrder => B::OutOfOrder,
+			A::VersionMismatch => B::VersionMismatch,
+		}
+	}
+}
+
+impl Decoder {
+	fn take_payload(&mut self, config: &Config) -> Vec<u8> {
+		self.payload_buf.set_pos(0);
+		mem::replace(
+			self.payload_buf.get_mut(),
+			make_payload_buf(config),
+		)
+	}
+
+	fn reset(&mut self, config: &Config) {
+		self.header_buf.set_pos(0);
+		self.last_header = None;
+		let _ = self.take_payload(config);
+	}
+
+	pub fn decode(
+		&mut self,
+		config: &Config,
+		statistics: &mut Statistics,
+	) -> DecodeStatus<'_, Result<Vec<u8>, DecodeError>> {
+		use DecodeStatus::{Ready, WantsRead};
+
+		statistics.inc_ops();
+
+		loop {
+			if self.last_header.is_none() {
+				if self.header_buf.has_remaining_mut() {
+					return WantsRead(ReadInstructions {
+						buf: &mut self.header_buf,
+					});
+				}
+
+				self.header_buf.set_pos(0);
+				let header = match parse_header(
+					*self.header_buf.get_mut(),
+					config,
+					&mut self.pcb,
+				) {
+					Ok(x) => x,
+					Err(e) => {
+						self.reset(config);
+						return Ready(Err(DecodeError::from(e)));
+					},
+				};
+
+				let payload_length =
+					header.length.to_payload_length().as_usize();
+
+				if let Some(max_size) = config.max_size {
+					let new_payload_length = usize::saturating_add(
+						self.payload_buf.get_mut().len(),
+						payload_length,
+					);
+
+					if new_payload_length > max_size.get() {
+						self.reset(config);
+						return Ready(Err(
+							DecodeError::ExceededMaximumSize,
+						));
+					}
+				}
+
+				if header.flags.contains(Flags::MORE_DATA)
+					&& payload_length == 0
+				{
+					self.reset(config);
+					return Ready(Err(DecodeError::ZeroSizeFragment));
+				}
+
+				grow_vec_by_n(
+					self.payload_buf.get_mut(),
+					payload_length,
+				);
+				self.last_header = Some(header);
+			}
+
+			let header = self
+				.last_header
+				.clone()
+				.expect("header should have been set before");
+
+			if self.payload_buf.has_remaining_mut() {
+				return WantsRead(ReadInstructions {
+					buf: &mut self.payload_buf,
+				});
+			}
+
+			statistics.inc_packets();
+
+			if header.flags.contains(Flags::MORE_DATA) {
+				self.last_header = None;
+				continue;
+			}
+
+			let payload = self.take_payload(config);
+
+			self.reset(config);
+			return Ready(Ok(payload));
+		}
 	}
 }
 
@@ -46,10 +189,10 @@ pub enum CoreRecvError<Io> {
 	ZeroSizeFragment,
 }
 
-impl<Io> From<AdvanceError> for CoreRecvError<Io> {
-	fn from(value: AdvanceError) -> Self {
-		use AdvanceError as A;
+impl<Io> From<DecodeError> for CoreRecvError<Io> {
+	fn from(value: DecodeError) -> Self {
 		use CoreRecvError as B;
+		use DecodeError as A;
 
 		match value {
 			A::ChecksumError => B::ChecksumError,
@@ -79,10 +222,23 @@ impl<Des, Io> From<CoreRecvError<Io>> for RecvError<Des, Io> {
 	}
 }
 
-/// A collection of all state needed to parse a header.
-#[derive(Default)]
-struct RecvPcb {
-	seq: IdSequence,
+pub(crate) struct ReceiverCore<R> {
+	pub(crate) reader: StatIO<R>,
+	pub(crate) config: Config,
+	decoder: Decoder,
+}
+
+impl<R> ReceiverCore<R> {
+	pub fn new(reader: StatIO<R>, config: Config) -> Self {
+		let decoder = Decoder {
+			header_buf: Cursor::new([0u8; Header::SIZE]),
+			last_header: None,
+			payload_buf: Cursor::new(make_payload_buf(&config)),
+			pcb: RecvPcb { seq: IdSequence::default() },
+		};
+
+		Self { reader, config, decoder }
+	}
 }
 
 channels_macros::replace! {
@@ -111,14 +267,12 @@ where
 	pub async fn recv(
 		&mut self,
 	) -> Result<Vec<u8>, CoreRecvError<R::Error>> {
-		use Status::{Ready, WantsRead};
+		use DecodeStatus::{Ready, WantsRead};
 
 		loop {
-			match self.state.advance(&self.config, &mut self.reader.statistics) {
-				Ready(x) => {
-					self.state.reset();
-					return x.map_err(CoreRecvError::from)
-				},
+			match self.decoder.decode(&self.config, &mut self.reader.statistics) {
+				Ready(Ok(payload)) => return Ok(payload),
+				Ready(Err(e)) => return Err(CoreRecvError::from(e)),
 				WantsRead(instructions) => {
 					self.reader.read(instructions.buf) await
 						.map_err(CoreRecvError::Io)?;
@@ -128,136 +282,6 @@ where
 	}
 }
 
-	}
-}
-
-struct ReadInstructions<'a> {
-	buf: &'a mut (dyn BufMut + Send),
-}
-
-enum Status<'a, T> {
-	Ready(T),
-	WantsRead(ReadInstructions<'a>),
-}
-
-struct RecvStateMachine {
-	pcb: RecvPcb,
-	header_buf: Cursor<[u8; Header::SIZE]>,
-	header: Option<Header>,
-	payload: Cursor<Vec<u8>>,
-}
-
-enum AdvanceError {
-	ChecksumError,
-	ExceededMaximumSize,
-	InvalidHeader,
-	OutOfOrder,
-	VersionMismatch,
-	ZeroSizeFragment,
-}
-
-impl From<VerifyError> for AdvanceError {
-	fn from(value: VerifyError) -> Self {
-		use {AdvanceError as B, VerifyError as A};
-
-		match value {
-			A::InvalidChecksum => B::ChecksumError,
-			A::InvalidLength => B::InvalidHeader,
-			A::OutOfOrder => B::OutOfOrder,
-			A::VersionMismatch => B::VersionMismatch,
-		}
-	}
-}
-
-impl RecvStateMachine {
-	pub fn reset(&mut self) {
-		self.header = None;
-		self.header_buf.set_pos(0);
-		self.payload.set_pos(0);
-		self.payload.get_mut().clear();
-	}
-
-	pub fn advance(
-		&mut self,
-		config: &Config,
-		statistics: &mut Statistics,
-	) -> Status<'_, Result<Vec<u8>, AdvanceError>> {
-		use Status::{Ready, WantsRead};
-
-		loop {
-			if self.header.is_none() {
-				if self.header_buf.has_remaining_mut() {
-					return WantsRead(ReadInstructions {
-						buf: &mut self.header_buf,
-					});
-				}
-
-				let header = match parse_header(
-					*self.header_buf.get_mut(),
-					config,
-					&mut self.pcb,
-				) {
-					Ok(x) => x,
-					Err(e) => {
-						return Ready(Err(AdvanceError::from(e)));
-					},
-				};
-
-				let payload_length =
-					header.length.to_payload_length().as_usize();
-
-				if let Some(max_size) = config.max_size {
-					let new_payload_length = usize::saturating_add(
-						self.payload.get_mut().len(),
-						payload_length,
-					);
-
-					if new_payload_length > max_size.get() {
-						return Ready(Err(
-							AdvanceError::ExceededMaximumSize,
-						));
-					}
-				}
-
-				if header.flags.contains(Flags::MORE_DATA)
-					&& payload_length == 0
-				{
-					return Ready(Err(
-						AdvanceError::ZeroSizeFragment,
-					));
-				}
-
-				grow_vec_by_n(self.payload.get_mut(), payload_length);
-				self.header = Some(header);
-			}
-
-			let header = self
-				.header
-				.clone()
-				.expect("header should have been set before");
-
-			if self.payload.has_remaining_mut() {
-				return WantsRead(ReadInstructions {
-					buf: &mut self.payload,
-				});
-			}
-
-			statistics.inc_packets();
-
-			if header.flags.contains(Flags::MORE_DATA) {
-				self.header = None;
-				self.header_buf.set_pos(0);
-			} else {
-				let payload = mem::replace(
-					self.payload.get_mut(),
-					make_payload_buf(config),
-				);
-
-				statistics.inc_ops();
-
-				return Ready(Ok(payload));
-			}
-		}
 	}
 }
 
