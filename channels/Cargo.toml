@@ -23,20 +23,20 @@ rustdoc-args = ["--cfg", "channels_nightly"]
 serde = { version = "1.0", default-features = false, optional = true }
 
 [dependencies.channels-macros]
-version = "0.1.0"
+version = "=0.1.0"
 path = "../channels-macros"
 
 [dependencies.channels-io]
-version = "0.1.1"
+version = "=0.1.1"
 path = "../channels-io"
 features = ["alloc"]
 
 [dependencies.channels-packet]
-version = "0.1.2"
+version = "=0.1.2"
 path = "../channels-packet"
 
 [dependencies.channels-serdes]
-version = "0.2.0"
+version = "=0.2.0"
 path = "../channels-serdes"
 
 [dev-dependencies]
