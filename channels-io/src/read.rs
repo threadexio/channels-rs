@@ -5,7 +5,9 @@ use crate::error::{IoError, ReadError};
 ///
 /// Types implementing this trait are called "readers".
 pub trait Read {
-	/// Error type for [`ReadExt::read()`].
+	/// Error type for [`read()`].
+	///
+	/// [`read()`]: ReadExt::read
 	type Error: ReadError;
 
 	/// Read some bytes into the slice `buf`.
@@ -14,7 +16,7 @@ pub trait Read {
 	/// bytes into `buf` and reports back to the caller how many bytes it read.
 	/// [`read()`] should, usually, be preferred.
 	///
-	/// [`read()`]: fn@Read::read
+	/// [`read()`]: fn@ReadExt::read
 	fn read_slice(
 		&mut self,
 		buf: &mut [u8],

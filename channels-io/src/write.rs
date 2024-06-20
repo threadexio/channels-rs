@@ -10,7 +10,9 @@ use crate::transaction::{
 ///
 /// Types implementing this trait are called "writers".
 pub trait Write {
-	/// Error type for [`WriteExt::write()`].
+	/// Error type for [`write()`].
+	///
+	/// [`write()`]: fn@WriteExt::write
 	type Error: WriteError;
 
 	/// Write some bytes from `buf` to the writer.
@@ -69,7 +71,7 @@ pub trait WriteExt: Write {
 
 	/// Create a transaction that uses this writer.
 	///
-	/// This is a convenience wrapper for: [`WriteTransaction::new()`]
+	/// This is a convenience wrapper for: [`WriteTransactionVariant::new()`]
 	#[cfg(feature = "alloc")]
 	fn transaction(
 		self,

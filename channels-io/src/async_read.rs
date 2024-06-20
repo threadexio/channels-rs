@@ -9,7 +9,9 @@ use crate::error::{IoError, ReadError};
 ///
 /// [`Read`]: crate::Read
 pub trait AsyncRead {
-	/// Error type for [`AsyncReadExt::read()`].
+	/// Error type for [`read()`].
+	///
+	/// [`read()`]: fn@AsyncReadExt::read
 	type Error: ReadError;
 
 	/// Poll the reader once and read some bytes into the slice `buf`.
@@ -46,10 +48,10 @@ pub trait AsyncReadExt: AsyncRead {
 
 	/// Asynchronously read some bytes into `buf`.
 	///
-	/// This function behaves in the same way as [`ReadExt::read()`] except that it
+	/// This function behaves in the same way as [`read()`] except that it
 	/// returns a [`Future`] that must be `.await`ed.
 	///
-	/// [`ReadExt::read()`]: crate::Read::read
+	/// [`read()`]: fn@crate::ReadExt::read
 	/// [`Future`]: core::future::Future
 	fn read<B>(&mut self, buf: B) -> Read<'_, Self, B>
 	where

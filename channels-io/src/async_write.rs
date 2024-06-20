@@ -14,7 +14,9 @@ use crate::transaction::{
 ///
 /// [`Write`]: crate::Write
 pub trait AsyncWrite {
-	/// Error type for [`AsyncWriteExt::write()`].
+	/// Error type for [`write()`].
+	///
+	/// [`write()`]: fn@AsyncWriteExt::write
 	type Error: WriteError;
 
 	/// Poll the writer and try to write some bytes from `buf` to it.
@@ -65,10 +67,10 @@ pub trait AsyncWriteExt: AsyncWrite {
 
 	/// Asynchronously write `buf` to the writer.
 	///
-	/// This function behaves in the same way as [`WriteExt::write()`] except that
+	/// This function behaves in the same way as [`write()`] except that
 	/// it returns a [`Future`] that must be `.await`ed.
 	///
-	/// [`WriteExt::write()`]: crate::Write::write
+	/// [`write()`]: fn@crate::WriteExt::write
 	/// [`Future`]: core::future::Future
 	fn write<B>(&mut self, buf: B) -> Write<'_, Self, B>
 	where
@@ -80,10 +82,10 @@ pub trait AsyncWriteExt: AsyncWrite {
 
 	/// Asynchronously flush the writer.
 	///
-	/// This function behaves in the same way as [`WriteExt::flush()`] except that
+	/// This function behaves in the same way as [`flush()`] except that
 	/// it returns a [`Future`] that must be `.await`ed.
 	///
-	/// [`WriteExt::flush()`]: crate::Write::flush
+	/// [`flush()`]: fn@crate::WriteExt::flush
 	/// [`Future`]: core::future::Future
 	fn flush(&mut self) -> Flush<'_, Self>
 	where

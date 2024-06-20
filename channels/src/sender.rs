@@ -569,7 +569,7 @@ impl<T, W, S> Builder<T, W, S> {
 ///
 /// **Default:** `false`
 ///
-/// [`write()`]: Write::write()
+/// [`write()`]: crate::io::WriteExt::write
 #[derive(Clone)]
 #[must_use = "`Config`s don't do anything on their own"]
 pub struct Config {
