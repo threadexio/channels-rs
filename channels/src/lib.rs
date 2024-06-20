@@ -9,16 +9,16 @@
 //! use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 //!
 //!
-//! #[tokio::main]
-//! async fn main() {
-//!     let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
-//!     let (r, w) = stream.into_split();
-//!     let (mut tx, mut rx) = channels::channel::<i32, _, _>(r, w);
+//! # #[tokio::main]
+//! # async fn main() {
+//! let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+//! let (r, w) = stream.into_split();
+//! let (mut tx, mut rx) = channels::channel::<i32, _, _>(r, w);
 //!
-//!     let r = rx.recv().await.unwrap();
-//!     println!("{r}");
-//!     tx.send(r).await.unwrap();
-//! }
+//! let r = rx.recv().await.unwrap();
+//! println!("{r}");
+//! tx.send(r).await.unwrap();
+//! # }
 //! ```
 //!
 //! ### Sync
@@ -120,15 +120,15 @@ pub type Pair<T, R, W, Sd> = (Sender<T, W, Sd>, Receiver<T, R, Sd>);
 /// ```no_run
 /// use tokio::net::TcpStream;
 ///
-/// #[tokio::main]
-/// async fn main() {
-///     let conn = TcpStream::connect("127.0.0.1:1234").await.unwrap();
-///     let (r, w) = conn.into_split();
-///     let (mut tx, mut rx) = channels::channel(r, w);
+/// # #[tokio::main]
+/// # async fn main() {
+/// let conn = TcpStream::connect("127.0.0.1:1234").await.unwrap();
+/// let (r, w) = conn.into_split();
+/// let (mut tx, mut rx) = channels::channel(r, w);
 ///
-///     tx.send(42_i32).await.unwrap();
-///     let received: i32 = rx.recv().await.unwrap();
-/// }
+/// tx.send(42_i32).await.unwrap();
+/// let received: i32 = rx.recv().await.unwrap();
+/// # }
 /// ```
 #[inline]
 pub fn channel<T, R, W>(

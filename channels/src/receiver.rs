@@ -161,25 +161,25 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// Asynchronously:
 	///
 	/// ```no_run
-	/// #[tokio::main]
-	/// async fn main() {
-	///     let reader = tokio::io::empty();
-	///     let mut rx = channels::Receiver::<i32, _, _>::new(reader);
+	/// # #[tokio::main]
+	/// # async fn main() {
+	/// let reader = tokio::io::empty();
+	/// let mut rx = channels::Receiver::<i32, _, _>::new(reader);
 	///
-	///     let mut incoming = rx.incoming();
+	/// let mut incoming = rx.incoming();
 	///
-	///     loop {
-	///         tokio::select! {
-	///             message = incoming.next_async() => {
-	///                 match message {
-	///                     Ok(message) => println!("received: {message}"),
-	///                     Err(err) => eprintln!("failed to receive message: {err}"),
-	///                 }
+	/// loop {
+	///     tokio::select! {
+	///         message = incoming.next_async() => {
+	///             match message {
+	///                 Ok(message) => println!("received: {message}"),
+	///                 Err(err) => eprintln!("failed to receive message: {err}"),
 	///             }
-	///             // ...
 	///         }
+	///         // ...
 	///     }
 	/// }
+	/// # }
 	/// ```
 	#[inline]
 	pub fn incoming(&mut self) -> Incoming<'_, T, R, D> {
@@ -295,14 +295,14 @@ where
 	/// ```no_run
 	/// use tokio::net::TcpStream;
 	///
-	/// #[tokio::main]
-	/// async fn main() {
-	///     let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
-	///     let mut rx = channels::Receiver::<i32, _, _>::new(stream);
+	/// # #[tokio::main]
+	/// # async fn main() {
+	/// let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+	/// let mut rx = channels::Receiver::<i32, _, _>::new(stream);
 	///
-	///     let received: i32 = rx.recv().await.unwrap();
-	///     println!("{received}");
-	/// }
+	/// let received: i32 = rx.recv().await.unwrap();
+	/// println!("{received}");
+	/// # }
 	/// ```
 	///
 	/// [`recv()`]: fn@Self::recv

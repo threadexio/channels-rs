@@ -269,17 +269,17 @@ where
 	/// ```no_run
 	/// use tokio::net::TcpStream;
 	///
-	/// #[tokio::main]
-	/// async fn main() {
-	///     let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
-	///     let mut tx = channels::Sender::<i32, _, _>::new(stream);
+	/// # #[tokio::main]
+	/// # async fn main() {
+	/// let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+	/// let mut tx = channels::Sender::<i32, _, _>::new(stream);
 	///
-	///     let data = 42;
+	/// let data = 42;
 	///
-	///     tx.send(&data).await.unwrap();
-	///     // or by taking ownership
-	///     tx.send(data).await.unwrap();
-	/// }
+	/// tx.send(&data).await.unwrap();
+	/// // or by taking ownership
+	/// tx.send(data).await.unwrap();
+	/// # }
 	/// ```
 	pub async fn send<D>(
 		&mut self,
