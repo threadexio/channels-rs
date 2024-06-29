@@ -1,75 +1,7 @@
-//! Channel communication across generic data streams.
-//!
-//! ## Quick start
-//!
-//! ### Async
-//!
-//! ```no_run
-//! use tokio::net::TcpStream;
-//! use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-//!
-//!
-//! # #[tokio::main]
-//! # async fn main() {
-//! let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
-//! let (r, w) = stream.into_split();
-//! let (mut tx, mut rx) = channels::channel::<i32, _, _>(r, w);
-//!
-//! let r = rx.recv().await.unwrap();
-//! println!("{r}");
-//! tx.send(r).await.unwrap();
-//! # }
-//! ```
-//!
-//! ### Sync
-//!
-//! ```no_run
-//! use std::net::TcpStream;
-//!
-//! let stream = TcpStream::connect("127.0.0.1:8080").unwrap();
-//! let (mut tx, mut rx) = channels::channel::<i32, _, _>(stream.try_clone().unwrap(), stream);
-//!
-//! let r = rx.recv_blocking().unwrap();
-//! println!("{r}");
-//! tx.send_blocking(r).unwrap();
-//! ```
-//!
-//! ## Examples
-//!
-//! See: [examples/](https://github.com/threadexio/channels-rs/tree/master/examples)
-//!
-//! ## cargo features
-//!
-//! |    Feature    | Description                                                                                     |
-//! | :-----------: | :---------------------------------------------------------------------------------------------- |
-//! | `statistics`  | Capture statistic data like: total bytes sent/received, number of send/receive operations, etc. |
-//! | `aead`        | Middleware that encrypts data for transport.                                                    |
-//! | `bincode`     | Support for serializing/deserializing types with [`bincode`].                                   |
-//! | `borsh`       | Support for serializing/deserializing types with [`borsh`].                                     |
-//! | `cbor`        | Support for serializing/deserializing types with [`ciborium`].                                  |
-//! | `crc`         | Middleware that verifies data with a CRC checksum.                                              |
-//! | `deflate`     | Middleware that compresses data with DEFLATE.                                                   |
-//! | `hmac`        | Middleware that verifies data with HMAC.                                                        |
-//! | `json`        | Support for serializing/deserializing types with [`serde_json`].                                |
-//! | `full-serdes` | Features: `aead`, `bincode`, `borsh`, `cbor`, `crc`, `deflate`, `hmac`, `json`                  |
-//! | `core2`       | Adds support for sending/receiving types with [`core2`].                                        |
-//! | `futures`     | Adds support for sending/receiving types asynchronously with [`futures`].                       |
-//! | `smol`        | Adds support for sending/receiving types asynchronously with [`smol`].                          |
-//! | `std`         | Adds support for sending/receiving types over [`Read`] and [`Write`].                           |
-//! | `tokio`       | Adds support for sending/receiving types asynchronously with [`tokio`].                         |
-//! | `full-io`     | Features: `core2`, `futures`, `smol`, `std`, `tokio`                                            |
-//! | `full`        | Every feature in this table.                                                                    |
-//!
-//! [`core2`]: https://docs.rs/core2
-//! [`bincode`]: https://docs.rs/bincode
-//! [`ciborium`]: https://docs.rs/ciborium
-//! [`serde_json`]: https://docs.rs/serde_json
-//! [`borsh`]: https://docs.rs/borsh
-//! [`tokio`]: https://docs.rs/tokio
-//! [`futures`]: https://docs.rs/futures
-//! [`Read`]: std::io::Read
-//! [`Write`]: std::io::Write
-//! [`smol`]: https://docs.rs/smol
+//! <style>
+//! .rustdoc-hidden { display: none; }
+//! </style>
+#![doc = include_str!("../README.md")]
 #![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(clippy::print_stdout, clippy::print_stderr)]

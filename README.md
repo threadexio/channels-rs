@@ -13,6 +13,8 @@
 [license]: https://github.com/threadexio/channels-rs/blob/master/LICENSE
 [art-license]: https://github.com/threadexio/channels-rs/blob/master/assets/LICENSE
 
+<div class="rustdoc-hidden">
+
 <div align="center">
   <img src="https://raw.githubusercontent.com/threadexio/channels-rs/master/assets/logo.transparent.svg" width="640" alt="logo">
 
@@ -30,6 +32,8 @@
 
 <br>
 
+</div>
+
 Sender/Receiver types for communicating with a channel-like API across generic IO streams. It takes the burden on serializing, deserializing and transporting data off your back and let's you focus on the important logic of your project. It is:
 
 - **Fast**: The simple protocol allows low-overhead transporting of data.
@@ -44,7 +48,7 @@ Sender/Receiver types for communicating with a channel-like API across generic I
 
 ```toml
 [dependencies.channels]
-version = "0.12.0"
+version = "0.12.3"
 features = ["full"]
 ```
 
@@ -85,11 +89,11 @@ For more, see: [examples/][examples]
 
 Channels implements a communication protocol that allows sending and receiving data across any medium. It works over _any_ stream synchronous or asynchronous. Currently it can work with any of the following IO traits:
 
-- [`std::io::{Read, Write}`](https://doc.rust-lang.org/stable/std/io)
-- [`tokio::io::{AsyncRead, AsyncWrite}`](https://docs.rs/tokio/latest/tokio/io)
-- [`futures::io::{AsyncRead, AsyncWrite}`](https://docs.rs/futures/latest/futures/io)
-- [`core2::io::{Read, Write}`](https://docs.rs/core2)
-- [`smol::io::{AsyncRead, AsyncWrite}`](https://docs.rs/smol)
+- [`std::io::{Read, Write}`][]
+- [`tokio::io::{AsyncRead, AsyncWrite}`][]
+- [`futures::io::{AsyncRead, AsyncWrite}`][]
+- [`core2::io::{Read, Write}`][]
+- [`smol::io::{AsyncRead, AsyncWrite}`][]
 
 You can find out more about how the underlying communication protocol works [here][spec].
 
@@ -98,3 +102,9 @@ You can find out more about how the underlying communication protocol works [her
 - All code in this repository is licensed under the MIT license, a copy of which can be found [here][license].
 
 - All artwork in this repository is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/). A copy of the license can be found [here][art-license].
+
+[`std::io::{Read, Write}`]: https://doc.rust-lang.org/stable/std/io
+[`tokio::io::{AsyncRead, AsyncWrite}`]: https://docs.rs/tokio/latest/tokio/io
+[`futures::io::{AsyncRead, AsyncWrite}`]: https://docs.rs/futures/latest/futures/io
+[`core2::io::{Read, Write}`]: https://docs.rs/core2
+[`smol::io::{AsyncRead, AsyncWrite}`]: https://docs.rs/smol
