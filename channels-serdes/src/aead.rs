@@ -99,7 +99,7 @@ where
 			.seal_in_place_separate_tag(Aad::empty(), &mut data)
 			.map_err(|_| SerializeError::EncryptError)?;
 
-		let out = [tag.as_ref(), &data].concat();
+		let out = [&data, tag.as_ref()].concat();
 
 		Ok(out)
 	}
