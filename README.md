@@ -52,7 +52,7 @@ version = "0.12.3"
 features = ["full"]
 ```
 
-```rust
+```rust no_run
 use tokio::net::TcpStream;
 
 use serde::{Deserialize, Serialize};
