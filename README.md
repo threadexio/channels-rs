@@ -94,6 +94,7 @@ Channels implements a communication protocol that allows sending and receiving d
 - [`futures::io::{AsyncRead, AsyncWrite}`][]
 - [`core2::io::{Read, Write}`][]
 - [`smol::io::{AsyncRead, AsyncWrite}`][]
+- [`embedded_io::{Read, Write}`][]
 
 You can find out more about how the underlying communication protocol works [here][spec].
 
@@ -108,3 +109,4 @@ You can find out more about how the underlying communication protocol works [her
 [`futures::io::{AsyncRead, AsyncWrite}`]: https://docs.rs/futures/latest/futures/io
 [`core2::io::{Read, Write}`]: https://docs.rs/core2
 [`smol::io::{AsyncRead, AsyncWrite}`]: https://docs.rs/smol
+[`embedded_io::{Read, Write}`]: https://docs.rs/embedded-io

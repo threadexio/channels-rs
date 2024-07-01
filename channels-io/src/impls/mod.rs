@@ -131,3 +131,10 @@ if_feature! {
 		pub use self::smol::Smol;
 	}
 }
+
+if_feature! {
+	if "embedded-io" {
+		mod embedded_io;
+		pub use self::embedded_io::EmbeddedIo;
+	}
+}
