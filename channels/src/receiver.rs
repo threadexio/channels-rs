@@ -680,7 +680,8 @@ impl Default for Config {
 				NonZeroUsize::new(PacketLength::MAX.as_usize())
 					.expect("PacketLength::MAX should not be 0"),
 			),
-			flags: Self::VERIFY_PACKET_ORDER,
+			flags: Self::VERIFY_PACKET_ORDER
+				| Self::VERIFY_HEADER_CHECKSUM,
 		}
 	}
 }
