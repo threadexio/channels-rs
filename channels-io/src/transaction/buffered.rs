@@ -3,6 +3,7 @@ use core::task::{ready, Context, Poll};
 
 use alloc::vec::Vec;
 
+use crate::buf::Cursor;
 use crate::transaction::{AsyncWriteTransaction, WriteTransaction};
 use crate::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 
@@ -15,7 +16,7 @@ use crate::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 #[derive(Debug)]
 pub struct Buffered<'a, W> {
 	writer: W,
-	buf: &'a mut Vec<u8>,
+	buf: Cursor<&'a mut Vec<u8>>,
 	wants_flush: bool,
 }
 
@@ -29,7 +30,7 @@ impl<'a, W> Buffered<'a, W> {
 	/// If `buf` is not empty.
 	pub fn new(writer: W, buf: &'a mut Vec<u8>) -> Self {
 		assert!(buf.is_empty(), "buf should be empty");
-		Self { writer, buf, wants_flush: false }
+		Self { writer, buf: Cursor::new(buf), wants_flush: false }
 	}
 
 	/// Get a reference to the underlying writer.
@@ -53,7 +54,7 @@ where
 		&mut self,
 		buf: &[u8],
 	) -> Result<usize, Self::Error> {
-		self.buf.extend_from_slice(buf);
+		self.buf.get_mut().extend_from_slice(buf);
 		Ok(buf.len())
 	}
 
@@ -70,7 +71,7 @@ where
 	fn finish(self) -> Result<(), Self::Error> {
 		let Self { buf, wants_flush, mut writer } = self;
 
-		writer.write(buf.as_slice())?;
+		writer.write(buf)?;
 
 		if wants_flush {
 			writer.flush()?;
@@ -91,7 +92,7 @@ where
 		_: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		self.buf.extend_from_slice(buf);
+		self.buf.get_mut().extend_from_slice(buf);
 		Poll::Ready(Ok(buf.len()))
 	}
 
@@ -113,9 +114,8 @@ where
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
 		let Self { ref mut buf, wants_flush, ref mut writer } = *self;
-		let buf = &mut **buf;
 
-		ready!(Pin::new(&mut *writer).poll_write(cx, buf.as_slice()))?;
+		ready!(Pin::new(&mut *writer).poll_write(cx, buf))?;
 
 		if wants_flush {
 			ready!(Pin::new(&mut *writer).poll_flush(cx))?;
