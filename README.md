@@ -48,7 +48,7 @@ Sender/Receiver types for communicating with a channel-like API across generic I
 
 ```toml
 [dependencies.channels]
-version = "0.12.3"
+version = "0.12"
 features = ["full"]
 ```
 
