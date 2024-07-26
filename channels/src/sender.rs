@@ -281,6 +281,7 @@ where
 	/// tx.send(data).await.unwrap();
 	/// # }
 	/// ```
+	#[inline]
 	pub async fn send<D>(
 		&mut self,
 		data: D,
@@ -291,6 +292,7 @@ where
 		self._send(data.borrow()).await
 	}
 
+	#[inline(never)]
 	async fn _send(
 		&mut self,
 		data: &T,
@@ -330,6 +332,7 @@ where
 	/// ```
 	///
 	/// [`send()`]: fn@Sender::send
+	#[inline]
 	pub fn send_blocking<D>(
 		&mut self,
 		data: D,
@@ -340,6 +343,7 @@ where
 		self._send_blocking(data.borrow())
 	}
 
+	#[inline(never)]
 	fn _send_blocking(
 		&mut self,
 		data: &T,

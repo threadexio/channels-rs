@@ -341,6 +341,7 @@ where
 	/// ```
 	///
 	/// [`recv()`]: fn@Receiver::recv
+	#[inline]
 	pub fn recv_blocking(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
@@ -367,6 +368,7 @@ where
 {
 	type Item = Result<T, RecvError<D::Error, R::Error>>;
 
+	#[inline]
 	fn next(&mut self) -> Option<Self::Item> {
 		Some(self.receiver.recv_blocking())
 	}
@@ -386,6 +388,7 @@ where
 	/// This method is cancel safe. If the method is used as the event in some
 	/// `select!`-like macro and some other branch completes first, then it is
 	/// guaranteed that no data will be dropped.
+	#[inline]
 	pub async fn next_async(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
