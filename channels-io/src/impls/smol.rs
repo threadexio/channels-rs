@@ -24,51 +24,56 @@ mod smol_error_impls {
 	}
 }
 
-newtype! {
-	/// Wrapper IO type for [`smol::io::AsyncRead`] and [`smol::io::AsyncWrite`].
-	///
-	/// [`smol::io::AsyncRead`]: ::smol::io::AsyncRead
-	/// [`smol::io::AsyncWrite`]: ::smol::io::AsyncWrite
-	Smol
-}
+/// Wrapper IO type for [`smol::io::AsyncRead`] and [`smol::io::AsyncWrite`].
+///
+/// [`smol::io::AsyncRead`]: ::smol::io::AsyncRead
+/// [`smol::io::AsyncWrite`]: ::smol::io::AsyncWrite
+#[derive(Debug)]
+#[pin_project]
+pub struct Smol<T>(#[pin] pub T);
 
-impl_newtype_read! { Smol: ::smol::io::AsyncRead + Unpin }
+impl_newtype! { Smol }
+
+impl_newtype_read! { Smol: ::smol::io::AsyncRead }
 
 impl<T> AsyncRead for Smol<T>
 where
-	T: ::smol::io::AsyncRead + Unpin,
+	T: ::smol::io::AsyncRead,
 {
 	type Error = ::smol::io::Error;
 
 	fn poll_read_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut [u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		Pin::new(&mut self.0).poll_read(cx, buf)
+		let this = self.project();
+		this.0.poll_read(cx, buf)
 	}
 }
 
-impl_newtype_write! { Smol: ::smol::io::AsyncWrite+ Unpin }
+impl_newtype_write! { Smol: ::smol::io::AsyncWrite }
 
 impl<T> AsyncWrite for Smol<T>
 where
-	T: ::smol::io::AsyncWrite + Unpin,
+	T: ::smol::io::AsyncWrite,
 {
 	type Error = ::smol::io::Error;
 
 	fn poll_write_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		Pin::new(&mut self.0).poll_write(cx, buf)
+		let this = self.project();
+		this.0.poll_write(cx, buf)
 	}
 
 	fn poll_flush_once(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.0).poll_flush(cx)
+		let this = self.project();
+		this.0.poll_flush(cx)
 	}
 }

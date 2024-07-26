@@ -1,14 +1,7 @@
 #![allow(unused_macros)]
 
-macro_rules! newtype {
-    (
-		$(#[$attr:meta])*
-		$name:ident
-	) => {
-		$(#[$attr])*
-		#[derive(Debug)]
-		pub struct $name<T>(pub T);
-
+macro_rules! impl_newtype {
+	($name:ident) => {
 		impl<T> $crate::Container for $name<T> {
 			type Inner = T;
 
@@ -27,7 +20,6 @@ macro_rules! newtype {
 			fn into_inner(self) -> Self::Inner {
 				self.0
 			}
-
 		}
 	};
 }
@@ -58,9 +50,9 @@ macro_rules! impl_newtype_write {
 	};
 }
 
+use impl_newtype;
 use impl_newtype_read;
 use impl_newtype_write;
-use newtype;
 
 #[allow(unused_imports)]
 mod prelude {
@@ -70,7 +62,7 @@ mod prelude {
 	};
 
 	pub(super) use super::{
-		impl_newtype_read, impl_newtype_write, newtype,
+		impl_newtype, impl_newtype_read, impl_newtype_write,
 	};
 
 	pub(super) use core::{
@@ -81,6 +73,8 @@ mod prelude {
 			Poll::{self, Pending, Ready},
 		},
 	};
+
+	pub(super) use pin_project::pin_project;
 }
 
 macro_rules! if_feature {

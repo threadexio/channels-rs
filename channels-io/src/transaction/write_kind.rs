@@ -3,6 +3,8 @@ use core::task::{Context, Poll};
 
 use alloc::vec::Vec;
 
+use pin_project::pin_project;
+
 use crate::transaction::{
 	AsyncWriteTransaction, Buffered, Unbuffered, WriteTransaction,
 };
@@ -20,11 +22,12 @@ pub enum WriteTransactionKind<'a> {
 /// A unified interface for calling code to choose which transaction kind it wants
 /// at runtime.
 #[derive(Debug)]
+#[pin_project(project = WriteTransactionVariantProj)]
 pub enum WriteTransactionVariant<'a, W> {
 	/// A [`Buffered`] transaction.
-	Buffered(Buffered<'a, W>),
+	Buffered(#[pin] Buffered<'a, W>),
 	/// An [`Unbuffered`] transaction.
-	Unbuffered(Unbuffered<W>),
+	Unbuffered(#[pin] Unbuffered<W>),
 }
 
 impl<'a, W> WriteTransactionVariant<'a, W> {
@@ -105,35 +108,35 @@ where
 
 impl<'a, W> AsyncWrite for WriteTransactionVariant<'a, W>
 where
-	W: AsyncWrite + Unpin,
+	W: AsyncWrite,
 {
 	type Error = W::Error;
 
 	fn poll_write_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		match *self {
-			Self::Buffered(ref mut x) => {
-				Pin::new(x).poll_write_slice(cx, buf)
+		match self.project() {
+			WriteTransactionVariantProj::Buffered(x) => {
+				x.poll_write_slice(cx, buf)
 			},
-			Self::Unbuffered(ref mut x) => {
-				Pin::new(x).poll_write_slice(cx, buf)
+			WriteTransactionVariantProj::Unbuffered(x) => {
+				x.poll_write_slice(cx, buf)
 			},
 		}
 	}
 
 	fn poll_flush_once(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		match *self {
-			Self::Buffered(ref mut x) => {
-				Pin::new(x).poll_flush_once(cx)
+		match self.project() {
+			WriteTransactionVariantProj::Buffered(x) => {
+				x.poll_flush_once(cx)
 			},
-			Self::Unbuffered(ref mut x) => {
-				Pin::new(x).poll_flush_once(cx)
+			WriteTransactionVariantProj::Unbuffered(x) => {
+				x.poll_flush_once(cx)
 			},
 		}
 	}
@@ -141,16 +144,18 @@ where
 
 impl<'a, W> AsyncWriteTransaction for WriteTransactionVariant<'a, W>
 where
-	W: AsyncWrite + Unpin,
+	W: AsyncWrite,
 {
 	fn poll_finish(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		match *self {
-			Self::Buffered(ref mut x) => Pin::new(x).poll_finish(cx),
-			Self::Unbuffered(ref mut x) => {
-				Pin::new(x).poll_finish(cx)
+		match self.project() {
+			WriteTransactionVariantProj::Buffered(x) => {
+				x.poll_finish(cx)
+			},
+			WriteTransactionVariantProj::Unbuffered(x) => {
+				x.poll_finish(cx)
 			},
 		}
 	}

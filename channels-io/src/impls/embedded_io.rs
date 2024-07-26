@@ -20,13 +20,14 @@ impl WriteError for ErrorKind {
 	}
 }
 
-newtype! {
-	/// Wrapper IO type for [`embedded_io::Read`] and [`embedded_io::Write`].
-	///
-	/// [`embedded_io::Read`]: ::embedded_io::Read
-	/// [`embedded_io::Write`]: ::embedded_io::Write
-	EmbeddedIo
-}
+/// Wrapper IO type for [`embedded_io::Read`] and [`embedded_io::Write`].
+///
+/// [`embedded_io::Read`]: ::embedded_io::Read
+/// [`embedded_io::Write`]: ::embedded_io::Write
+#[derive(Debug)]
+pub struct EmbeddedIo<T>(pub T);
+
+impl_newtype! { EmbeddedIo }
 
 impl_newtype_read! { EmbeddedIo: ::embedded_io::Read }
 

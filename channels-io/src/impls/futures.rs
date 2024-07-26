@@ -1,50 +1,55 @@
 use super::prelude::*;
 
-newtype! {
-	/// Wrapper IO type for [`futures::AsyncRead`] and [`futures::AsyncWrite`].
-	///
-	/// [`futures::AsyncRead`]: ::futures::AsyncRead
-	/// [`futures::AsyncWrite`]:  ::futures::AsyncWrite
-	Futures
-}
+/// Wrapper IO type for [`futures::AsyncRead`] and [`futures::AsyncWrite`].
+///
+/// [`futures::AsyncRead`]: ::futures::AsyncRead
+/// [`futures::AsyncWrite`]:  ::futures::AsyncWrite
+#[derive(Debug)]
+#[pin_project]
+pub struct Futures<T>(#[pin] pub T);
 
-impl_newtype_read! { Futures: ::futures::io::AsyncRead + Unpin }
+impl_newtype! { Futures }
+
+impl_newtype_read! { Futures: ::futures::io::AsyncRead }
 
 impl<T> AsyncRead for Futures<T>
 where
-	T: ::futures::io::AsyncRead + Unpin,
+	T: ::futures::io::AsyncRead,
 {
 	type Error = ::futures::io::Error;
 
 	fn poll_read_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut [u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		Pin::new(&mut self.0).poll_read(cx, buf)
+		let this = self.project();
+		this.0.poll_read(cx, buf)
 	}
 }
 
-impl_newtype_write! { Futures: ::futures::io::AsyncWrite + Unpin }
+impl_newtype_write! { Futures: ::futures::io::AsyncWrite }
 
 impl<T> AsyncWrite for Futures<T>
 where
-	T: ::futures::io::AsyncWrite + Unpin,
+	T: ::futures::io::AsyncWrite,
 {
 	type Error = ::futures::io::Error;
 
 	fn poll_write_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		Pin::new(&mut self.0).poll_write(cx, buf)
+		let this = self.project();
+		this.0.poll_write(cx, buf)
 	}
 
 	fn poll_flush_once(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.0).poll_flush(cx)
+		let this = self.project();
+		this.0.poll_flush(cx)
 	}
 }

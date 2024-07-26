@@ -20,10 +20,11 @@ impl WriteError for ::std::io::Error {
 	}
 }
 
-newtype! {
-	/// Wrapper IO type for [`std::io::Read`] and [`std::io::Write`].
-	Std
-}
+/// Wrapper IO type for [`std::io::Read`] and [`std::io::Write`].
+#[derive(Debug)]
+pub struct Std<T>(pub T);
+
+impl_newtype! { Std }
 
 impl_newtype_read! { Std: ::std::io::Read }
 

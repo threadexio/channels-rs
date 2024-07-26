@@ -59,7 +59,6 @@ where
 		mut self: Pin<&mut Self>,
 		cx: &mut Context<'_>,
 	) -> Poll<Self::Output> {
-		let this = &mut self.transaction;
-		Pin::new(this).poll_finish(cx)
+		Pin::new(&mut self.transaction).poll_finish(cx)
 	}
 }

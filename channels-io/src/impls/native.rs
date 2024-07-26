@@ -1,9 +1,10 @@
 use super::prelude::*;
 
-newtype! {
-	/// Wrapper IO type for [`Read`] and [`Write`].
-	Native
-}
+/// Wrapper IO type for [`Read`] and [`Write`].
+#[derive(Debug)]
+pub struct Native<T>(pub T);
+
+impl_newtype! { Native }
 
 impl_newtype_read! { Native: Read }
 
@@ -41,25 +42,28 @@ where
 	}
 }
 
-newtype! {
-	/// Wrapper IO type for [`AsyncRead`] and [`AsyncWrite`].
-	NativeAsync
-}
+/// Wrapper IO type for [`AsyncRead`] and [`AsyncWrite`].
+#[derive(Debug)]
+#[pin_project]
+pub struct NativeAsync<T>(#[pin] pub T);
+
+impl_newtype! { NativeAsync }
 
 impl_newtype_read! { NativeAsync: AsyncRead }
 
 impl<T> AsyncRead for NativeAsync<T>
 where
-	T: AsyncRead + Unpin,
+	T: AsyncRead,
 {
 	type Error = T::Error;
 
 	fn poll_read_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut [u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		Pin::new(&mut self.0).poll_read_slice(cx, buf)
+		let this = self.project();
+		this.0.poll_read_slice(cx, buf)
 	}
 }
 
@@ -67,22 +71,24 @@ impl_newtype_write! { NativeAsync: AsyncWrite }
 
 impl<T> AsyncWrite for NativeAsync<T>
 where
-	T: AsyncWrite + Unpin,
+	T: AsyncWrite,
 {
 	type Error = T::Error;
 
 	fn poll_write_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		Pin::new(&mut self.0).poll_write_slice(cx, buf)
+		let this = self.project();
+		this.0.poll_write_slice(cx, buf)
 	}
 
 	fn poll_flush_once(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.0).poll_flush_once(cx)
+		let this = self.project();
+		this.0.poll_flush_once(cx)
 	}
 }

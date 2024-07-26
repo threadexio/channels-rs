@@ -1,6 +1,8 @@
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+use pin_project::pin_project;
+
 use crate::transaction::{AsyncWriteTransaction, WriteTransaction};
 use crate::{AsyncWrite, Write};
 
@@ -9,7 +11,9 @@ use crate::{AsyncWrite, Write};
 /// [`Unbuffered`] transactions proxy IO calls directly to the underlying writer
 /// in a "1-1" fashion.
 #[derive(Debug)]
+#[pin_project]
 pub struct Unbuffered<W> {
+	#[pin]
 	writer: W,
 }
 
@@ -59,29 +63,31 @@ where
 
 impl<W> AsyncWrite for Unbuffered<W>
 where
-	W: AsyncWrite + Unpin,
+	W: AsyncWrite,
 {
 	type Error = W::Error;
 
 	fn poll_write_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		Pin::new(&mut self.writer).poll_write_slice(cx, buf)
+		let this = self.project();
+		this.writer.poll_write_slice(cx, buf)
 	}
 
 	fn poll_flush_once(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.writer).poll_flush_once(cx)
+		let this = self.project();
+		this.writer.poll_flush_once(cx)
 	}
 }
 
 impl<W> AsyncWriteTransaction for Unbuffered<W>
 where
-	W: AsyncWrite + Unpin,
+	W: AsyncWrite,
 {
 	fn poll_finish(
 		self: Pin<&mut Self>,

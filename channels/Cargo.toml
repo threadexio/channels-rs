@@ -20,6 +20,8 @@ rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
 
 [dependencies]
+pin-project = { version = "1.0" }
+
 serde = { version = "1.0", default-features = false, optional = true }
 
 [dependencies.channels-macros]

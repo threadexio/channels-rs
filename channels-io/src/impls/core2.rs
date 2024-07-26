@@ -20,13 +20,14 @@ impl WriteError for ::core2::io::Error {
 	}
 }
 
-newtype! {
-	/// Wrapper IO type for [`core2::io::Read`] and [`core2::io::Write`].
-	///
-	/// [`core2::io::Read`]: ::core2::io::Read
-	/// [`core2::io::Write`]: ::core2::io::Write
-	Core2
-}
+/// Wrapper IO type for [`core2::io::Read`] and [`core2::io::Write`].
+///
+/// [`core2::io::Read`]: ::core2::io::Read
+/// [`core2::io::Write`]: ::core2::io::Write
+#[derive(Debug)]
+pub struct Core2<T>(pub T);
+
+impl_newtype! { Core2 }
 
 impl_newtype_read! { Core2: ::core2::io::Read }
 

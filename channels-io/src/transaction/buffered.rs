@@ -3,6 +3,8 @@ use core::task::{ready, Context, Poll};
 
 use alloc::vec::Vec;
 
+use pin_project::pin_project;
+
 use crate::buf::Cursor;
 use crate::transaction::{AsyncWriteTransaction, WriteTransaction};
 use crate::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
@@ -14,7 +16,9 @@ use crate::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 /// transaction will instruct it to also flush the underlying writer after it writes
 /// the data to it.
 #[derive(Debug)]
+#[pin_project]
 pub struct Buffered<'a, W> {
+	#[pin]
 	writer: W,
 	buf: Cursor<&'a mut Vec<u8>>,
 	wants_flush: bool,
@@ -83,42 +87,44 @@ where
 
 impl<'a, W> AsyncWrite for Buffered<'a, W>
 where
-	W: AsyncWrite + Unpin,
+	W: AsyncWrite,
 {
 	type Error = W::Error;
 
 	fn poll_write_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		_: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		self.buf.get_mut().extend_from_slice(buf);
+		let this = self.project();
+		this.buf.get_mut().extend_from_slice(buf);
 		Poll::Ready(Ok(buf.len()))
 	}
 
 	fn poll_flush_once(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		_: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		self.wants_flush = true;
+		let this = self.project();
+		*this.wants_flush = true;
 		Poll::Ready(Ok(()))
 	}
 }
 
 impl<'a, W> AsyncWriteTransaction for Buffered<'a, W>
 where
-	W: AsyncWrite + Unpin,
+	W: AsyncWrite,
 {
 	fn poll_finish(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		let Self { ref mut buf, wants_flush, ref mut writer } = *self;
+		let mut this = self.project();
 
-		ready!(Pin::new(&mut *writer).poll_write(cx, buf))?;
+		ready!(this.writer.as_mut().poll_write(cx, this.buf))?;
 
-		if wants_flush {
-			ready!(Pin::new(&mut *writer).poll_flush(cx))?;
+		if *this.wants_flush {
+			ready!(this.writer.poll_flush(cx))?;
 		}
 
 		Poll::Ready(Ok(()))

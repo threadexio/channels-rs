@@ -25,6 +25,8 @@ rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
 
 [dependencies]
+pin-project = { version = "1.0" }
+
 core2 = { version = "0.4", default-features = false, optional = true }
 embedded-io = { version = "0.6", optional = true }
 futures = { version = "0.3", default-features = false, features = ["std"], optional = true }

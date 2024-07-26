@@ -2,6 +2,8 @@ use core::fmt;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
+use pin_project::pin_project;
+
 use crate::io::{AsyncRead, AsyncWrite, Read, Write};
 
 #[cfg(feature = "statistics")]
@@ -149,7 +151,9 @@ impl fmt::Debug for Statistics {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+#[pin_project]
 pub struct StatIO<R> {
+	#[pin]
 	pub(crate) inner: R,
 	pub(crate) statistics: Statistics,
 }
@@ -172,16 +176,6 @@ impl<R> StatIO<R> {
 	pub fn new(reader: R) -> Self {
 		Self { inner: reader, statistics: Statistics::new() }
 	}
-
-	#[inline]
-	fn on_read(&mut self, n: u64) {
-		self.statistics.add_total_bytes(n);
-	}
-
-	#[inline]
-	fn on_write(&mut self, n: u64) {
-		self.statistics.add_total_bytes(n);
-	}
 }
 
 impl<W: Write> Write for StatIO<W> {
@@ -192,7 +186,7 @@ impl<W: Write> Write for StatIO<W> {
 		buf: &[u8],
 	) -> Result<usize, Self::Error> {
 		let n = self.inner.write_slice(buf)?;
-		self.on_write(n as u64);
+		self.statistics.add_total_bytes(n as u64);
 		Ok(n)
 	}
 
@@ -201,26 +195,27 @@ impl<W: Write> Write for StatIO<W> {
 	}
 }
 
-impl<W: AsyncWrite + Unpin> AsyncWrite for StatIO<W> {
+impl<W: AsyncWrite> AsyncWrite for StatIO<W> {
 	type Error = W::Error;
 
 	fn poll_write_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		let n = ready!(
-			Pin::new(&mut self.inner).poll_write_slice(cx, buf)
-		)?;
-		self.on_write(n as u64);
+		let this = self.project();
+
+		let n = ready!(this.inner.poll_write_slice(cx, buf))?;
+		this.statistics.add_total_bytes(n as u64);
 		Poll::Ready(Ok(n))
 	}
 
 	fn poll_flush_once(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.inner).poll_flush_once(cx)
+		let this = self.project();
+		this.inner.poll_flush_once(cx)
 	}
 }
 
@@ -232,23 +227,22 @@ impl<R: Read> Read for StatIO<R> {
 		buf: &mut [u8],
 	) -> Result<usize, Self::Error> {
 		let n = self.inner.read_slice(buf)?;
-		self.on_read(n as u64);
+		self.statistics.add_total_bytes(n as u64);
 		Ok(n)
 	}
 }
 
-impl<R: AsyncRead + Unpin> AsyncRead for StatIO<R> {
+impl<R: AsyncRead> AsyncRead for StatIO<R> {
 	type Error = R::Error;
 
 	fn poll_read_slice(
-		mut self: Pin<&mut Self>,
+		self: Pin<&mut Self>,
 		cx: &mut Context,
 		buf: &mut [u8],
 	) -> Poll<Result<usize, Self::Error>> {
-		let n = ready!(
-			Pin::new(&mut self.inner).poll_read_slice(cx, buf)
-		)?;
-		self.on_read(n as u64);
+		let this = self.project();
+		let n = ready!(this.inner.poll_read_slice(cx, buf))?;
+		this.statistics.add_total_bytes(n as u64);
 		Poll::Ready(Ok(n))
 	}
 }
