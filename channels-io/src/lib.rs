@@ -64,14 +64,15 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-mod buf;
 mod convert;
+mod util;
 
 mod async_read;
 mod async_write;
 mod read;
 mod write;
 
+pub mod buf;
 pub mod error;
 
 #[cfg(feature = "alloc")]
