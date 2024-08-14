@@ -9,9 +9,7 @@ use crate::error::{IoError, ReadError};
 ///
 /// [`Read`]: crate::Read
 pub trait AsyncRead {
-	/// Error type for [`read()`].
-	///
-	/// [`read()`]: fn@AsyncReadExt::read
+	/// Error type for IO operations involving the reader.
 	type Error: ReadError;
 
 	/// Poll the reader once and read some bytes into the slice `buf`.
@@ -35,30 +33,30 @@ pub trait AsyncReadExt: AsyncRead {
 	///
 	/// This method reads bytes into the unfilled part of `buf` and advances the
 	/// it accordingly.
-	fn poll_read<B>(
+	fn poll_read_buf<B>(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: B,
+		buf: &mut B,
 	) -> Poll<Result<(), Self::Error>>
 	where
-		B: BufMut,
+		B: BufMut + ?Sized,
 	{
-		default_poll_read(self, cx, buf)
+		default_poll_read_buf(self, cx, buf)
 	}
 
 	/// Asynchronously read some bytes into `buf`.
 	///
-	/// This function behaves in the same way as [`read()`] except that it
+	/// This function behaves in the same way as [`read_buf()`] except that it
 	/// returns a [`Future`] that must be `.await`ed.
 	///
-	/// [`read()`]: fn@crate::ReadExt::read
+	/// [`read_buf()`]: crate::ReadExt::read_buf
 	/// [`Future`]: core::future::Future
-	fn read<B>(&mut self, buf: B) -> Read<'_, Self, B>
+	fn read_buf<B>(&mut self, buf: B) -> ReadBuf<'_, Self, B>
 	where
 		B: BufMut + Unpin,
 		Self: Unpin,
 	{
-		Read::new(self, buf)
+		ReadBuf::new(self, buf)
 	}
 
 	/// Create a "by reference" adapter that takes the current instance of [`AsyncRead`]
@@ -73,14 +71,14 @@ pub trait AsyncReadExt: AsyncRead {
 
 impl<T: AsyncRead + ?Sized> AsyncReadExt for T {}
 
-fn default_poll_read<T, B>(
+fn default_poll_read_buf<T, B>(
 	mut reader: Pin<&mut T>,
 	cx: &mut Context,
-	mut buf: B,
+	buf: &mut B,
 ) -> Poll<Result<(), T::Error>>
 where
 	T: AsyncReadExt + ?Sized,
-	B: BufMut,
+	B: BufMut + ?Sized,
 {
 	while buf.has_remaining_mut() {
 		match ready!(reader
@@ -99,16 +97,16 @@ where
 
 #[allow(missing_debug_implementations)]
 #[must_use = "futures do nothing unless you `.await` them"]
-pub struct Read<'a, T, B>
+pub struct ReadBuf<'a, T, B>
 where
 	T: AsyncReadExt + Unpin + ?Sized,
-	B: BufMut + Unpin,
+	B: BufMut + Unpin + ?Sized,
 {
 	reader: &'a mut T,
 	buf: B,
 }
 
-impl<'a, T, B> Read<'a, T, B>
+impl<'a, T, B> ReadBuf<'a, T, B>
 where
 	T: AsyncReadExt + Unpin + ?Sized,
 	B: BufMut + Unpin,
@@ -118,10 +116,10 @@ where
 	}
 }
 
-impl<'a, T, B> Future for Read<'a, T, B>
+impl<'a, T, B> Future for ReadBuf<'a, T, B>
 where
 	T: AsyncReadExt + Unpin + ?Sized,
-	B: BufMut + Unpin,
+	B: BufMut + Unpin + ?Sized,
 {
 	type Output = Result<(), T::Error>;
 
@@ -130,7 +128,7 @@ where
 		cx: &mut Context,
 	) -> Poll<Self::Output> {
 		let Self { ref mut reader, ref mut buf } = *self;
-		Pin::new(&mut **reader).poll_read(cx, &mut *buf)
+		Pin::new(&mut **reader).poll_read_buf(cx, buf)
 	}
 }
 

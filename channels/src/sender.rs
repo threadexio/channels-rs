@@ -521,38 +521,38 @@ impl<T, W, S> Builder<T, W, S> {
 ///
 /// ## Coalesce writes
 ///
-/// Coalesce packet writes into a single [`write()`] call.
+/// Coalesce packet writes into a single [`write_buf()`] call.
 ///
 /// Produced packets do not reside in contiguous chunks of memory. Because
-/// [`write()`] expects a contiguous region of memory, this means that
+/// [`write_buf()`] expects a contiguous region of memory, this means that
 /// writing the packet to the underlying writer is not as simple as calling
-/// [`write()`] once.
+/// [`write_buf()`] once.
 ///
 /// In such situations, code can:
 ///
-/// - A) call [`write()`] many times
+/// - A) call [`write_buf()`] many times
 /// - B) copy each part of the packet into a single contiguous region of
-///      memory and call [`write()`] on it just once
+///      memory and call [`write_buf()`] on it just once
 ///
 /// Approach A has the benefit that it requires no additional allocations
 /// or copying data. However, it heavily depends on the speed of the
 /// underlying writer. Consider a writer that performs a system call each
-/// time its [`write()`] method is called. Because system calls are
+/// time its [`write_buf()`] method is called. Because system calls are
 /// expensive, code should generally try to reduce their usage. For these
-/// cases it is generally preferred to use approach B and only call [`write()`]
+/// cases it is generally preferred to use approach B and only call [`write_buf()`]
 /// once. But in other cases where the writer is generally cheaply writable,
 /// say writing to an in-memory buffer for further processing, it **can** be
 /// **sometimes** beneficial to use approach A in terms of CPU time and memory
 /// resources. Note that even in such cases, approach B might still be
 /// faster.
 ///
-/// This field basically controls the behavior of how [`write()`] is called.
+/// This field basically controls the behavior of how [`write_buf()`] is called.
 /// Setting it to `true`, will signal the sending code to use approach B as
 /// per the above. Setting it to `false`, will signal the sending code to
 /// use approach A. Incorrectly setting this field, can lead to serious
 /// performance issues. For this reason, the default behavior is approach B.
 ///
-/// Writers should not assume anything about the pattern of how [`write()`]
+/// Writers should not assume anything about the pattern of how [`write_buf()`]
 /// is called.
 ///
 /// **Default:** `true`
@@ -573,7 +573,7 @@ impl<T, W, S> Builder<T, W, S> {
 ///
 /// **Default:** `false`
 ///
-/// [`write()`]: crate::io::WriteExt::write
+/// [`write_buf()`]: crate::io::WriteExt::write_buf
 #[derive(Clone)]
 #[must_use = "`Config`s don't do anything on their own"]
 pub struct Config {

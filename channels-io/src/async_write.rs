@@ -14,9 +14,7 @@ use crate::transaction::{
 ///
 /// [`Write`]: crate::Write
 pub trait AsyncWrite {
-	/// Error type for [`write()`].
-	///
-	/// [`write()`]: fn@AsyncWriteExt::write
+	/// Error type for IO operations involving the writer.
 	type Error: WriteError;
 
 	/// Poll the writer and try to write some bytes from `buf` to it.
@@ -46,15 +44,15 @@ pub trait AsyncWriteExt: AsyncWrite {
 	///
 	/// This method writes bytes from `buf` to the writer and advances it
 	/// accordingly.
-	fn poll_write<B>(
+	fn poll_write_buf<B>(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
-		buf: B,
+		buf: &mut B,
 	) -> Poll<Result<(), Self::Error>>
 	where
-		B: Buf,
+		B: Buf + ?Sized,
 	{
-		default_poll_write(self, cx, buf)
+		default_poll_write_buf(self, cx, buf)
 	}
 
 	/// Poll the writer and try to flush it.
@@ -67,17 +65,17 @@ pub trait AsyncWriteExt: AsyncWrite {
 
 	/// Asynchronously write `buf` to the writer.
 	///
-	/// This function behaves in the same way as [`write()`] except that
+	/// This function behaves in the same way as [`write_buf()`] except that
 	/// it returns a [`Future`] that must be `.await`ed.
 	///
-	/// [`write()`]: fn@crate::WriteExt::write
+	/// [`write_buf()`]: crate::WriteExt::write_buf
 	/// [`Future`]: core::future::Future
-	fn write<B>(&mut self, buf: B) -> Write<'_, Self, B>
+	fn write_buf<B>(&mut self, buf: B) -> WriteBuf<'_, Self, B>
 	where
 		B: Buf + Unpin,
 		Self: Unpin,
 	{
-		Write::new(self, buf)
+		WriteBuf::new(self, buf)
 	}
 
 	/// Asynchronously flush the writer.
@@ -85,7 +83,7 @@ pub trait AsyncWriteExt: AsyncWrite {
 	/// This function behaves in the same way as [`flush()`] except that
 	/// it returns a [`Future`] that must be `.await`ed.
 	///
-	/// [`flush()`]: fn@crate::WriteExt::flush
+	/// [`flush()`]: crate::WriteExt::flush
 	/// [`Future`]: core::future::Future
 	fn flush(&mut self) -> Flush<'_, Self>
 	where
@@ -120,14 +118,14 @@ pub trait AsyncWriteExt: AsyncWrite {
 
 impl<T: AsyncWrite + ?Sized> AsyncWriteExt for T {}
 
-fn default_poll_write<T, B>(
+fn default_poll_write_buf<T, B>(
 	mut writer: Pin<&mut T>,
 	cx: &mut Context,
-	mut buf: B,
+	buf: &mut B,
 ) -> Poll<Result<(), T::Error>>
 where
 	T: AsyncWriteExt + ?Sized,
-	B: Buf,
+	B: Buf + ?Sized,
 {
 	while buf.has_remaining() {
 		match ready!(writer
@@ -162,7 +160,7 @@ where
 
 #[allow(missing_debug_implementations)]
 #[must_use = "futures do nothing unless you `.await` them"]
-pub struct Write<'a, T, B>
+pub struct WriteBuf<'a, T, B>
 where
 	T: AsyncWriteExt + Unpin + ?Sized,
 	B: Buf + Unpin,
@@ -171,7 +169,7 @@ where
 	buf: B,
 }
 
-impl<'a, T, B> Write<'a, T, B>
+impl<'a, T, B> WriteBuf<'a, T, B>
 where
 	T: AsyncWriteExt + Unpin + ?Sized,
 	B: Buf + Unpin,
@@ -181,7 +179,7 @@ where
 	}
 }
 
-impl<'a, T, B> Future for Write<'a, T, B>
+impl<'a, T, B> Future for WriteBuf<'a, T, B>
 where
 	T: AsyncWriteExt + Unpin + ?Sized,
 	B: Buf + Unpin,
@@ -193,7 +191,7 @@ where
 		cx: &mut Context<'_>,
 	) -> Poll<Self::Output> {
 		let Self { ref mut writer, ref mut buf, .. } = *self;
-		Pin::new(&mut **writer).poll_write(cx, &mut *buf)
+		Pin::new(&mut **writer).poll_write_buf(cx, buf)
 	}
 }
 
@@ -240,7 +238,7 @@ macro_rules! forward_impl_async_write {
 			buf: &[u8],
 		) -> Poll<Result<usize, Self::Error>> {
 			let this = Pin::new(&mut **self);
-			T::poll_write_slice(this, cx, buf)
+			<$to>::poll_write_slice(this, cx, buf)
 		}
 
 		fn poll_flush_once(
@@ -248,7 +246,7 @@ macro_rules! forward_impl_async_write {
 			cx: &mut Context,
 		) -> Poll<Result<(), Self::Error>> {
 			let this = Pin::new(&mut **self);
-			T::poll_flush_once(this, cx)
+			<$to>::poll_flush_once(this, cx)
 		}
 	};
 }

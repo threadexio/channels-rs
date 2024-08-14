@@ -167,7 +167,7 @@ impl<B: BufMut + Unpin> AsyncWrite for Writer<B> {
 
 	fn poll_write_slice(
 		mut self: Pin<&mut Self>,
-		cx: &mut Context,
+		_: &mut Context,
 		buf: &[u8],
 	) -> Poll<Result<usize, Self::Error>> {
 		Poll::Ready(self.write_slice(buf))
@@ -175,7 +175,7 @@ impl<B: BufMut + Unpin> AsyncWrite for Writer<B> {
 
 	fn poll_flush_once(
 		self: Pin<&mut Self>,
-		cx: &mut Context,
+		_: &mut Context,
 	) -> Poll<Result<(), Self::Error>> {
 		Poll::Ready(Ok(()))
 	}

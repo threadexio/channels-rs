@@ -75,7 +75,7 @@ where
 	fn finish(self) -> Result<(), Self::Error> {
 		let Self { buf, wants_flush, mut writer } = self;
 
-		writer.write(buf)?;
+		writer.write_buf(buf)?;
 
 		if wants_flush {
 			writer.flush()?;
@@ -121,7 +121,7 @@ where
 	) -> Poll<Result<(), Self::Error>> {
 		let mut this = self.project();
 
-		ready!(this.writer.as_mut().poll_write(cx, this.buf))?;
+		ready!(this.writer.as_mut().poll_write_buf(cx, this.buf))?;
 
 		if *this.wants_flush {
 			ready!(this.writer.poll_flush(cx))?;

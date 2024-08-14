@@ -5,18 +5,16 @@ use crate::error::{IoError, ReadError};
 ///
 /// Types implementing this trait are called "readers".
 pub trait Read {
-	/// Error type for [`read()`].
-	///
-	/// [`read()`]: ReadExt::read
+	/// Error type for IO operations involving the reader.
 	type Error: ReadError;
 
 	/// Read some bytes into the slice `buf`.
 	///
-	/// This function is the lower level building block of [`read()`]. It reads
+	/// This function is the lower level building block of [`read_buf()`]. It reads
 	/// bytes into `buf` and reports back to the caller how many bytes it read.
-	/// [`read()`] should, usually, be preferred.
+	/// [`read_buf()`] should, usually, be preferred.
 	///
-	/// [`read()`]: fn@ReadExt::read
+	/// [`read_buf()`]: ReadExt::read_buf
 	fn read_slice(
 		&mut self,
 		buf: &mut [u8],
@@ -32,11 +30,11 @@ pub trait ReadExt: Read {
 	/// This method will try to read bytes into `buf` repeatedly until either a)
 	/// `buf` has been filled, b) an error occurs or c) the reader reaches EOF.
 	/// If the reader reaches EOF, this method will return an error.
-	fn read<B>(&mut self, buf: B) -> Result<(), Self::Error>
+	fn read_buf<B>(&mut self, buf: B) -> Result<(), Self::Error>
 	where
 		B: BufMut,
 	{
-		default_read(self, buf)
+		default_read_buf(self, buf)
 	}
 
 	/// Create a "by reference" adapter that takes the current instance of [`Read`]
@@ -51,7 +49,7 @@ pub trait ReadExt: Read {
 
 impl<T: Read + ?Sized> ReadExt for T {}
 
-fn default_read<T, B>(
+fn default_read_buf<T, B>(
 	reader: &mut T,
 	mut buf: B,
 ) -> Result<(), T::Error>

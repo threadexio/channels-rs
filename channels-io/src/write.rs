@@ -10,18 +10,16 @@ use crate::transaction::{
 ///
 /// Types implementing this trait are called "writers".
 pub trait Write {
-	/// Error type for [`write()`].
-	///
-	/// [`write()`]: fn@WriteExt::write
+	/// Error type for IO operations involving the writer.
 	type Error: WriteError;
 
 	/// Write some bytes from `buf` to the writer.
 	///
-	/// This function is the lower level building block of [`write()`]. It writes
+	/// This function is the lower level building block of [`write_buf()`]. It writes
 	/// bytes from `buf` and reports back to the caller how many bytes it wrote.
-	/// [`write()`] should, usually, be preferred.
+	/// [`write_buf()`] should, usually, be preferred.
 	///
-	/// [`write()`]: fn@WriteExt::write
+	/// [`write_buf()`]: WriteExt::write_buf
 	fn write_slice(
 		&mut self,
 		buf: &[u8],
@@ -32,7 +30,7 @@ pub trait Write {
 	/// This function is the lower level building block of [`flush()`]. It flushes
 	/// the writer only once. [`flush()`] should, usually, be preferred.
 	///
-	/// [`flush()`]: fn@WriteExt::flush
+	/// [`flush()`]: WriteExt::flush
 	fn flush_once(&mut self) -> Result<(), Self::Error>;
 }
 
@@ -46,11 +44,11 @@ pub trait WriteExt: Write {
 	/// until either a) `buf` has no more bytes left, b) an error occurs or c)
 	/// the writer reaches EOF. If the writer reaches EOF, this method will return
 	/// an error.
-	fn write<B>(&mut self, buf: B) -> Result<(), Self::Error>
+	fn write_buf<B>(&mut self, buf: B) -> Result<(), Self::Error>
 	where
 		B: Buf,
 	{
-		default_write(self, buf)
+		default_write_buf(self, buf)
 	}
 
 	/// Flush this writer ensuring all bytes reach their destination.
@@ -86,7 +84,7 @@ pub trait WriteExt: Write {
 
 impl<T: Write + ?Sized> WriteExt for T {}
 
-fn default_write<T, B>(
+fn default_write_buf<T, B>(
 	writer: &mut T,
 	mut buf: B,
 ) -> Result<(), T::Error>

@@ -1,5 +1,4 @@
 use core::cmp::min;
-use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 

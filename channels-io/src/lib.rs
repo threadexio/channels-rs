@@ -17,7 +17,7 @@
 //!
 //!     let data: Vec<u8> = (0..255).collect();
 //!
-//!     writer.write(data.as_slice()).await
+//!     writer.write_buf(&mut data.as_slice()).await
 //! }
 //!
 //! async fn my_fn_tokio() {
