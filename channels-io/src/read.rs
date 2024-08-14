@@ -10,11 +10,8 @@ pub trait Read {
 
 	/// Read some bytes into the slice `buf`.
 	///
-	/// This function is the lower level building block of [`read_buf()`]. It reads
-	/// bytes into `buf` and reports back to the caller how many bytes it read.
-	/// [`read_buf()`] should, usually, be preferred.
-	///
-	/// [`read_buf()`]: ReadExt::read_buf
+	/// This function is the lower level building block of the other `read_*` methods.
+	/// It reads bytes into `buf` and reports back to the caller how many bytes it read.
 	fn read_slice(
 		&mut self,
 		buf: &mut [u8],
@@ -25,16 +22,23 @@ pub trait Read {
 ///
 /// Extension trait for all [`Read`] types.
 pub trait ReadExt: Read {
-	/// Read some bytes into `buf`.
-	///
-	/// This method will try to read bytes into `buf` repeatedly until either a)
-	/// `buf` has been filled, b) an error occurs or c) the reader reaches EOF.
-	/// If the reader reaches EOF, this method will return an error.
+	/// Read some bytes into `buf` advancing it appropriately.
 	fn read_buf<B>(&mut self, buf: B) -> Result<(), Self::Error>
 	where
 		B: BufMut,
 	{
-		default_read_buf(self, buf)
+		read_buf(self, buf)
+	}
+
+	/// Read bytes into `buf` advancing it until it is full.
+	///
+	/// This method will try to read bytes into `buf` repeatedly until either a)
+	/// `buf` has been filled, b) an error occurs or c) the reader reaches EOF.
+	fn read_buf_all<B>(&mut self, buf: B) -> Result<(), Self::Error>
+	where
+		B: BufMut,
+	{
+		read_buf_all(self, buf)
 	}
 
 	/// Create a "by reference" adapter that takes the current instance of [`Read`]
@@ -49,7 +53,29 @@ pub trait ReadExt: Read {
 
 impl<T: Read + ?Sized> ReadExt for T {}
 
-fn default_read_buf<T, B>(
+fn read_buf<T, B>(reader: &mut T, mut buf: B) -> Result<(), T::Error>
+where
+	T: ReadExt + ?Sized,
+	B: BufMut,
+{
+	if !buf.has_remaining_mut() {
+		return Ok(());
+	}
+
+	loop {
+		match reader.read_slice(buf.chunk_mut()) {
+			Ok(0) => return Err(T::Error::eof()),
+			Ok(n) => {
+				buf.advance_mut(n);
+				return Ok(());
+			},
+			Err(e) if e.should_retry() => continue,
+			Err(e) => return Err(e),
+		}
+	}
+}
+
+fn read_buf_all<T, B>(
 	reader: &mut T,
 	mut buf: B,
 ) -> Result<(), T::Error>
