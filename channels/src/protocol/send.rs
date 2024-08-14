@@ -219,8 +219,8 @@ where
 		for packet in as_packets(pcb, data) {
 			let header_bytes = packet.header.to_bytes(with_checksum);
 
-			transaction.write_buf(header_bytes.as_slice()) await?;
-			transaction.write_buf(packet.payload) await?;
+			transaction.write_buf_all(header_bytes.as_slice()) await?;
+			transaction.write_buf_all(packet.payload) await?;
 
 			transaction.writer_mut().statistics.inc_packets();
 		}

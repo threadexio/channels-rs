@@ -274,7 +274,7 @@ where
 				Ready(Ok(payload)) => return Ok(payload),
 				Ready(Err(e)) => return Err(CoreRecvError::from(e)),
 				WantsRead(instructions) => {
-					self.reader.read_buf(instructions.buf) await
+					self.reader.read_buf_all(instructions.buf) await
 						.map_err(CoreRecvError::Io)?;
 				}
 			}
