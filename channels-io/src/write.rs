@@ -38,28 +38,32 @@ pub trait Write {
 ///
 /// Extension trait for all [`Write`] types.
 pub trait WriteExt: Write {
-	/// Write `buf` to the writer.
-	///
-	/// This method will try to write bytes from `buf` to the writer repeatedly
-	/// until either a) `buf` has no more bytes left, b) an error occurs or c)
-	/// the writer reaches EOF. If the writer reaches EOF, this method will return
-	/// an error.
+	/// Write `buf` to the writer advancing it appropriately.
 	fn write_buf<B>(&mut self, buf: B) -> Result<(), Self::Error>
 	where
 		B: Buf,
 	{
-		default_write_buf(self, buf)
+		write_buf(self, buf)
+	}
+
+	/// Write `buf` to the writer advancing it until all of it has been written.
+	///
+	/// This method will try to write `buf` repeatedly until either a) `buf` has
+	/// no more data, b) an error occurs, c) the writer cannot accept any more bytes.
+	fn write_buf_all<B>(&mut self, buf: B) -> Result<(), Self::Error>
+	where
+		B: Buf,
+	{
+		write_buf_all(self, buf)
 	}
 
 	/// Flush this writer ensuring all bytes reach their destination.
-	///
-	/// Upon return, this function must ensure that all bytes written to the
-	/// writer  have reached their destination.
 	fn flush(&mut self) -> Result<(), Self::Error> {
-		default_flush(self)
+		flush(self)
 	}
 
-	/// Create a "by reference" adapter that takes this writer by mutable reference.
+	/// Create a "by reference" adapter that takes the current instance of [`Write`]
+	/// by mutable reference.
 	fn by_ref(&mut self) -> &mut Self
 	where
 		Self: Sized,
@@ -84,7 +88,29 @@ pub trait WriteExt: Write {
 
 impl<T: Write + ?Sized> WriteExt for T {}
 
-fn default_write_buf<T, B>(
+fn write_buf<T, B>(writer: &mut T, mut buf: B) -> Result<(), T::Error>
+where
+	T: WriteExt + ?Sized,
+	B: Buf,
+{
+	if !buf.has_remaining() {
+		return Ok(());
+	}
+
+	loop {
+		match writer.write_slice(buf.chunk()) {
+			Ok(0) => return Err(T::Error::write_zero()),
+			Ok(n) => {
+				buf.advance(n);
+				return Ok(());
+			},
+			Err(e) if e.should_retry() => continue,
+			Err(e) => return Err(e),
+		}
+	}
+}
+
+fn write_buf_all<T, B>(
 	writer: &mut T,
 	mut buf: B,
 ) -> Result<(), T::Error>
@@ -104,7 +130,7 @@ where
 	Ok(())
 }
 
-fn default_flush<T>(writer: &mut T) -> Result<(), T::Error>
+fn flush<T>(writer: &mut T) -> Result<(), T::Error>
 where
 	T: WriteExt + ?Sized,
 {
