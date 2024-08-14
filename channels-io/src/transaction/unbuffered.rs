@@ -24,13 +24,21 @@ impl<W> Unbuffered<W> {
 	}
 
 	/// Get a reference to the underlying writer.
+	#[must_use]
 	pub fn writer(&self) -> &W {
 		&self.writer
 	}
 
 	/// Get a mutable reference to the underlying writer.
+	#[must_use]
 	pub fn writer_mut(&mut self) -> &mut W {
 		&mut self.writer
+	}
+
+	/// Get a pinned mutable reference to the underlying writer.
+	#[must_use]
+	pub fn writer_pin_mut(self: Pin<&mut Self>) -> Pin<&mut W> {
+		self.project().writer
 	}
 }
 

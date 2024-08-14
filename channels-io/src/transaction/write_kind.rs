@@ -54,6 +54,7 @@ impl<'a, W> WriteTransactionVariant<'a, W> {
 	}
 
 	/// Get a reference to the underlying writer.
+	#[must_use]
 	pub fn writer(&self) -> &W {
 		match self {
 			Self::Buffered(x) => x.writer(),
@@ -62,10 +63,24 @@ impl<'a, W> WriteTransactionVariant<'a, W> {
 	}
 
 	/// Get a mutable reference to the underlying writer.
+	#[must_use]
 	pub fn writer_mut(&mut self) -> &mut W {
 		match self {
 			Self::Buffered(x) => x.writer_mut(),
 			Self::Unbuffered(x) => x.writer_mut(),
+		}
+	}
+
+	/// Get a pinned mutable reference to the underlying writer.
+	#[must_use]
+	pub fn writer_pin_mut(self: Pin<&mut Self>) -> Pin<&mut W> {
+		match self.project() {
+			WriteTransactionVariantProj::Buffered(x) => {
+				x.writer_pin_mut()
+			},
+			WriteTransactionVariantProj::Unbuffered(x) => {
+				x.writer_pin_mut()
+			},
 		}
 	}
 }
