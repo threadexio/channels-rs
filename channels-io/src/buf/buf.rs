@@ -79,6 +79,10 @@ macro_rules! forward_impl_buf {
 		fn has_remaining(&self) -> bool {
 			<$to>::has_remaining(self)
 		}
+
+		fn copy_to_slice(&mut self, slice: &mut [u8]) -> usize {
+			<$to>::copy_to_slice(self, slice)
+		}
 	};
 }
 
@@ -131,7 +135,7 @@ pub struct Reader<B> {
 }
 
 impl<B> Reader<B> {
-	pub(crate) fn new(buf: B) -> Self {
+	fn new(buf: B) -> Self {
 		Self { buf }
 	}
 }

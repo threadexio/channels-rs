@@ -80,6 +80,10 @@ macro_rules! forward_impl_buf_mut {
 		fn has_remaining_mut(&self) -> bool {
 			<$to>::has_remaining_mut(self)
 		}
+
+		fn copy_from_slice(&mut self, slice: &[u8]) -> usize {
+			<$to>::copy_from_slice(self, slice)
+		}
 	};
 }
 
