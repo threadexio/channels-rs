@@ -85,6 +85,21 @@ impl<R, D> FramedRead<R, D> {
 	/// TODO: docs
 	#[inline]
 	#[must_use]
+	pub fn map_decoder<T, F>(self, f: F) -> FramedRead<R, T>
+	where
+		T: Decoder,
+		F: FnOnce(D) -> T,
+	{
+		FramedRead {
+			reader: self.reader,
+			decoder: f(self.decoder),
+			buf: self.buf,
+		}
+	}
+
+	/// TODO: docs
+	#[inline]
+	#[must_use]
 	pub fn read_buffer(&self) -> &Vec<u8> {
 		&self.buf
 	}

@@ -83,6 +83,21 @@ impl<W, E> FramedWrite<W, E> {
 	/// TODO: docs
 	#[inline]
 	#[must_use]
+	pub fn map_encoder<T, F>(self, f: F) -> FramedWrite<W, T>
+	where
+		T: Encoder,
+		F: FnOnce(E) -> T,
+	{
+		FramedWrite {
+			writer: self.writer,
+			encoder: f(self.encoder),
+			buf: self.buf,
+		}
+	}
+
+	/// TODO: docs
+	#[inline]
+	#[must_use]
 	pub fn write_buffer(&self) -> &Vec<u8> {
 		&self.buf
 	}
