@@ -78,6 +78,9 @@ pub mod error;
 #[cfg(feature = "alloc")]
 pub mod transaction;
 
+#[cfg(feature = "alloc")]
+pub mod framed;
+
 pub use self::buf::{Buf, BufMut, Cursor};
 pub use self::convert::{Container, IntoRead, IntoWrite};
 
