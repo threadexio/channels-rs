@@ -6,6 +6,7 @@ use pin_project::pin_project;
 use crate::buf::Cursor;
 use crate::error::WriteError;
 use crate::framed::Encoder;
+use crate::traits::{AsyncSink, Sink};
 use crate::util::PollExt;
 use crate::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 
@@ -136,10 +137,7 @@ impl<W, E> FramedWrite<W, E>
 where
 	E: Encoder,
 {
-	fn encode_item(
-		&mut self,
-		item: &E::Item,
-	) -> Result<(), E::Error> {
+	fn encode_item(&mut self, item: E::Item) -> Result<(), E::Error> {
 		self.encoder.encode(item, &mut self.buf)
 	}
 
@@ -182,28 +180,44 @@ pub enum FramedWriteError<T, Io> {
 	Io(Io),
 }
 
-impl<W, E> FramedWrite<W, E>
+impl<W, E> AsyncSink for FramedWrite<W, E>
 where
-	W: AsyncWrite,
-	E: Encoder,
+	W: AsyncWrite + Unpin,
+	E: Encoder + Unpin,
 {
-	#[allow(clippy::type_complexity)]
-	pub fn poll_send(
+	type Item = E::Item;
+	type Error = FramedWriteError<E::Error, W::Error>;
+
+	fn start_send(
+		mut self: Pin<&mut Self>,
+		item: Self::Item,
+	) -> Result<(), Self::Error> {
+		self.encode_item(item).map_err(FramedWriteError::Encode)
+	}
+
+	fn poll_send(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
-	) -> Poll<Result<(), W::Error>> {
+	) -> Poll<Result<(), Self::Error>> {
 		self.poll_send_internal(|w, buf| {
 			w.poll_write_buf_all(cx, buf)
 		})
+		.map_err(FramedWriteError::Io)
 	}
 }
 
-impl<W, E> FramedWrite<W, E>
+impl<W, E> Sink for FramedWrite<W, E>
 where
 	W: Write,
 	E: Encoder,
 {
-	fn _send_sync(&mut self) -> Result<(), W::Error> {
+	type Item = E::Item;
+
+	type Error = FramedWriteError<E::Error, W::Error>;
+
+	fn send(&mut self, item: Self::Item) -> Result<(), Self::Error> {
+		self.encode_item(item).map_err(FramedWriteError::Encode)?;
+
 		let pinned = unsafe { Pin::new_unchecked(self) };
 
 		pinned
@@ -211,14 +225,8 @@ where
 				Poll::Ready(w.get_unchecked_mut().write_buf_all(buf))
 			})
 			.unwrap()
-	}
+			.map_err(FramedWriteError::Io)?;
 
-	pub fn send_sync(
-		&mut self,
-		item: &E::Item,
-	) -> Result<(), FramedWriteError<E::Error, W::Error>> {
-		self.encode_item(item).map_err(FramedWriteError::Encode)?;
-		self._send_sync().map_err(FramedWriteError::Io)?;
 		Ok(())
 	}
 }
@@ -239,7 +247,7 @@ mod tests {
 
 		fn encode(
 			&mut self,
-			item: &Self::Item,
+			item: Self::Item,
 			buf: &mut Vec<u8>,
 		) -> Result<(), Self::Error> {
 			buf.extend(&item.to_be_bytes());
@@ -253,8 +261,8 @@ mod tests {
 		let mut framed =
 			FramedWrite::new(buf.by_ref().writer(), U32Encoder);
 
-		framed.send_sync(&42).expect("");
-		framed.send_sync(&0xff_12_34).expect("");
+		Sink::send(&mut framed, 42).expect("");
+		Sink::send(&mut framed, 0xff_12_34).expect("");
 
 		assert_eq!(buf.get(), &[0, 0, 0, 42, 0, 0xff, 0x12, 0x34, 0]);
 	}
@@ -266,8 +274,8 @@ mod tests {
 		let mut framed =
 			FramedWrite::new(buf.by_ref().writer(), U32Encoder);
 
-		framed.send_sync(&42).expect("");
-		framed.send_sync(&0xff_12_34).expect("");
-		framed.send_sync(&1).expect("");
+		Sink::send(&mut framed, 42).expect("");
+		Sink::send(&mut framed, 0xff_12_34).expect("");
+		Sink::send(&mut framed, 1).expect("");
 	}
 }

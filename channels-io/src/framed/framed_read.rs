@@ -8,6 +8,7 @@ use pin_project::pin_project;
 use crate::buf::Cursor;
 use crate::error::ReadError;
 use crate::framed::Decoder;
+use crate::traits::{AsyncSource, Source};
 use crate::util::{slice_uninit_assume_init_mut, PollExt};
 use crate::{AsyncRead, AsyncReadExt, Read, ReadExt};
 
@@ -186,31 +187,31 @@ where
 	}
 }
 
-impl<R, D> FramedRead<R, D>
+impl<R, D> AsyncSource for FramedRead<R, D>
 where
 	R: AsyncRead,
 	D: Decoder,
 {
-	/// TODO: docs
-	#[allow(clippy::type_complexity)]
-	pub fn poll_next(
+	type Item =
+		Result<D::Output, FramedReadError<D::Error, R::Error>>;
+
+	fn poll_next(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
-	) -> Poll<Result<D::Output, FramedReadError<D::Error, R::Error>>>
-	{
+	) -> Poll<Self::Item> {
 		self.poll_next_internal(|r, buf| r.poll_read_buf(cx, buf))
 	}
 }
 
-impl<R, D> FramedRead<R, D>
+impl<R, D> Source for FramedRead<R, D>
 where
 	R: Read,
 	D: Decoder,
 {
-	/// TODO: docs
-	pub fn next_frame(
-		&mut self,
-	) -> Result<D::Output, FramedReadError<D::Error, R::Error>> {
+	type Item =
+		Result<D::Output, FramedReadError<D::Error, R::Error>>;
+
+	fn next(&mut self) -> Self::Item {
 		let pinned = unsafe { Pin::new_unchecked(self) };
 
 		pinned
@@ -259,7 +260,7 @@ mod tests {
 
 	use core::convert::Infallible;
 
-	use crate::{Buf, Cursor};
+	use crate::{traits::Source, Buf, Cursor};
 
 	struct U32Decoder;
 
@@ -284,9 +285,9 @@ mod tests {
 		let reader = Cursor::new([0u8, 0, 0, 42, 0, 0]).reader();
 		let mut framed = FramedRead::new(reader, U32Decoder);
 
-		assert_eq!(framed.next_frame().expect(""), 42);
+		assert_eq!(Source::next(&mut framed).expect(""), 42);
 		assert!(matches!(
-			framed.next_frame(),
+			Source::next(&mut framed),
 			Err(FramedReadError::Io(_))
 		));
 	}
@@ -297,10 +298,10 @@ mod tests {
 			Cursor::new([0u8, 0, 0, 42, 0, 0, 0, 62]).reader();
 		let mut framed = FramedRead::new(reader, U32Decoder);
 
-		assert_eq!(framed.next_frame().expect(""), 42);
-		assert_eq!(framed.next_frame().expect(""), 62);
+		assert_eq!(Source::next(&mut framed).expect(""), 42);
+		assert_eq!(Source::next(&mut framed).expect(""), 62);
 		assert!(matches!(
-			framed.next_frame(),
+			Source::next(&mut framed),
 			Err(FramedReadError::Io(_))
 		));
 	}

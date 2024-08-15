@@ -11,7 +11,7 @@ pub trait Encoder {
 	/// TODO: docs
 	fn encode(
 		&mut self,
-		item: &Self::Item,
+		item: Self::Item,
 		buf: &mut Vec<u8>,
 	) -> Result<(), Self::Error>;
 }

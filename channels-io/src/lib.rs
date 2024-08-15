@@ -65,6 +65,7 @@
 extern crate alloc;
 
 mod convert;
+mod traits;
 mod util;
 
 mod async_read;
