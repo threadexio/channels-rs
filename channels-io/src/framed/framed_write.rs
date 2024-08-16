@@ -8,7 +8,7 @@ use pin_project::pin_project;
 use crate::buf::Cursor;
 use crate::error::WriteError;
 use crate::framed::Encoder;
-use crate::traits::{AsyncSink, Sink};
+use crate::sink::{AsyncSink, Sink};
 use crate::util::PollExt;
 use crate::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 

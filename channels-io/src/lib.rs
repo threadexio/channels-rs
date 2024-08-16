@@ -65,7 +65,6 @@
 extern crate alloc;
 
 mod convert;
-mod traits;
 mod util;
 
 mod async_read;
@@ -75,6 +74,8 @@ mod write;
 
 pub mod buf;
 pub mod error;
+pub mod sink;
+pub mod source;
 
 #[cfg(feature = "alloc")]
 pub mod transaction;
@@ -88,7 +89,6 @@ pub use self::convert::{Container, IntoRead, IntoWrite};
 pub use self::async_read::{AsyncRead, AsyncReadExt};
 pub use self::async_write::{AsyncWrite, AsyncWriteExt};
 pub use self::read::{Read, ReadExt};
-pub use self::traits::{AsyncSink, AsyncSource, Sink, Source};
 pub use self::write::{Write, WriteExt};
 
 mod impls;

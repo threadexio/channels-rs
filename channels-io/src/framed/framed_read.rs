@@ -8,7 +8,7 @@ use pin_project::pin_project;
 use crate::buf::Cursor;
 use crate::error::ReadError;
 use crate::framed::Decoder;
-use crate::traits::{AsyncSource, Source};
+use crate::source::{AsyncSource, Source};
 use crate::util::{slice_uninit_assume_init_mut, PollExt};
 use crate::{AsyncRead, AsyncReadExt, Read, ReadExt};
 
@@ -260,7 +260,8 @@ mod tests {
 
 	use core::convert::Infallible;
 
-	use crate::{traits::Source, Buf, Cursor};
+	use crate::buf::{Buf, Cursor};
+	use crate::source::Source;
 
 	struct U32Decoder;
 
