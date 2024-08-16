@@ -1,4 +1,3 @@
-use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
@@ -9,6 +8,42 @@ use crate::error::{IoError, WriteError};
 use crate::transaction::{
 	WriteTransactionKind, WriteTransactionVariant,
 };
+
+mod flush;
+mod write_buf;
+mod write_buf_all;
+
+use self::flush::Flush;
+use self::write_buf::WriteBuf;
+use self::write_buf_all::WriteBufAll;
+
+/// This trait allows writing bytes to a writer.
+///
+/// Types implementing this trait are called "writers".
+pub trait Write {
+	/// Error type for IO operations involving the writer.
+	type Error: WriteError;
+
+	/// Write some bytes from `buf` to the writer.
+	///
+	/// This function is the lower level building block of [`write_buf()`]. It writes
+	/// bytes from `buf` and reports back to the caller how many bytes it wrote.
+	/// [`write_buf()`] should, usually, be preferred.
+	///
+	/// [`write_buf()`]: WriteExt::write_buf
+	fn write_slice(
+		&mut self,
+		buf: &[u8],
+	) -> Result<usize, Self::Error>;
+
+	/// Flush this writer once ensuring all bytes reach their destination.
+	///
+	/// This function is the lower level building block of [`flush()`]. It flushes
+	/// the writer only once. [`flush()`] should, usually, be preferred.
+	///
+	/// [`flush()`]: WriteExt::flush
+	fn flush_once(&mut self) -> Result<(), Self::Error>;
+}
 
 /// This trait is the asynchronous version of [`Write`].
 ///
@@ -32,6 +67,58 @@ pub trait AsyncWrite {
 		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>>;
+}
+
+/// Write bytes to a writer.
+///
+/// Extension trait for all [`Write`] types.
+pub trait WriteExt: Write {
+	/// Write `buf` to the writer advancing it appropriately.
+	fn write_buf<B>(&mut self, buf: B) -> Result<(), Self::Error>
+	where
+		B: Buf,
+	{
+		write_buf(self, buf)
+	}
+
+	/// Write `buf` to the writer advancing it until all of it has been written.
+	///
+	/// This method will try to write `buf` repeatedly until either a) `buf` has
+	/// no more data, b) an error occurs, c) the writer cannot accept any more bytes.
+	fn write_buf_all<B>(&mut self, buf: B) -> Result<(), Self::Error>
+	where
+		B: Buf,
+	{
+		write_buf_all(self, buf)
+	}
+
+	/// Flush this writer ensuring all bytes reach their destination.
+	fn flush(&mut self) -> Result<(), Self::Error> {
+		flush(self)
+	}
+
+	/// Create a "by reference" adapter that takes the current instance of [`Write`]
+	/// by mutable reference.
+	fn by_ref(&mut self) -> &mut Self
+	where
+		Self: Sized,
+	{
+		self
+	}
+
+	/// Create a transaction that uses this writer.
+	///
+	/// This is a convenience wrapper for: [`WriteTransactionVariant::new()`]
+	#[cfg(feature = "alloc")]
+	fn transaction(
+		self,
+		kind: WriteTransactionKind,
+	) -> WriteTransactionVariant<'_, Self>
+	where
+		Self: Sized,
+	{
+		WriteTransactionVariant::new(self, kind)
+	}
 }
 
 /// This trait is the asynchronous version of [`WriteExt`].
@@ -84,7 +171,7 @@ pub trait AsyncWriteExt: AsyncWrite {
 		B: Buf + Unpin,
 		Self: Unpin,
 	{
-		write_buf(self, buf)
+		WriteBuf::new(self, buf)
 	}
 
 	/// Asynchronously write `buf` to the writer advancing it until all of it has been written.
@@ -99,7 +186,7 @@ pub trait AsyncWriteExt: AsyncWrite {
 		B: Buf + Unpin,
 		Self: Unpin,
 	{
-		write_buf_all(self, buf)
+		WriteBufAll::new(self, buf)
 	}
 
 	/// Asynchronously flush the writer.
@@ -113,7 +200,7 @@ pub trait AsyncWriteExt: AsyncWrite {
 	where
 		Self: Unpin,
 	{
-		flush(self)
+		Flush::new(self)
 	}
 
 	/// Create a "by reference" adapter that takes the current instance of [`AsyncWrite`]
@@ -140,7 +227,31 @@ pub trait AsyncWriteExt: AsyncWrite {
 	}
 }
 
+impl<T: Write + ?Sized> WriteExt for T {}
+
 impl<T: AsyncWrite + ?Sized> AsyncWriteExt for T {}
+
+fn write_buf<T, B>(writer: &mut T, mut buf: B) -> Result<(), T::Error>
+where
+	T: WriteExt + ?Sized,
+	B: Buf,
+{
+	if !buf.has_remaining() {
+		return Ok(());
+	}
+
+	loop {
+		match writer.write_slice(buf.chunk()) {
+			Ok(0) => return Err(T::Error::write_zero()),
+			Ok(n) => {
+				buf.advance(n);
+				return Ok(());
+			},
+			Err(e) if e.should_retry() => continue,
+			Err(e) => return Err(e),
+		}
+	}
+}
 
 fn poll_write_buf<T, B>(
 	mut writer: Pin<&mut T>,
@@ -173,6 +284,26 @@ where
 	}
 }
 
+fn write_buf_all<T, B>(
+	writer: &mut T,
+	mut buf: B,
+) -> Result<(), T::Error>
+where
+	T: WriteExt + ?Sized,
+	B: Buf,
+{
+	while buf.has_remaining() {
+		match writer.write_slice(buf.chunk()) {
+			Ok(0) => return Err(T::Error::write_zero()),
+			Ok(n) => buf.advance(n),
+			Err(e) if e.should_retry() => continue,
+			Err(e) => return Err(e),
+		}
+	}
+
+	Ok(())
+}
+
 fn poll_write_buf_all<T, B>(
 	mut writer: Pin<&mut T>,
 	cx: &mut Context,
@@ -199,6 +330,19 @@ where
 	Ready(Ok(()))
 }
 
+fn flush<T>(writer: &mut T) -> Result<(), T::Error>
+where
+	T: WriteExt + ?Sized,
+{
+	loop {
+		match writer.flush_once() {
+			Ok(()) => break Ok(()),
+			Err(e) if e.should_retry() => continue,
+			Err(e) => break Err(e),
+		}
+	}
+}
+
 fn poll_flush<T>(
 	mut writer: Pin<&mut T>,
 	cx: &mut Context,
@@ -215,108 +359,21 @@ where
 	}
 }
 
-fn write_buf<T, B>(writer: &mut T, buf: B) -> WriteBuf<'_, T, B>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-	B: Buf + Unpin,
-{
-	WriteBuf { writer, buf }
-}
+macro_rules! forward_impl_write {
+	($to:ty) => {
+		type Error = <$to>::Error;
 
-fn write_buf_all<T, B>(
-	writer: &mut T,
-	buf: B,
-) -> WriteBufAll<'_, T, B>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-	B: Buf + Unpin,
-{
-	WriteBufAll { writer, buf }
-}
+		fn write_slice(
+			&mut self,
+			buf: &[u8],
+		) -> Result<usize, Self::Error> {
+			<$to>::write_slice(self, buf)
+		}
 
-fn flush<T>(writer: &mut T) -> Flush<'_, T>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-{
-	Flush { writer }
-}
-
-#[allow(missing_debug_implementations)]
-#[must_use = "futures do nothing unless you `.await` them"]
-pub struct WriteBuf<'a, T, B>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-	B: Buf + Unpin,
-{
-	writer: &'a mut T,
-	buf: B,
-}
-
-impl<'a, T, B> Future for WriteBuf<'a, T, B>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-	B: Buf + Unpin,
-{
-	type Output = Result<(), T::Error>;
-
-	fn poll(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context<'_>,
-	) -> Poll<Self::Output> {
-		let Self { ref mut writer, ref mut buf, .. } = *self;
-		Pin::new(&mut **writer).poll_write_buf(cx, buf)
-	}
-}
-
-#[allow(missing_debug_implementations)]
-#[must_use = "futures do nothing unless you `.await` them"]
-pub struct WriteBufAll<'a, T, B>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-	B: Buf + Unpin,
-{
-	writer: &'a mut T,
-	buf: B,
-}
-
-impl<'a, T, B> Future for WriteBufAll<'a, T, B>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-	B: Buf + Unpin,
-{
-	type Output = Result<(), T::Error>;
-
-	fn poll(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context<'_>,
-	) -> Poll<Self::Output> {
-		let Self { ref mut writer, ref mut buf, .. } = *self;
-		Pin::new(&mut **writer).poll_write_buf_all(cx, buf)
-	}
-}
-
-#[allow(missing_debug_implementations)]
-#[must_use = "futures do nothing unless you `.await` them"]
-pub struct Flush<'a, T>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-{
-	writer: &'a mut T,
-}
-
-impl<'a, T> Future for Flush<'a, T>
-where
-	T: AsyncWriteExt + Unpin + ?Sized,
-{
-	type Output = Result<(), T::Error>;
-
-	fn poll(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context<'_>,
-	) -> Poll<Self::Output> {
-		let Self { ref mut writer, .. } = *self;
-		Pin::new(&mut **writer).poll_flush(cx)
-	}
+		fn flush_once(&mut self) -> Result<(), Self::Error> {
+			<$to>::flush_once(self)
+		}
+	};
 }
 
 macro_rules! forward_impl_async_write {
@@ -342,8 +399,17 @@ macro_rules! forward_impl_async_write {
 	};
 }
 
+impl<T: Write + ?Sized> Write for &mut T {
+	forward_impl_write!(T);
+}
+
 impl<T: AsyncWrite + Unpin + ?Sized> AsyncWrite for &mut T {
 	forward_impl_async_write!(T);
+}
+
+#[cfg(feature = "alloc")]
+impl<T: Write + ?Sized> Write for alloc::boxed::Box<T> {
+	forward_impl_write!(T);
 }
 
 #[cfg(feature = "alloc")]

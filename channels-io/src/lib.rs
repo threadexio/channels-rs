@@ -67,8 +67,6 @@ extern crate alloc;
 mod convert;
 mod util;
 
-mod async_read;
-mod async_write;
 mod read;
 mod write;
 
@@ -85,11 +83,8 @@ pub mod framed;
 
 pub use self::buf::{Buf, BufMut, Cursor};
 pub use self::convert::{Container, IntoRead, IntoWrite};
-
-pub use self::async_read::{AsyncRead, AsyncReadExt};
-pub use self::async_write::{AsyncWrite, AsyncWriteExt};
-pub use self::read::{Read, ReadExt};
-pub use self::write::{Write, WriteExt};
+pub use self::read::{AsyncRead, AsyncReadExt, Read, ReadExt};
+pub use self::write::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 
 mod impls;
 
