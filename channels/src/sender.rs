@@ -6,9 +6,12 @@ use core::marker::PhantomData;
 
 use alloc::vec::Vec;
 
+use channels_packet::codec::FrameEncoder;
+
 use crate::error::SendError;
+use crate::io::framed::FramedWrite;
+use crate::io::sink::{AsyncSink, Sink};
 use crate::io::{AsyncWrite, Container, IntoWrite, Write};
-use crate::protocol::SenderCore;
 use crate::serdes::Serializer;
 
 #[allow(unused_imports)]
@@ -18,7 +21,7 @@ use crate::statistics::{StatIO, Statistics};
 pub struct Sender<T, W, S> {
 	_marker: PhantomData<fn() -> T>,
 	serializer: S,
-	core: SenderCore<W>,
+	framed: FramedWrite<StatIO<W>, FrameEncoder>,
 }
 
 impl<T> Sender<T, (), ()> {
@@ -137,7 +140,7 @@ impl<T, W, S> Sender<T, W, S> {
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		&self.core.config
+		todo!()
 	}
 
 	/// Get statistics on this sender.
@@ -156,7 +159,7 @@ impl<T, W, S> Sender<T, W, S> {
 	#[inline]
 	#[cfg(feature = "statistics")]
 	pub fn statistics(&self) -> &Statistics {
-		&self.core.writer.statistics
+		&self.framed.writer().statistics
 	}
 }
 
@@ -193,7 +196,7 @@ where
 	/// ```
 	#[inline]
 	pub fn get(&self) -> &W::Inner {
-		self.core.writer.inner.get_ref()
+		self.framed.writer().inner.get_ref()
 	}
 
 	/// Get a mutable reference to the underlying writer. Directly writing to
@@ -227,13 +230,13 @@ where
 	/// ```
 	#[inline]
 	pub fn get_mut(&mut self) -> &mut W::Inner {
-		self.core.writer.inner.get_mut()
+		self.framed.writer_mut().inner.get_mut()
 	}
 
 	/// Destruct the sender and get back the underlying writer.
 	#[inline]
 	pub fn into_writer(self) -> W::Inner {
-		self.core.writer.inner.into_inner()
+		self.framed.into_writer().inner.into_inner()
 	}
 }
 
@@ -298,7 +301,8 @@ where
 		data: &T,
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
-		self.core.send_async(&payload).await?;
+		self.framed.send(payload).await.map_err(SendError::from)?;
+		self.framed.writer_mut().statistics.inc_ops();
 		Ok(())
 	}
 }
@@ -349,7 +353,8 @@ where
 		data: &T,
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
-		self.core.send_sync(&payload)?;
+		self.framed.send(payload).map_err(SendError::from)?;
+		self.framed.writer_mut().statistics.inc_ops();
 		Ok(())
 	}
 }
@@ -484,15 +489,14 @@ impl<T, W, S> Builder<T, W, S> {
 	/// ```
 	#[inline]
 	pub fn build(self) -> Sender<T, W, S> {
-		let config = self.config.unwrap_or_default();
-		let serializer = self.serializer;
-		let writer = StatIO::new(self.writer);
+		let Self { _marker, config, serializer, writer } = self;
 
-		Sender {
-			_marker: PhantomData,
-			serializer,
-			core: SenderCore::new(writer, config),
-		}
+		let _ = config; // TODO: config
+		let writer = StatIO::new(writer);
+		let encoder = FrameEncoder::new();
+		let framed = FramedWrite::new(writer, encoder);
+
+		Sender { _marker: PhantomData, serializer, framed }
 	}
 }
 
@@ -739,7 +743,7 @@ where
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Sender")
-			.field("writer", &self.core.writer)
+			.field("writer", self.framed.writer())
 			.field("serializer", &self.serializer)
 			.field("config", &self.config())
 			.finish_non_exhaustive()

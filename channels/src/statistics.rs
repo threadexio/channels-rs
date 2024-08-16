@@ -24,11 +24,6 @@ mod real {
 		}
 
 		#[inline]
-		pub(crate) fn inc_packets(&mut self) {
-			self.packets += 1;
-		}
-
-		#[inline]
 		pub(crate) fn inc_ops(&mut self) {
 			self.ops += 1;
 		}
@@ -68,7 +63,6 @@ mod mock {
 	#[allow(clippy::unused_self)]
 	impl StatisticsImpl {
 		pub(crate) fn add_total_bytes(&mut self, _: u64) {}
-		pub(crate) fn inc_packets(&mut self) {}
 		pub(crate) fn inc_ops(&mut self) {}
 
 		pub(crate) fn total_bytes(&self) -> u64 {
@@ -106,11 +100,6 @@ impl Statistics {
 	#[inline]
 	pub(crate) fn add_total_bytes(&mut self, n: u64) {
 		self.inner.add_total_bytes(n);
-	}
-
-	#[inline]
-	pub(crate) fn inc_packets(&mut self) {
-		self.inner.inc_packets();
 	}
 
 	#[inline]

@@ -1,19 +1,15 @@
-//! Utilities to parse channels packets.
-#![cfg_attr(channels_nightly, feature(doc_auto_cfg))]
-#![no_std]
+//! TODO: docs
+#![cfg_attr(not(feature = "std"), no_std)]
 
-mod consts;
-mod flags;
-mod num;
-mod util;
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
-pub mod checksum;
+pub mod frame;
 pub mod header;
-pub mod id;
-pub mod raw;
+pub mod num;
 
-pub use self::flags::Flags;
-pub use self::num::{PacketLength, PayloadLength};
-pub use self::util::{slice_to_array, slice_to_array_mut};
+#[cfg(feature = "framed")]
+pub mod codec;
 
-pub use self::consts::PROTOCOL_VERSION;
+pub use self::frame::Frame;
+pub use self::header::{FrameNumSequence, Header};

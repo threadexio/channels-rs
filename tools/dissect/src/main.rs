@@ -5,9 +5,6 @@ use core::fmt;
 use std::io;
 
 use anyhow::{Context, Result};
-use channels_packet::{
-	checksum, id::IdSequence, raw::RawHeader, Flags, PacketLength,
-};
 
 #[macro_use]
 extern crate log;
@@ -23,6 +20,11 @@ fn main() {
 }
 
 fn try_main() -> Result<()> {
+	// TODO: redo
+	Ok(())
+}
+
+/*fn try_main() -> Result<()> {
 	let mut seq = IdSequence::new();
 
 	let mut input = io::stdin().lock();
@@ -240,3 +242,4 @@ fn format_flag_field(
 		}
 	}
 }
+*/

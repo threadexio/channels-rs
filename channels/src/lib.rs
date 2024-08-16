@@ -8,9 +8,7 @@
 
 extern crate alloc;
 
-mod protocol;
 mod statistics;
-mod util;
 
 pub mod error;
 

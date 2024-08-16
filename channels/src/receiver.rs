@@ -4,11 +4,12 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 
-use channels_packet::PacketLength;
+use channels_packet::codec::FrameDecoder;
 
 use crate::error::RecvError;
+use crate::io::framed::FramedRead;
+use crate::io::source::{AsyncSource, Source};
 use crate::io::{AsyncReadExt, Container, IntoRead, ReadExt};
-use crate::protocol::ReceiverCore;
 use crate::serdes::Deserializer;
 
 #[allow(unused_imports)]
@@ -18,7 +19,7 @@ use crate::statistics::{StatIO, Statistics};
 pub struct Receiver<T, R, D> {
 	_marker: PhantomData<fn() -> T>,
 	deserializer: D,
-	core: ReceiverCore<R>,
+	framed: FramedRead<StatIO<R>, FrameDecoder>,
 }
 
 impl<T> Receiver<T, (), ()> {
@@ -137,7 +138,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		&self.core.config
+		todo!()
 	}
 
 	/// Get an iterator over incoming messages.
@@ -202,7 +203,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	#[inline]
 	#[cfg(feature = "statistics")]
 	pub fn statistics(&self) -> &Statistics {
-		&self.core.reader.statistics
+		&self.framed.reader().statistics
 	}
 }
 
@@ -235,7 +236,7 @@ where
 	/// ```
 	#[inline]
 	pub fn get(&self) -> &R::Inner {
-		self.core.reader.inner.get_ref()
+		self.framed.reader().inner.get_ref()
 	}
 
 	/// Get a mutable reference to the underlying reader. Directly reading from
@@ -265,13 +266,13 @@ where
 	/// ```
 	#[inline]
 	pub fn get_mut(&mut self) -> &mut R::Inner {
-		self.core.reader.inner.get_mut()
+		self.framed.reader_mut().inner.get_mut()
 	}
 
 	/// Destruct the receiver and get back the underlying reader.
 	#[inline]
 	pub fn into_reader(self) -> R::Inner {
-		self.core.reader.inner.into_inner()
+		self.framed.into_reader().inner.into_inner()
 	}
 }
 
@@ -307,7 +308,9 @@ where
 	pub async fn recv(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let mut payload = self.core.recv_async().await?;
+		let mut payload =
+			self.framed.next().await.map_err(RecvError::from)?;
+		self.framed.reader_mut().statistics.inc_ops();
 
 		self.deserializer
 			.deserialize(&mut payload)
@@ -345,7 +348,9 @@ where
 	pub fn recv_blocking(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
-		let mut payload = self.core.recv_sync()?;
+		let mut payload =
+			self.framed.next().map_err(RecvError::from)?;
+		self.framed.reader_mut().statistics.inc_ops();
 
 		self.deserializer
 			.deserialize(&mut payload)
@@ -529,15 +534,15 @@ impl<T, R, D> Builder<T, R, D> {
 	/// ```
 	#[inline]
 	pub fn build(self) -> Receiver<T, R, D> {
-		let config = self.config.unwrap_or_default();
-		let deserializer = self.deserializer;
-		let reader = StatIO::new(self.reader);
+		let Self { _marker, config, deserializer, reader } = self;
 
-		Receiver {
-			_marker: PhantomData,
-			deserializer,
-			core: ReceiverCore::new(reader, config),
-		}
+		// TODO: config
+		let _ = config;
+		let reader = StatIO::new(reader);
+		let decoder = FrameDecoder::new();
+		let framed = FramedRead::new(reader, decoder);
+
+		Receiver { _marker: PhantomData, deserializer, framed }
 	}
 }
 
@@ -679,10 +684,7 @@ impl Default for Config {
 	fn default() -> Self {
 		Self {
 			size_estimate: None,
-			max_size: Some(
-				NonZeroUsize::new(PacketLength::MAX.as_usize())
-					.expect("PacketLength::MAX should not be 0"),
-			),
+			max_size: None,
 			flags: Self::VERIFY_PACKET_ORDER
 				| Self::VERIFY_HEADER_CHECKSUM,
 		}
@@ -833,7 +835,7 @@ where
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Receiver")
-			.field("reader", &self.core.reader)
+			.field("reader", self.framed.reader())
 			.field("deserializer", &self.deserializer)
 			.field("config", self.config())
 			.finish_non_exhaustive()

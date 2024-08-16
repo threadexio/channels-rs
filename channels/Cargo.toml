@@ -36,6 +36,7 @@ features = ["alloc"]
 [dependencies.channels-packet]
 version = "=0.1.2"
 path = "../channels-packet"
+features = ["alloc", "framed"]
 
 [dependencies.channels-serdes]
 version = "=0.2.1"
@@ -67,14 +68,14 @@ hmac = ["channels-serdes/hmac"]
 json = ["channels-serdes/json"]
 
 full-serdes = [
-	"aead",
-	"bincode",
-	"borsh",
-	"cbor",
-	"crc",
-	"deflate",
-	"hmac",
-	"json",
+    "aead",
+    "bincode",
+    "borsh",
+    "cbor",
+    "crc",
+    "deflate",
+    "hmac",
+    "json",
 ]
 
 full = ["full-io", "full-serdes", "statistics"]
