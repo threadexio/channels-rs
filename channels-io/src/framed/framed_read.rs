@@ -1,4 +1,4 @@
-use core::pin::{pin, Pin};
+use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
 use alloc::vec::Vec;

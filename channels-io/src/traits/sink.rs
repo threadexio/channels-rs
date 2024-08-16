@@ -2,29 +2,39 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+/// TODO: docs
 pub trait Sink {
+	/// TODO: docs
 	type Item;
 
+	/// TODO: docs
 	type Error;
 
+	/// TODO: docs
 	fn send(&mut self, item: Self::Item) -> Result<(), Self::Error>;
 }
 
+/// TODO: docs
 pub trait AsyncSink {
+	/// TODO: docs
 	type Item;
 
+	/// TODO: docs
 	type Error;
 
+	/// TODO: docs
 	fn start_send(
 		self: Pin<&mut Self>,
 		item: Self::Item,
 	) -> Result<(), Self::Error>;
 
+	/// TODO: docs
 	fn poll_send(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Result<(), Self::Error>>;
 
+	/// TODO: docs
 	fn send(&mut self, item: Self::Item) -> Send<'_, Self>
 	where
 		Self: Unpin,
@@ -42,6 +52,8 @@ where
 	Send { sink, item: Some(item) }
 }
 
+#[allow(missing_debug_implementations)]
+#[must_use = "futures do nothing unless you `.await` them"]
 pub struct Send<'a, S>
 where
 	S: AsyncSink + Unpin + ?Sized,

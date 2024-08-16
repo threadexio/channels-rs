@@ -88,6 +88,7 @@ pub use self::convert::{Container, IntoRead, IntoWrite};
 pub use self::async_read::{AsyncRead, AsyncReadExt};
 pub use self::async_write::{AsyncWrite, AsyncWriteExt};
 pub use self::read::{Read, ReadExt};
+pub use self::traits::{AsyncSink, AsyncSource, Sink, Source};
 pub use self::write::{Write, WriteExt};
 
 mod impls;

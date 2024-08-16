@@ -1,6 +1,8 @@
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
+use alloc::vec::Vec;
+
 use pin_project::pin_project;
 
 use crate::buf::Cursor;
@@ -268,7 +270,6 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic]
 	fn test_framed_write_write_zero() {
 		let mut buf = Cursor::new([0u8; 9]);
 		let mut framed =
@@ -276,6 +277,9 @@ mod tests {
 
 		Sink::send(&mut framed, 42).expect("");
 		Sink::send(&mut framed, 0xff_12_34).expect("");
-		Sink::send(&mut framed, 1).expect("");
+		assert!(matches!(
+			Sink::send(&mut framed, 1),
+			Err(FramedWriteError::Io(_))
+		));
 	}
 }
