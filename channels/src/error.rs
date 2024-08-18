@@ -2,10 +2,6 @@
 
 use core::fmt::{self, Debug, Display};
 
-use channels_packet::codec::{DecodeError, EncodeError};
-
-use crate::io::framed::{FramedReadError, FramedWriteError};
-
 /// The error type returned by [`Sender`].
 ///
 /// [`Sender`]: crate::Sender
@@ -44,20 +40,6 @@ where
 impl<Ser, Io> std::error::Error for SendError<Ser, Io> where
 	Self: Debug + Display
 {
-}
-
-impl<Ser, Io> From<FramedWriteError<EncodeError, Io>>
-	for SendError<Ser, Io>
-{
-	fn from(err: FramedWriteError<EncodeError, Io>) -> Self {
-		use FramedWriteError as A;
-		use SendError as B;
-
-		match err {
-			A::Io(e) => B::Io(e),
-			A::Encode(EncodeError::TooLarge) => B::TooLarge,
-		}
-	}
 }
 
 /// The error type returned by [`Receiver`].
@@ -112,25 +94,4 @@ impl<Des: Display, Io: Display> Display for RecvError<Des, Io> {
 impl<Des, Io> std::error::Error for RecvError<Des, Io> where
 	Self: Debug + Display
 {
-}
-
-impl<Des, Io> From<FramedReadError<DecodeError, Io>>
-	for RecvError<Des, Io>
-{
-	fn from(err: FramedReadError<DecodeError, Io>) -> Self {
-		use FramedReadError as A;
-		use RecvError as B;
-
-		match err {
-			A::Io(e) => B::Io(e),
-			A::Decode(DecodeError::InvalidChecksum) => {
-				B::InvalidChecksum
-			},
-			A::Decode(DecodeError::OutOfOrder) => B::OutOfOrder,
-			A::Decode(DecodeError::TooLarge) => B::TooLarge,
-			A::Decode(DecodeError::VersionMismatch) => {
-				B::VersionMismatch
-			},
-		}
-	}
 }

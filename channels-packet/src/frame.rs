@@ -4,21 +4,19 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use crate::header::{FrameNumSequence, Header};
-use crate::num::{u48, u6};
+use crate::num::u6;
+use crate::payload::Payload;
 
 /// A protocol frame.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Frame<T> {
 	/// Frame payload data.
-	pub payload: T,
+	pub payload: Payload<T>,
 	/// Frame number.
 	pub frame_num: u6,
 }
 
 impl<T> Frame<T> {
-	/// TODO: docs
-	pub const MAX_PAYLOAD_LENGTH: usize = max_payload_length();
-
 	/// Create a new [`Builder`].
 	#[inline]
 	pub const fn builder() -> Builder<T> {
@@ -28,8 +26,6 @@ impl<T> Frame<T> {
 
 impl<T: AsRef<[u8]>> Frame<T> {
 	/// Get the header of the frame.
-	///
-	/// This method returns [`None`] if the payload length exceeds [`Frame::MAX_PAYLOAD_LENGTH`].
 	///
 	/// # Example
 	///
@@ -46,56 +42,20 @@ impl<T: AsRef<[u8]>> Frame<T> {
 	/// });
 	/// ```
 	#[inline]
-	pub fn header(&self) -> Option<Header> {
-		let data_len = u48::new(self.payload.as_ref().len() as u64)?;
-
-		let hdr = Header { data_len, frame_num: self.frame_num };
-
-		Some(hdr)
-	}
-
-	/// Get the length of the frame in bytes.
-	///
-	/// This method returns [`None`] if the payload length exceeds [`Frame::MAX_PAYLOAD_LENGTH`].
-	///
-	/// # Example
-	///
-	/// ```
-	/// # use channels_packet::{Frame, num::u6};
-	/// let frame = Frame {
-	///     payload: [1u8, 2, 3, 4],
-	///     frame_num: u6::new_truncate(0),
-	/// };
-	///
-	/// assert_eq!(frame.length(), 10);
-	/// ```
-	#[inline]
-	pub fn length(&self) -> Option<usize> {
-		let hdr_len = self.header().map(|x| x.length())?;
-		let payload_len = self.payload.as_ref().len();
-		usize::checked_add(hdr_len, payload_len)
+	pub fn header(&self) -> Header {
+		Header {
+			data_len: self.payload.length(),
+			frame_num: self.frame_num,
+		}
 	}
 }
 
 impl<T: AsRef<[u8]>> fmt::Debug for Frame<T> {
-	#[inline]
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Frame")
-			.field("payload", &self.payload.as_ref())
+			.field("payload", &self.payload)
 			.field("frame_num", &self.frame_num)
 			.finish()
-	}
-}
-
-const fn max_payload_length() -> usize {
-	let a = u48::MAX.get();
-	let b = usize::MAX as u64;
-
-	#[allow(clippy::cast_possible_truncation)]
-	if a <= b {
-		a as usize
-	} else {
-		b as usize
 	}
 }
 
@@ -180,7 +140,7 @@ impl<T> Builder<T> {
 	/// assert_eq!(frame.payload, [1, 2, 3, 4, 5, 6]);
 	/// ```
 	#[inline]
-	pub const fn payload(self, payload: T) -> Frame<T> {
+	pub const fn payload(self, payload: Payload<T>) -> Frame<T> {
 		Frame { payload, frame_num: self.frame_num }
 	}
 }

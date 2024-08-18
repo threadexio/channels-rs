@@ -1,4 +1,5 @@
 use core::fmt;
+use core::hash::Hash;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
@@ -6,126 +7,127 @@ use pin_project::pin_project;
 
 use crate::io::{AsyncRead, AsyncWrite, Read, Write};
 
-#[cfg(feature = "statistics")]
-mod real {
-	use core::fmt;
+trait Collector: Default + Clone + PartialEq + Eq + Hash {
+	fn total_bytes(&self) -> u64;
+	fn add_total_bytes(&mut self, n: u64);
 
-	#[derive(Clone, Default, PartialEq, Eq, Hash)]
-	pub(super) struct StatisticsImpl {
-		total_bytes: u64,
-		packets: u64,
-		ops: u64,
+	fn total_items(&self) -> u64;
+	fn inc_total_items(&mut self);
+
+	fn io_ops(&self) -> u64;
+	fn inc_ops(&mut self);
+}
+
+#[allow(unused)]
+#[derive(Clone, Default, PartialEq, Eq, Hash)]
+struct RealStatistics {
+	total_bytes: u64,
+	total_items: u64,
+	io_ops: u64,
+}
+
+impl Collector for RealStatistics {
+	fn total_bytes(&self) -> u64 {
+		self.total_bytes
 	}
 
-	impl StatisticsImpl {
-		#[inline]
-		pub(crate) fn add_total_bytes(&mut self, n: u64) {
-			self.total_bytes += n;
-		}
-
-		#[inline]
-		pub(crate) fn inc_ops(&mut self) {
-			self.ops += 1;
-		}
-
-		#[inline]
-		pub fn total_bytes(&self) -> u64 {
-			self.total_bytes
-		}
-
-		#[inline]
-		pub fn packets(&self) -> u64 {
-			self.packets
-		}
-
-		#[inline]
-		pub fn ops(&self) -> u64 {
-			self.ops
-		}
+	fn add_total_bytes(&mut self, n: u64) {
+		self.total_bytes += n;
 	}
 
-	impl fmt::Debug for StatisticsImpl {
-		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-			f.debug_struct("Statistics")
-				.field("total_bytes", &self.total_bytes)
-				.field("packets", &self.packets)
-				.field("ops", &self.ops)
-				.finish()
-		}
+	fn total_items(&self) -> u64 {
+		self.total_items
+	}
+
+	fn inc_total_items(&mut self) {
+		self.total_items += 1;
+	}
+
+	fn io_ops(&self) -> u64 {
+		self.io_ops
+	}
+
+	fn inc_ops(&mut self) {
+		self.io_ops += 1;
 	}
 }
 
-#[cfg(not(feature = "statistics"))]
-mod mock {
-	#[derive(Clone, Default, PartialEq, Eq, Hash)]
-	pub(super) struct StatisticsImpl;
+#[allow(unused)]
+#[derive(Clone, Default, PartialEq, Eq, Hash)]
+struct MockStatistics;
 
-	#[allow(clippy::unused_self)]
-	impl StatisticsImpl {
-		pub(crate) fn add_total_bytes(&mut self, _: u64) {}
-		pub(crate) fn inc_ops(&mut self) {}
-
-		pub(crate) fn total_bytes(&self) -> u64 {
-			0
-		}
-
-		pub(crate) fn packets(&self) -> u64 {
-			0
-		}
-
-		pub(crate) fn ops(&self) -> u64 {
-			0
-		}
+impl Collector for MockStatistics {
+	fn total_bytes(&self) -> u64 {
+		0
 	}
+
+	fn add_total_bytes(&mut self, _: u64) {}
+
+	fn total_items(&self) -> u64 {
+		0
+	}
+
+	fn inc_total_items(&mut self) {}
+
+	fn io_ops(&self) -> u64 {
+		0
+	}
+
+	fn inc_ops(&mut self) {}
 }
 
 #[cfg(feature = "statistics")]
-use self::real::StatisticsImpl;
+use self::RealStatistics as StatisticsImpl;
 
 #[cfg(not(feature = "statistics"))]
-use self::mock::StatisticsImpl;
+use self::MockStatistics as StatisticsImpl;
 
 /// IO statistic information.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Statistics {
-	inner: StatisticsImpl,
-}
+pub struct Statistics(StatisticsImpl);
 
 impl Statistics {
-	#[allow(clippy::default_constructed_unit_structs)]
 	pub(crate) fn new() -> Self {
-		Self { inner: StatisticsImpl::default() }
+		Self(StatisticsImpl::default())
 	}
 
 	#[inline]
-	pub(crate) fn add_total_bytes(&mut self, n: u64) {
-		self.inner.add_total_bytes(n);
+	fn add_total_bytes(&mut self, n: u64) {
+		self.0.add_total_bytes(n);
 	}
 
 	#[inline]
-	pub(crate) fn inc_ops(&mut self) {
-		self.inner.inc_ops();
+	pub(crate) fn inc_total_items(&mut self) {
+		self.0.inc_total_items();
+	}
+
+	#[inline]
+	fn inc_ops(&mut self) {
+		self.0.inc_ops();
 	}
 
 	/// Returns the number of bytes transferred through this reader/writer.
 	#[inline]
 	#[must_use]
 	pub fn total_bytes(&self) -> u64 {
-		self.inner.total_bytes()
+		self.0.total_bytes()
 	}
 
-	/// Returns the number of packets transferred through this reader/writer.
+	/// Returns the total number of items transferred though this reader/writer.
+	///
+	/// An item is a logical boundary that is marked by the framing layer. Essentially,
+	/// an item is one call to `send`/`recv`.
 	#[inline]
 	#[must_use]
-	pub fn packets(&self) -> u64 {
-		self.inner.packets()
+	pub fn total_items(&self) -> u64 {
+		self.0.total_items()
 	}
 
-	/// Returns the total number of `send`/`recv` operations.
+	/// Returns the total number of IO operations.
 	#[inline]
 	#[must_use]
-	pub fn ops(&self) -> u64 {
-		self.inner.ops()
+	pub fn io_ops(&self) -> u64 {
+		self.0.io_ops()
 	}
 }
 
@@ -133,8 +135,8 @@ impl fmt::Debug for Statistics {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Statistics")
 			.field("total_bytes", &self.total_bytes())
-			.field("packets", &self.packets())
-			.field("ops", &self.ops())
+			.field("total_items", &self.total_items())
+			.field("io_ops", &self.io_ops())
 			.finish()
 	}
 }
@@ -175,7 +177,7 @@ impl<W: Write> Write for StatIO<W> {
 		buf: &[u8],
 	) -> Result<usize, Self::Error> {
 		let n = self.inner.write_slice(buf)?;
-		self.statistics.add_total_bytes(n as u64);
+		mark_io_op(&mut self.statistics, n);
 		Ok(n)
 	}
 
@@ -195,7 +197,7 @@ impl<W: AsyncWrite> AsyncWrite for StatIO<W> {
 		let this = self.project();
 
 		let n = ready!(this.inner.poll_write_slice(cx, buf))?;
-		this.statistics.add_total_bytes(n as u64);
+		mark_io_op(this.statistics, n);
 		Poll::Ready(Ok(n))
 	}
 
@@ -216,7 +218,7 @@ impl<R: Read> Read for StatIO<R> {
 		buf: &mut [u8],
 	) -> Result<usize, Self::Error> {
 		let n = self.inner.read_slice(buf)?;
-		self.statistics.add_total_bytes(n as u64);
+		mark_io_op(&mut self.statistics, n);
 		Ok(n)
 	}
 }
@@ -231,7 +233,13 @@ impl<R: AsyncRead> AsyncRead for StatIO<R> {
 	) -> Poll<Result<usize, Self::Error>> {
 		let this = self.project();
 		let n = ready!(this.inner.poll_read_slice(cx, buf))?;
-		this.statistics.add_total_bytes(n as u64);
+		mark_io_op(this.statistics, n);
 		Poll::Ready(Ok(n))
 	}
+}
+
+fn mark_io_op(statistics: &mut Statistics, bytes: usize) {
+	let bytes = bytes as u64;
+	statistics.add_total_bytes(bytes);
+	statistics.inc_ops();
 }

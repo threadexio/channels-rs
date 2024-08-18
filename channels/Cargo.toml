@@ -36,7 +36,7 @@ features = ["alloc"]
 [dependencies.channels-packet]
 version = "=0.1.2"
 path = "../channels-packet"
-features = ["alloc", "framed"]
+features = ["alloc"]
 
 [dependencies.channels-serdes]
 version = "=0.2.1"

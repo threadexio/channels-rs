@@ -4,16 +4,157 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 
-use channels_packet::codec::FrameDecoder;
+use channels_packet::header::{FrameNumSequence, HeaderError};
+use channels_packet::Header;
 
 use crate::error::RecvError;
-use crate::io::framed::FramedRead;
+use crate::io::framed::{Decoder, FramedRead, FramedReadError};
 use crate::io::source::{AsyncSource, Source};
-use crate::io::{AsyncReadExt, Container, IntoRead, ReadExt};
+use crate::io::{
+	AsyncRead, AsyncReadExt, Container, IntoRead, Read, ReadExt,
+};
 use crate::serdes::Deserializer;
-
-#[allow(unused_imports)]
 use crate::statistics::{StatIO, Statistics};
+
+/// Configuration for [`Receiver`].
+#[derive(Clone)]
+#[must_use = "`Config`s don't do anything on their own"]
+pub struct Config {
+	pub(crate) max_size: Option<NonZeroUsize>,
+}
+
+impl Default for Config {
+	#[inline]
+	fn default() -> Self {
+		Self { max_size: None }
+	}
+}
+
+impl Config {
+	/// Get the max size of the [`Receiver`].
+	#[inline]
+	#[must_use]
+	pub fn max_size(&self) -> usize {
+		self.max_size.map_or(0, NonZeroUsize::get)
+	}
+
+	/// Set the max size of the [`Receiver`].
+	#[allow(clippy::missing_panics_doc)]
+	#[inline]
+	pub fn set_max_size(&mut self, max_size: usize) -> &mut Self {
+		self.max_size = match max_size {
+			0 => None,
+			x => Some(
+				NonZeroUsize::new(x)
+					.expect("max_size should never be 0"),
+			),
+		};
+		self
+	}
+
+	/// Set the max size of the [`Receiver`].
+	#[inline]
+	pub fn with_max_size(mut self, max_size: usize) -> Self {
+		self.set_max_size(max_size);
+		self
+	}
+}
+
+impl fmt::Debug for Config {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Config")
+			.field("max_size", &self.max_size())
+			.finish()
+	}
+}
+
+enum FrameDecodeError {
+	InvalidChecksum,
+	OutOfOrder,
+	TooLarge,
+	VersionMismatch,
+}
+
+impl<Des, Io> From<FramedReadError<FrameDecodeError, Io>>
+	for RecvError<Des, Io>
+{
+	fn from(value: FramedReadError<FrameDecodeError, Io>) -> Self {
+		use FrameDecodeError as C;
+		use FramedReadError as A;
+		use RecvError as B;
+
+		match value {
+			A::Decode(C::OutOfOrder) => B::OutOfOrder,
+			A::Decode(C::InvalidChecksum) => B::InvalidChecksum,
+			A::Decode(C::TooLarge) => B::TooLarge,
+			A::Decode(C::VersionMismatch) => B::VersionMismatch,
+			A::Io(e) => B::Io(e),
+		}
+	}
+}
+
+struct FrameDecoder {
+	config: Config,
+	seq: FrameNumSequence,
+}
+
+impl Decoder for FrameDecoder {
+	type Output = Vec<u8>;
+	type Error = FrameDecodeError;
+
+	fn decode(
+		&mut self,
+		buf: &mut Vec<u8>,
+	) -> Option<Result<Self::Output, Self::Error>> {
+		let hdr = match Header::try_from(buf.as_slice()) {
+			Ok(x) => x,
+			Err(HeaderError::NotEnough) => {
+				buf.reserve(Header::MAX_SIZE - buf.len());
+				return None;
+			},
+			Err(HeaderError::InvalidChecksum) => {
+				return Some(Err(FrameDecodeError::InvalidChecksum))
+			},
+			Err(HeaderError::VersionMismatch) => {
+				return Some(Err(FrameDecodeError::VersionMismatch))
+			},
+		};
+
+		let payload_len: usize = match hdr.data_len.get().try_into() {
+			Ok(x) => x,
+			Err(_) => return Some(Err(FrameDecodeError::TooLarge)),
+		};
+
+		if let Some(max_size) = self.config.max_size {
+			if payload_len > max_size.get() {
+				return Some(Err(FrameDecodeError::TooLarge));
+			}
+		}
+
+		if hdr.frame_num != self.seq.peek() {
+			return Some(Err(FrameDecodeError::OutOfOrder));
+		}
+
+		let hdr_len = hdr.length();
+
+		let Some(frame_len) =
+			usize::checked_add(hdr_len, payload_len)
+		else {
+			return Some(Err(FrameDecodeError::TooLarge));
+		};
+
+		if buf.len() < frame_len {
+			buf.reserve(frame_len - buf.len());
+			return None;
+		}
+
+		let payload = buf[hdr_len..frame_len].to_vec();
+
+		let _ = self.seq.advance();
+		buf.drain(..frame_len);
+		Some(Ok(payload))
+	}
+}
 
 /// The receiving-half of the channel.
 pub struct Receiver<T, R, D> {
@@ -278,7 +419,7 @@ where
 
 impl<T, R, D> Receiver<T, R, D>
 where
-	R: AsyncReadExt + Unpin,
+	R: AsyncRead + Unpin,
 	D: Deserializer<T>,
 {
 	/// Attempts to receive a type `T` from the channel.
@@ -310,7 +451,7 @@ where
 	) -> Result<T, RecvError<D::Error, R::Error>> {
 		let mut payload =
 			self.framed.next().await.map_err(RecvError::from)?;
-		self.framed.reader_mut().statistics.inc_ops();
+		self.framed.reader_mut().statistics.inc_total_items();
 
 		self.deserializer
 			.deserialize(&mut payload)
@@ -320,7 +461,7 @@ where
 
 impl<T, R, D> Receiver<T, R, D>
 where
-	R: ReadExt,
+	R: Read,
 	D: Deserializer<T>,
 {
 	/// Attempts to receive a type `T` from the channel.
@@ -350,11 +491,25 @@ where
 	) -> Result<T, RecvError<D::Error, R::Error>> {
 		let mut payload =
 			self.framed.next().map_err(RecvError::from)?;
-		self.framed.reader_mut().statistics.inc_ops();
+		self.framed.reader_mut().statistics.inc_total_items();
 
 		self.deserializer
 			.deserialize(&mut payload)
 			.map_err(RecvError::Serde)
+	}
+}
+
+impl<T, R, D> fmt::Debug for Receiver<T, R, D>
+where
+	R: fmt::Debug,
+	D: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Receiver")
+			.field("reader", self.framed.reader())
+			.field("deserializer", &self.deserializer)
+			.field("config", self.config())
+			.finish_non_exhaustive()
 	}
 }
 
@@ -536,281 +691,17 @@ impl<T, R, D> Builder<T, R, D> {
 	pub fn build(self) -> Receiver<T, R, D> {
 		let Self { _marker, config, deserializer, reader } = self;
 
-		// TODO: config
-		let _ = config;
-		let reader = StatIO::new(reader);
-		let decoder = FrameDecoder::new();
-		let framed = FramedRead::new(reader, decoder);
-
-		Receiver { _marker: PhantomData, deserializer, framed }
-	}
-}
-
-/// Configuration for [`Receiver`].
-///
-/// ## Size estimate
-///
-/// Size estimate for incoming data.
-///
-/// Inform the receiving code to preallocate a buffer of this size when
-/// receiving. Setting this field correctly can help avoid reallocations
-/// when receiving data that is split up into multiple packets. For most
-/// cases, when data fits inside a single packet, this field has _no_ effect
-/// and can simply be left as the default.
-///
-/// When setting this field, if you don't know the exact size of your data,
-/// it is best to overestimate it. Setting a value even one byte less than
-/// what the actual size of the data is will still lead to a reallocation
-/// and more copying. However if the data fits inside one packet, as is with
-/// most cases, setting this field incorrectly can still have a minor impact
-/// on performance.
-///
-/// In general, this field should probably be left alone unless you can
-/// prove that the processing time for received packets far exceeds the
-/// transmission time of the medium used.
-///
-/// **NOTE:** Setting this field to `0` disables any preallocations.
-///
-/// **Default:** `0`
-///
-/// [`Receiver`]: crate::Receiver
-///
-/// ## Max size
-///
-/// Maximum size of data each call to [`recv()`] or [`recv_blocking()`] will
-/// read.
-///
-/// In order for large payloads to be transmitted, they have to be split up
-/// to multiple packets. Packets contain a flag for the receiver to wait for
-/// more packets if the payload was not fully sent in that packet (because
-/// it had to be split up). This way of transmitting large payloads is also
-/// used in IPv4 and it is called [IPv4 Fragmentation].
-///
-/// Because the receiver does not know the full length from the first packet,
-/// it can only know this once all packets have been received and their
-/// lengths are summed, it doesn't know how much memory it will need to hold
-/// the full payload. For this reason, it is possible for a malicious actor
-/// to send keep sending carefully crafted packets all with that flag set,
-/// until the receiver exhausts all their memory. This DOS attack is the
-/// reason for the existence of this option.
-///
-/// The default value allows payloads up to 65K and it should be enough for
-/// almost all cases. Unless you are sending over 65K of data in one [`send()`]
-/// or [`send_blocking()`], the default value is perfectly safe. Please note
-/// that if you do send more than 65K, you will have to set this field to
-/// fit your needs.
-///
-/// This field can also make the system more secure. For example, if you
-/// know in advance the maximum length one payload can take up, you should
-/// set this field to limit wasted memory by bad actors.
-///
-/// If it happens and a receiver does read more than the configured limit,
-/// the receiver operation will return with an error of [`RecvError::ExceededMaximumSize`].
-///
-/// This attack is only possible if malicious actors are able to
-/// talk directly with the [`Receiver`]. For example, if there is an
-/// encrypted and trusted channel between the receiver and the sender, then
-/// this attack is not applicable.
-///
-/// Setting this field to `0` disables this mechanism and allows payloads
-/// of any size.
-///
-/// **Default:** 65K
-///
-/// [`recv()`]: Receiver::recv()
-/// [`recv_blocking()`]: Receiver::recv_blocking()
-/// [`send()`]: crate::Sender::send()
-/// [`send_blocking()`]: crate::Sender::send_blocking()
-/// [IP Fragmentation]: https://en.wikipedia.org/wiki/Internet_Protocol_version_4#Fragmentation
-///
-/// ## Verify header checksum
-///
-/// Verify the header checksum of each received packet.
-///
-/// This should be paired with a [`Sender`] that also does not produce
-/// checksums (see [`use_header_checksum()`]).
-///
-/// **Default:** `true`
-///
-/// [`Sender`]: crate::Sender
-/// [`use_header_checksum()`]: crate::sender::Config::use_header_checksum()
-///
-/// ## Verify packet order
-///
-/// Verify that received packets are in order.
-///
-/// Using the library atop of mediums which do not guarantee any sort of ordering
-/// between packets, such as UDP, can present some problems. Each channels packet
-/// contains an wrapping numeric ID that is used to check whether packets are
-/// received in the order they were sent. UDP for example, does not guarantee in
-/// which order packets reach their destination. Supposing a sender tries to send
-/// packets with IDs 1, 2 and 3, it is therefore possible that UDP delivers packets
-/// 2 or 3 before 1. This would immediately trigger an error of [`OutOfOrder`].
-/// This behavior might not be what you want. This flag specifies whether the
-/// receiver should check the ID of each packet and verify that it was received
-/// in the correct order. If it is not set, then it is impossible for an [`OutOfOrder`]
-/// error to occur.
-///
-/// [`OutOfOrder`]: RecvError::OutOfOrder
-#[derive(Clone)]
-#[must_use = "`Config`s don't do anything on their own"]
-pub struct Config {
-	pub(crate) size_estimate: Option<NonZeroUsize>,
-	pub(crate) max_size: Option<NonZeroUsize>,
-	pub(crate) flags: u8,
-}
-
-impl Config {
-	const VERIFY_HEADER_CHECKSUM: u8 = 1 << 0;
-	const VERIFY_PACKET_ORDER: u8 = 1 << 1;
-
-	#[inline]
-	fn get_flag(&self, flag: u8) -> bool {
-		self.flags & flag != 0
-	}
-
-	#[inline]
-	fn set_flag(&mut self, flag: u8, value: bool) {
-		if value {
-			self.flags |= flag;
-		} else {
-			self.flags &= !flag;
-		}
-	}
-}
-
-impl Default for Config {
-	#[inline]
-	fn default() -> Self {
-		Self {
-			size_estimate: None,
-			max_size: None,
-			flags: Self::VERIFY_PACKET_ORDER
-				| Self::VERIFY_HEADER_CHECKSUM,
-		}
-	}
-}
-
-impl Config {
-	/// Get the size estimate of the [`Receiver`].
-	#[inline]
-	#[must_use]
-	pub fn size_estimate(&self) -> usize {
-		self.size_estimate.map_or(0, NonZeroUsize::get)
-	}
-
-	/// Set the size estimate of the [`Receiver`].
-	#[allow(clippy::missing_panics_doc)]
-	#[inline]
-	pub fn set_size_estimate(
-		&mut self,
-		estimate: usize,
-	) -> &mut Self {
-		self.size_estimate = match estimate {
-			0 => None,
-			x => Some(
-				NonZeroUsize::new(x)
-					.expect("size_estimate should never be 0"),
+		Receiver {
+			_marker: PhantomData,
+			deserializer,
+			framed: FramedRead::new(
+				StatIO::new(reader),
+				FrameDecoder {
+					seq: FrameNumSequence::new(),
+					config: config.unwrap_or_default(),
+				},
 			),
-		};
-		self
-	}
-
-	/// Set the size estimate of the [`Receiver`].
-	#[inline]
-	pub fn with_size_estimate(mut self, estimate: usize) -> Self {
-		self.set_size_estimate(estimate);
-		self
-	}
-
-	/// Get the max size of the [`Receiver`].
-	#[inline]
-	#[must_use]
-	pub fn max_size(&self) -> usize {
-		self.max_size.map_or(0, NonZeroUsize::get)
-	}
-
-	/// Set the max size of the [`Receiver`].
-	#[allow(clippy::missing_panics_doc)]
-	#[inline]
-	pub fn set_max_size(&mut self, max_size: usize) -> &mut Self {
-		self.max_size = match max_size {
-			0 => None,
-			x => Some(
-				NonZeroUsize::new(x)
-					.expect("max_size should never be 0"),
-			),
-		};
-		self
-	}
-
-	/// Set the max size of the [`Receiver`].
-	#[inline]
-	pub fn with_max_size(mut self, max_size: usize) -> Self {
-		self.set_max_size(max_size);
-		self
-	}
-
-	/// Get whether the [`Receiver`] will verify each packet's header with the
-	/// checksum.
-	#[inline]
-	#[must_use]
-	pub fn verify_header_checksum(&self) -> bool {
-		self.get_flag(Self::VERIFY_HEADER_CHECKSUM)
-	}
-
-	/// Whether to verify each packet's header with the checksum.
-	#[inline]
-	pub fn set_verify_header_checksum(
-		&mut self,
-		yes: bool,
-	) -> &mut Self {
-		self.set_flag(Self::VERIFY_HEADER_CHECKSUM, yes);
-		self
-	}
-
-	/// Whether to verify each packet's header with the checksum.
-	#[inline]
-	pub fn with_verify_header_checksum(mut self, yes: bool) -> Self {
-		self.set_verify_header_checksum(yes);
-		self
-	}
-
-	/// Get whether to verify packet order.
-	#[inline]
-	#[must_use]
-	pub fn verify_packet_order(&self) -> bool {
-		self.get_flag(Self::VERIFY_PACKET_ORDER)
-	}
-
-	/// Whether to verify packet order.
-	#[inline]
-	pub fn set_verify_packet_order(
-		&mut self,
-		yes: bool,
-	) -> &mut Self {
-		self.set_flag(Self::VERIFY_PACKET_ORDER, yes);
-		self
-	}
-
-	/// Whether to verify packet order.
-	#[inline]
-	pub fn with_verify_packet_order(mut self, yes: bool) -> Self {
-		self.set_verify_packet_order(yes);
-		self
-	}
-}
-
-impl fmt::Debug for Config {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Config")
-			.field("size_estimate", &self.size_estimate())
-			.field("max_size", &self.max_size())
-			.field(
-				"verify_header_checksum",
-				&self.verify_header_checksum(),
-			)
-			.finish()
+		}
 	}
 }
 
@@ -825,19 +716,5 @@ where
 			.field("deserializer", &self.deserializer)
 			.field("config", &self.config)
 			.finish()
-	}
-}
-
-impl<T, R, D> fmt::Debug for Receiver<T, R, D>
-where
-	R: fmt::Debug,
-	D: fmt::Debug,
-{
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Receiver")
-			.field("reader", self.framed.reader())
-			.field("deserializer", &self.deserializer)
-			.field("config", self.config())
-			.finish_non_exhaustive()
 	}
 }

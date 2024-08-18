@@ -70,24 +70,8 @@ fn send_benchmarks() -> Vec<SendBenchmark> {
 			config: Config::default(),
 		},
 		SendBenchmark {
-			variant: "no_alloc",
-			config: Config::default().with_coalesce_writes(false),
-		},
-		SendBenchmark {
-			variant: "no_header_checksum",
-			config: Config::default().with_use_header_checksum(false),
-		},
-		SendBenchmark {
 			variant: "no_flush",
 			config: Config::default().with_flush_on_send(false),
-		},
-		SendBenchmark {
-			variant: "tuned",
-			config: Config::default()
-				.with_coalesce_writes(false)
-				.with_flush_on_send(false)
-				.with_keep_write_allocations(false)
-				.with_use_header_checksum(false),
 		},
 	]
 	.into()

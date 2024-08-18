@@ -80,33 +80,35 @@ impl fmt::Display for TestResults<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let duration_s = self.duration.as_secs_f64();
 
-		let op_count = self.stats.ops();
-		let packet_count = self.stats.packets();
+		let io_op_count = self.stats.io_ops();
 		let total_bytes = self.stats.total_bytes();
+		let total_items = self.stats.total_items();
 
-		let op_rate = op_count as f64 / duration_s;
-		let packet_rate = packet_count as f64 / duration_s;
+		let io_op_rate = io_op_count as f64 / duration_s;
+		let item_rate = total_items as f64 / duration_s;
 
 		let io_rate_bps = total_bytes as f64 / duration_s;
 		let io_rate_kbps = io_rate_bps / 1024.0;
 		let io_rate_mbps = io_rate_kbps / 1024.0;
 
-		let avg_packet_size =
-			total_bytes as f64 / packet_count as f64;
+		let avg_iop_size = total_bytes as f64 / io_op_count as f64;
 
 		#[rustfmt::skip]
 		{
 			writeln!(f, "finished in {duration_s:.5}s")?;
 			writeln!(f)?;
-			writeln!(f, "total operations:    {op_count}")?;
-			writeln!(f, "total packets:       {packet_count}")?;
-			writeln!(f, "io total:            {} = {} = {}", Bytes(total_bytes), Kilobytes(total_bytes), Megabytes(total_bytes))?;
+			writeln!(f, "==== Framing ====")?;
+			writeln!(f, "total items:          {total_items}")?;
+			writeln!(f, "item rate:            {item_rate} items/s")?;
 			writeln!(f)?;
-			writeln!(f, "operation rate:      {op_rate:.3} operations/s")?;
-			writeln!(f, "packet rate:         {packet_rate:.3} packets/s")?;
-			writeln!(f, "io rate:             {io_rate_bps:.3} B/s = {io_rate_kbps:.3} kB/s = {io_rate_mbps:.3} MB/s")?;
+			writeln!(f, "======= IO ======")?;
+			writeln!(f, "total io ops:         {io_op_count}")?;
+			writeln!(f, "io total:             {} = {} = {}", Bytes(total_bytes), Kilobytes(total_bytes), Megabytes(total_bytes))?;
 			writeln!(f)?;
-			writeln!(f, "average packet size: {avg_packet_size:.3} B")?;
+			writeln!(f, "op rate:              {io_op_rate:.3} operations/s")?;
+			writeln!(f, "io rate:              {io_rate_bps:.3} B/s = {io_rate_kbps:.3} kB/s = {io_rate_mbps:.3} MB/s")?;
+			writeln!(f)?;
+			writeln!(f, "average size / io op: {avg_iop_size:.3} B")?;
 		};
 
 		Ok(())

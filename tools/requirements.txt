@@ -1,5 +1,0 @@
-jedi-language-server
-pylint
-autopep8
-
-colorama

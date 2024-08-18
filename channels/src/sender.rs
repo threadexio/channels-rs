@@ -6,16 +6,132 @@ use core::marker::PhantomData;
 
 use alloc::vec::Vec;
 
-use channels_packet::codec::FrameEncoder;
+use channels_packet::frame::Frame;
+use channels_packet::header::FrameNumSequence;
+use channels_packet::payload::Payload;
 
 use crate::error::SendError;
-use crate::io::framed::FramedWrite;
+use crate::io::framed::{Encoder, FramedWrite, FramedWriteError};
 use crate::io::sink::{AsyncSink, Sink};
-use crate::io::{AsyncWrite, Container, IntoWrite, Write};
+use crate::io::{
+	AsyncWrite, AsyncWriteExt, Container, IntoWrite, Write, WriteExt,
+};
 use crate::serdes::Serializer;
-
-#[allow(unused_imports)]
 use crate::statistics::{StatIO, Statistics};
+
+/// Configuration for [`Sender`].
+#[derive(Clone)]
+#[must_use = "`Config`s don't do anything on their own"]
+pub struct Config {
+	flags: u8,
+}
+
+impl Config {
+	const FLUSH_ON_SEND: u8 = 1 << 0;
+
+	#[inline]
+	const fn get_flag(&self, flag: u8) -> bool {
+		self.flags & flag != 0
+	}
+
+	#[inline]
+	fn set_flag(&mut self, flag: u8, value: bool) {
+		if value {
+			self.flags |= flag;
+		} else {
+			self.flags &= !flag;
+		}
+	}
+}
+
+impl Default for Config {
+	#[inline]
+	fn default() -> Self {
+		Self { flags: Self::FLUSH_ON_SEND }
+	}
+}
+
+impl Config {
+	/// TODO: docs
+	#[inline]
+	#[must_use]
+	pub fn flush_on_send(&self) -> bool {
+		self.get_flag(Self::FLUSH_ON_SEND)
+	}
+
+	/// TODO: docs
+	#[inline]
+	pub fn set_flush_on_send(&mut self, yes: bool) {
+		self.set_flag(Self::FLUSH_ON_SEND, yes);
+	}
+
+	/// TODO: docs
+	#[inline]
+	pub fn with_flush_on_send(mut self, yes: bool) -> Self {
+		self.set_flush_on_send(yes);
+		self
+	}
+}
+
+impl fmt::Debug for Config {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		// TODO: fix config debug impl
+		f.debug_struct("Config").finish()
+	}
+}
+
+enum FrameEncodeError {
+	TooLarge,
+}
+
+impl<Ser, Io> From<FramedWriteError<FrameEncodeError, Io>>
+	for SendError<Ser, Io>
+{
+	fn from(value: FramedWriteError<FrameEncodeError, Io>) -> Self {
+		use FrameEncodeError as C;
+		use FramedWriteError as A;
+		use SendError as B;
+
+		match value {
+			A::Encode(C::TooLarge) => B::TooLarge,
+			A::Io(e) => B::Io(e),
+		}
+	}
+}
+
+struct FrameEncoder {
+	config: Config,
+	seq: FrameNumSequence,
+}
+
+impl Encoder for FrameEncoder {
+	type Item = Vec<u8>;
+	type Error = FrameEncodeError;
+
+	fn encode(
+		&mut self,
+		item: Self::Item,
+		buf: &mut Vec<u8>,
+	) -> Result<(), Self::Error> {
+		let payload = Payload::new(item)
+			.map_err(|_| FrameEncodeError::TooLarge)?;
+
+		let frame = Frame { payload, frame_num: self.seq.advance() };
+		let header = frame.header().to_bytes();
+		let payload = frame.payload;
+
+		let frame_len = usize::checked_add(
+			header.as_ref().len(),
+			payload.as_ref().len(),
+		)
+		.ok_or(FrameEncodeError::TooLarge)?;
+
+		buf.reserve(frame_len);
+		buf.extend_from_slice(header.as_ref());
+		buf.extend_from_slice(payload.as_ref());
+		Ok(())
+	}
+}
 
 /// The sending-half of the channel.
 pub struct Sender<T, W, S> {
@@ -302,7 +418,16 @@ where
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
 		self.framed.send(payload).await.map_err(SendError::from)?;
-		self.framed.writer_mut().statistics.inc_ops();
+		self.framed.writer_mut().statistics.inc_total_items();
+
+		if self.framed.encoder().config.flush_on_send() {
+			self.framed
+				.writer_mut()
+				.flush()
+				.await
+				.map_err(SendError::Io)?;
+		}
+
 		Ok(())
 	}
 }
@@ -354,8 +479,30 @@ where
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
 		self.framed.send(payload).map_err(SendError::from)?;
-		self.framed.writer_mut().statistics.inc_ops();
+		self.framed.writer_mut().statistics.inc_total_items();
+
+		if self.framed.encoder().config.flush_on_send() {
+			self.framed
+				.writer_mut()
+				.flush()
+				.map_err(SendError::Io)?;
+		}
+
 		Ok(())
+	}
+}
+
+impl<T, W, S> fmt::Debug for Sender<T, W, S>
+where
+	W: fmt::Debug,
+	S: fmt::Debug,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("Sender")
+			.field("writer", self.framed.writer())
+			.field("serializer", &self.serializer)
+			.field("config", &self.config())
+			.finish_non_exhaustive()
 	}
 }
 
@@ -491,234 +638,17 @@ impl<T, W, S> Builder<T, W, S> {
 	pub fn build(self) -> Sender<T, W, S> {
 		let Self { _marker, config, serializer, writer } = self;
 
-		let _ = config; // TODO: config
-		let writer = StatIO::new(writer);
-		let encoder = FrameEncoder::new();
-		let framed = FramedWrite::new(writer, encoder);
-
-		Sender { _marker: PhantomData, serializer, framed }
-	}
-}
-
-/// Configuration for [`Sender`].
-///
-/// ## Flush on send
-///
-/// Flush the underlying writer after every [`send()`] or [`send_blocking()`].
-///
-/// **Default:** `true`
-///
-/// [`send()`]: Sender::send()
-/// [`send_blocking()`]: Sender::send_blocking()
-///
-/// ## Use header checksum
-///
-/// Calculate the checksum for each packet before sending it.
-///
-/// This is only necessary when transmitting over unreliable transports.
-/// Thus if you are using, say a UNIX socket, pipe, or anything that is
-/// in-memory, you generally don't need this additional check. So it is
-/// perfectly safe to turn off this extra compute if you find it to be a
-/// bottleneck for your application.
-///
-/// **Default:** `true`
-///
-/// ## Coalesce writes
-///
-/// Coalesce packet writes into a single [`write_buf()`] call.
-///
-/// Produced packets do not reside in contiguous chunks of memory. Because
-/// [`write_buf()`] expects a contiguous region of memory, this means that
-/// writing the packet to the underlying writer is not as simple as calling
-/// [`write_buf()`] once.
-///
-/// In such situations, code can:
-///
-/// - A) call [`write_buf()`] many times
-/// - B) copy each part of the packet into a single contiguous region of
-///      memory and call [`write_buf()`] on it just once
-///
-/// Approach A has the benefit that it requires no additional allocations
-/// or copying data. However, it heavily depends on the speed of the
-/// underlying writer. Consider a writer that performs a system call each
-/// time its [`write_buf()`] method is called. Because system calls are
-/// expensive, code should generally try to reduce their usage. For these
-/// cases it is generally preferred to use approach B and only call [`write_buf()`]
-/// once. But in other cases where the writer is generally cheaply writable,
-/// say writing to an in-memory buffer for further processing, it **can** be
-/// **sometimes** beneficial to use approach A in terms of CPU time and memory
-/// resources. Note that even in such cases, approach B might still be
-/// faster.
-///
-/// This field basically controls the behavior of how [`write_buf()`] is called.
-/// Setting it to `true`, will signal the sending code to use approach B as
-/// per the above. Setting it to `false`, will signal the sending code to
-/// use approach A. Incorrectly setting this field, can lead to serious
-/// performance issues. For this reason, the default behavior is approach B.
-///
-/// Writers should not assume anything about the pattern of how [`write_buf()`]
-/// is called.
-///
-/// **Default:** `true`
-///
-/// ## Keep write allocations
-///
-/// If the "Coalesce writes" flag is set, then the sender will allocate a new
-/// buffer in which it will assemble each packet before it is written to the
-/// writer. This buffer is then deallocated at the end of the `send` operation.
-///
-/// This flag tells the sender to _not_ deallocate that buffer and instead reuse
-/// it in the next `send` operation. Keep in mind that the buffer will be grown,
-/// if needed, and thus deallocated and reallocated. This flag generally speeds
-/// up senders who send quickly and who live for a large amount of time.
-///
-/// Side effect of this flag, is that senders hold on to that buffer until they
-/// are dropped. In certain cases, where memory is limited, this might not be ideal.
-///
-/// **Default:** `false`
-///
-/// [`write_buf()`]: crate::io::WriteExt::write_buf
-#[derive(Clone)]
-#[must_use = "`Config`s don't do anything on their own"]
-pub struct Config {
-	flags: u8,
-}
-
-impl Config {
-	const FLUSH_ON_SEND: u8 = 1 << 0;
-	const USE_HEADER_CHECKSUM: u8 = 1 << 1;
-	const COALESCE_WRITES: u8 = 1 << 2;
-	const KEEP_WRITE_ALLOCATIONS: u8 = 1 << 3;
-
-	#[inline]
-	fn get_flag(&self, flag: u8) -> bool {
-		self.flags & flag != 0
-	}
-
-	#[inline]
-	fn set_flag(&mut self, flag: u8, value: bool) {
-		if value {
-			self.flags |= flag;
-		} else {
-			self.flags &= !flag;
+		Sender {
+			_marker: PhantomData,
+			serializer,
+			framed: FramedWrite::new(
+				StatIO::new(writer),
+				FrameEncoder {
+					config: config.unwrap_or_default(),
+					seq: FrameNumSequence::new(),
+				},
+			),
 		}
-	}
-}
-
-impl Default for Config {
-	#[inline]
-	fn default() -> Self {
-		Self {
-			flags: Self::FLUSH_ON_SEND
-				| Self::USE_HEADER_CHECKSUM
-				| Self::COALESCE_WRITES,
-		}
-	}
-}
-
-impl Config {
-	/// Get whether the [`Sender`] will flush the writer after every send.
-	#[inline]
-	#[must_use]
-	pub fn flush_on_send(&self) -> bool {
-		self.get_flag(Self::FLUSH_ON_SEND)
-	}
-
-	/// Whether the [`Sender`] will flush the writer after every send.
-	#[inline]
-	pub fn set_flush_on_send(&mut self, yes: bool) -> &mut Self {
-		self.set_flag(Self::FLUSH_ON_SEND, yes);
-		self
-	}
-
-	/// Whether the [`Sender`] will flush the writer after every send.
-	#[inline]
-	pub fn with_flush_on_send(mut self, yes: bool) -> Self {
-		self.set_flush_on_send(yes);
-		self
-	}
-
-	/// Get whether the [`Sender`] will calculate the checksum for sent packets.
-	#[inline]
-	#[must_use]
-	pub fn use_header_checksum(&self) -> bool {
-		self.get_flag(Self::USE_HEADER_CHECKSUM)
-	}
-
-	/// Whether the [`Sender`] will calculate the checksum for sent packets.
-	#[inline]
-	pub fn set_use_header_checksum(
-		&mut self,
-		yes: bool,
-	) -> &mut Self {
-		self.set_flag(Self::USE_HEADER_CHECKSUM, yes);
-		self
-	}
-
-	/// Whether the [`Sender`] will calculate the checksum for sent packets.
-	#[inline]
-	pub fn with_use_header_checksum(mut self, yes: bool) -> Self {
-		self.set_use_header_checksum(yes);
-		self
-	}
-
-	/// Get whether the [`Sender`] will coalesce all writes into a single buffer.
-	#[inline]
-	#[must_use]
-	pub fn coalesce_writes(&self) -> bool {
-		self.get_flag(Self::COALESCE_WRITES)
-	}
-
-	/// Whether the [`Sender`] will coalesce all writes into a single buffer.
-	#[inline]
-	pub fn set_coalesce_writes(&mut self, yes: bool) -> &mut Self {
-		self.set_flag(Self::COALESCE_WRITES, yes);
-		self
-	}
-
-	/// Whether the [`Sender`] will coalesce all writes into a single buffer.
-	#[inline]
-	pub fn with_coalesce_writes(mut self, yes: bool) -> Self {
-		self.set_coalesce_writes(yes);
-		self
-	}
-
-	/// Get the "Keep write allocations" flag.
-	#[inline]
-	#[must_use]
-	pub fn keep_write_allocations(&self) -> bool {
-		self.get_flag(Self::KEEP_WRITE_ALLOCATIONS)
-	}
-
-	/// Set the "Keep write allocations" flag.
-	#[inline]
-	pub fn set_keep_write_allocations(
-		&mut self,
-		yes: bool,
-	) -> &mut Self {
-		self.set_flag(Self::KEEP_WRITE_ALLOCATIONS, yes);
-		self
-	}
-
-	/// Set the "Keep write allocations" flag.
-	#[inline]
-	pub fn with_keep_write_allocations(mut self, yes: bool) -> Self {
-		self.set_keep_write_allocations(yes);
-		self
-	}
-}
-
-impl fmt::Debug for Config {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Config")
-			.field("flush_on_send", &self.flush_on_send())
-			.field("use_header_checksum", &self.use_header_checksum())
-			.field("coalesce_writes", &self.coalesce_writes())
-			.field(
-				"keep_write_allocations",
-				&self.keep_write_allocations(),
-			)
-			.finish()
 	}
 }
 
@@ -733,19 +663,5 @@ where
 			.field("serializer", &self.serializer)
 			.field("config", &self.config)
 			.finish()
-	}
-}
-
-impl<T, W, S> fmt::Debug for Sender<T, W, S>
-where
-	W: fmt::Debug,
-	S: fmt::Debug,
-{
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Sender")
-			.field("writer", self.framed.writer())
-			.field("serializer", &self.serializer)
-			.field("config", &self.config())
-			.finish_non_exhaustive()
 	}
 }

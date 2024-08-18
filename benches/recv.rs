@@ -93,10 +93,8 @@ fn copy_min_len(src: &[u8], dst: &mut [u8]) -> usize {
 
 fn make_receiver<R>(
 	reader: impl IntoRead<R>,
-	mut config: Config,
+	config: Config,
 ) -> Receiver<(), R, FastDeserializer> {
-	config.set_verify_packet_order(false);
-
 	Receiver::builder()
 		.deserializer(FastDeserializer)
 		.reader(reader)
@@ -145,15 +143,6 @@ fn recv_benchmarks() -> Vec<RecvBenchmark> {
 		RecvBenchmark {
 			variant: "default",
 			config: Config::default(),
-		},
-		RecvBenchmark {
-			variant: "prealloc",
-			config: Config::default().with_size_estimate(128),
-		},
-		RecvBenchmark {
-			variant: "no_header_checksum",
-			config: Config::default()
-				.with_verify_header_checksum(false),
 		},
 	]
 	.into()

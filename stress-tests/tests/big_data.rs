@@ -28,9 +28,8 @@ fn make_pair<R, W>(
 		.serializer(Default::default())
 		.build();
 
-	let config = receiver::Config::default()
-		.with_size_estimate(PAYLOAD_SIZE)
-		.with_max_size(PAYLOAD_SIZE);
+	let config =
+		receiver::Config::default().with_max_size(PAYLOAD_SIZE);
 
 	let rx = channels::Receiver::builder()
 		.reader(reader)

@@ -19,19 +19,12 @@ all-features = true
 rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
 
-[dependencies.channels-io]
-version = "=0.2.1"
-path = "../channels-io"
-features = ["alloc"]
-optional = true
-
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [features]
 alloc = []
 std = ["alloc"]
-framed = ["alloc", "dep:channels-io"]
 
 [lints]
 workspace = true

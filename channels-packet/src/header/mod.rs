@@ -27,6 +27,9 @@ pub struct Header {
 
 impl Header {
 	/// TODO: docs
+	pub const MAX_SIZE: usize = 10;
+
+	/// TODO: docs
 	#[inline]
 	pub const fn builder() -> Builder {
 		Builder {

@@ -1,26 +1,25 @@
 [workspace]
 resolver = "2"
 members = [
-	"channels-io",
-	"channels-macros",
-	"channels-packet",
-	"channels-serdes",
-	"channels",
+    "channels-io",
+    "channels-macros",
+    "channels-packet",
+    "channels-serdes",
+    "channels",
 
-	"benches",
-	"examples",
-	"examples/chat-app",
-	"examples/stdio",
-	"stress-tests",
-	"tests-integration",
-	"tools/dissect"
+    "benches",
+    "examples",
+    "examples/chat-app",
+    "examples/stdio",
+    "stress-tests",
+    "tests-integration",
 ]
 default-members = [
-	"channels-io",
-	"channels-macros",
-	"channels-packet",
-	"channels-serdes",
-	"channels",
+    "channels-io",
+    "channels-macros",
+    "channels-packet",
+    "channels-serdes",
+    "channels",
 ]
 
 [workspace.dependencies]
