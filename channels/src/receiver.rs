@@ -21,24 +21,43 @@ use crate::statistics::{StatIO, Statistics};
 #[must_use = "`Config`s don't do anything on their own"]
 pub struct Config {
 	pub(crate) max_size: Option<NonZeroUsize>,
+	pub(crate) flags: u8,
+}
+
+impl Config {
+	const VERIFY_ORDER: u8 = 1 << 0;
+
+	#[inline]
+	const fn get_flag(&self, flag: u8) -> bool {
+		self.flags & flag != 0
+	}
+
+	#[inline]
+	fn set_flag(&mut self, flag: u8, value: bool) {
+		if value {
+			self.flags |= flag;
+		} else {
+			self.flags &= !flag;
+		}
+	}
 }
 
 impl Default for Config {
 	#[inline]
 	fn default() -> Self {
-		Self { max_size: None }
+		Self { max_size: None, flags: Self::VERIFY_ORDER }
 	}
 }
 
 impl Config {
-	/// Get the max size of the [`Receiver`].
+	/// Get the max payload size the [`Receiver`] will accept.
 	#[inline]
 	#[must_use]
 	pub fn max_size(&self) -> usize {
 		self.max_size.map_or(0, NonZeroUsize::get)
 	}
 
-	/// Set the max size of the [`Receiver`].
+	/// Set the max payload size the [`Receiver`] will accept.
 	#[allow(clippy::missing_panics_doc)]
 	#[inline]
 	pub fn set_max_size(&mut self, max_size: usize) -> &mut Self {
@@ -52,10 +71,29 @@ impl Config {
 		self
 	}
 
-	/// Set the max size of the [`Receiver`].
+	/// Set the max payload size the [`Receiver`] will accept.
 	#[inline]
 	pub fn with_max_size(mut self, max_size: usize) -> Self {
 		self.set_max_size(max_size);
+		self
+	}
+
+	/// Check whether the [`Receiver`] will verify the order of received frames.
+	#[inline]
+	#[must_use]
+	pub fn verify_order(&self) -> bool {
+		self.get_flag(Self::VERIFY_ORDER)
+	}
+
+	/// Set whether the [`Receiver`] will verify the order of received frames.
+	pub fn set_verify_order(&mut self, yes: bool) -> &mut Self {
+		self.set_flag(Self::VERIFY_ORDER, yes);
+		self
+	}
+
+	/// Set whether the [`Receiver`] will verify the order of received frames.
+	pub fn with_verify_order(mut self, yes: bool) -> Self {
+		self.set_verify_order(yes);
 		self
 	}
 }
@@ -141,7 +179,9 @@ impl Decoder for FrameDecoder {
 			}
 		}
 
-		if hdr.frame_num != self.seq.peek() {
+		if self.config.verify_order()
+			&& hdr.frame_num != self.seq.peek()
+		{
 			return Err(FrameDecodeError::OutOfOrder);
 		}
 
