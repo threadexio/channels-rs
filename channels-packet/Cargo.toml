@@ -28,8 +28,7 @@ default-features = false
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [features]
-alloc = []
-std = ["alloc"]
+std = []
 
 [lints]
 workspace = true
