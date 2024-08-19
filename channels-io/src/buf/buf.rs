@@ -2,6 +2,7 @@ use core::cmp::min;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+use crate::buf::{Chain, Take};
 use crate::error::{IoError, ReadError};
 use crate::util::copy_slice;
 use crate::{AsyncRead, Read};
@@ -59,6 +60,27 @@ pub trait Buf {
 		Self: Sized,
 	{
 		Reader::new(self)
+	}
+
+	/// Create a [`Chain`] adapter that chains this buffer with `other`.
+	///
+	/// The returned [`Buf`] will behave as a non-contiguous buffer made up of
+	/// the contents of `self` and `other`.
+	fn chain<T: Buf>(self, other: T) -> Chain<Self, T>
+	where
+		Self: Sized,
+	{
+		Chain::new(self, other)
+	}
+
+	/// Create a [`Take`] adapter that takes `n` bytes from this buffer.
+	///
+	/// The returned [`Buf`] will contain only the first `n` bytes of this buffer.
+	fn take(self, n: usize) -> Take<Self>
+	where
+		Self: Sized,
+	{
+		Take::new(self, n)
 	}
 }
 

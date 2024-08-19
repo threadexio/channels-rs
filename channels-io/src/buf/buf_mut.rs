@@ -3,6 +3,7 @@ use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+use crate::buf::{Chain, Limit};
 use crate::error::{IoError, WriteError};
 use crate::util::copy_slice;
 use crate::{AsyncWrite, Write};
@@ -60,6 +61,28 @@ pub trait BufMut {
 		Self: Sized,
 	{
 		Writer::new(self)
+	}
+
+	/// Create a [`Chain`] adapter that chains this buffer with `other`.
+	///
+	/// The returned [`BufMut`] will behave as a non-contiguous buffer made up of
+	/// `self` and `other`.
+	fn chain<T: BufMut>(self, other: T) -> Chain<Self, T>
+	where
+		Self: Sized,
+	{
+		Chain::new(self, other)
+	}
+
+	/// Create a [`Limit`] adapter that limits accesses to the first `n` bytes of
+	/// this buffer.
+	///
+	/// The returned [`BufMut`] will contain only the first `n` bytes of this buffer.
+	fn limit(self, n: usize) -> Limit<Self>
+	where
+		Self: Sized,
+	{
+		Limit::new(self, n)
 	}
 }
 
