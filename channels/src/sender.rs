@@ -222,6 +222,18 @@ impl<T, W, S> Sender<T, W, S> {
 			.build()
 	}
 
+	/// Get a reference to the serializer.
+	#[inline]
+	pub fn serializer(&self) -> &S {
+		&self.serializer
+	}
+
+	/// Get a mutable reference to the serializer.
+	#[inline]
+	pub fn serializer_mut(&mut self) -> &mut S {
+		&mut self.serializer
+	}
+
 	/// Get the config that was given to this [`Sender`].
 	///
 	/// # Example

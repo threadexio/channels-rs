@@ -289,6 +289,18 @@ impl<T, R, D> Receiver<T, R, D> {
 			.build()
 	}
 
+	/// Get a reference to the deserializer.
+	#[inline]
+	pub fn deserializer(&self) -> &D {
+		&self.deserializer
+	}
+
+	/// Get a mutable reference to the deserializer.
+	#[inline]
+	pub fn deserializer_mut(&mut self) -> &mut D {
+		&mut self.deserializer
+	}
+
 	/// Get the config that was given to this [`Receiver`].
 	///
 	/// # Example
