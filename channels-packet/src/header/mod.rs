@@ -163,7 +163,7 @@ impl TryFrom<&[u8]> for Header {
 }
 
 /// TODO: docs
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HeaderBytes {
 	data: [u8; MAX_HEADER_LEN],
 	len: u8,
@@ -223,6 +223,12 @@ impl Deref for HeaderBytes {
 	#[inline]
 	fn deref(&self) -> &Self::Target {
 		self.as_slice()
+	}
+}
+
+impl fmt::Debug for HeaderBytes {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_list().entries(self.as_slice()).finish()
 	}
 }
 

@@ -10,4 +10,5 @@ pub mod num;
 pub mod payload;
 
 pub use self::frame::Frame;
-pub use self::header::{FrameNumSequence, Header};
+pub use self::header::Header;
+pub use self::payload::Payload;

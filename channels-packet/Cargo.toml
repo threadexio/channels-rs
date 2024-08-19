@@ -19,6 +19,11 @@ all-features = true
 rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
 
+[dependencies.channels-io]
+version = "=0.2.1"
+path = "../channels-io"
+default-features = false
+
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
 

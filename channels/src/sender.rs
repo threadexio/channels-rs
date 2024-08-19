@@ -122,13 +122,13 @@ impl Encoder for FrameEncoder {
 
 		let frame_len = usize::checked_add(
 			header.as_ref().len(),
-			payload.as_ref().len(),
+			payload.as_slice().len(),
 		)
 		.ok_or(FrameEncodeError::TooLarge)?;
 
 		buf.reserve(frame_len);
 		buf.extend_from_slice(header.as_ref());
-		buf.extend_from_slice(payload.as_ref());
+		buf.extend_from_slice(payload.as_slice());
 		Ok(())
 	}
 }

@@ -57,6 +57,18 @@ impl<T> Payload<T> {
 	pub fn into_inner(self) -> T {
 		self.0
 	}
+
+	/// TODO: docs
+	#[inline]
+	pub fn as_ref(&self) -> Payload<&T> {
+		Payload(&self.0)
+	}
+
+	/// TODO: docs
+	#[inline]
+	pub fn as_mut(&mut self) -> Payload<&mut T> {
+		Payload(&mut self.0)
+	}
 }
 
 impl<T: AsRef<[u8]>> Payload<T> {
@@ -91,17 +103,7 @@ impl<T: AsRef<[u8]>> AsRef<[u8]> for Payload<T> {
 
 impl<T: AsRef<[u8]>> fmt::Debug for Payload<T> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		struct DebugHex<'a>(&'a [u8]);
-
-		impl fmt::Debug for DebugHex<'_> {
-			fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-				write!(f, "{:02x?}", self.0)
-			}
-		}
-
-		f.debug_tuple("Payload")
-			.field(&DebugHex(self.as_slice()))
-			.finish()
+		f.debug_list().entries(self.as_slice()).finish()
 	}
 }
 
