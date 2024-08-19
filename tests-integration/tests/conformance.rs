@@ -1,11 +1,12 @@
 use channels::{io::Std, Receiver, Sender};
 
+#[allow(clippy::unusual_byte_groupings)]
 const PACKET: &[u8] = &[
-	0xfd, 0x3f, // version
-	0x00, 0x08, // length
-	0x02, 0xb8, // checksum
-	0x00, // flags
-	0x00, // id
+	//66, 0, 189, 255
+	0x42,        // version
+	0b000000_00, // frame_num (6 bits) + len_words (2 bits)
+	0xbd,
+	0xff, // checksum
 ];
 
 #[test]

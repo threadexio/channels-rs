@@ -38,9 +38,15 @@ impl<T> std::error::Error for PayloadError<T> {}
 pub struct Payload<T>(T);
 
 impl<T> Payload<T> {
-	const MAX_LENGTH: usize = max_payload_length();
+	/// The maximum length, in bytes, of any payload.
+	pub const MAX_LENGTH: usize = max_payload_length();
 
 	/// TODO: docs
+	///
+	/// # Safety
+	///
+	/// The caller must ensure that the length of payload is not greater than
+	/// [`Payload::MAX_LENGTH`].
 	#[inline]
 	pub const unsafe fn new_unchecked(payload: T) -> Self {
 		Self(payload)

@@ -77,7 +77,7 @@ impl<T: AsRef<[u8]>> Frame<T> {
 		}
 	}
 
-	/// Encode the frame and return it in a [`Buf`].
+	/// Encode the frame.
 	pub fn encode(self) -> Encoded<T> {
 		Encoded::new(self.header(), self.payload)
 	}
