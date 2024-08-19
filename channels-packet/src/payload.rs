@@ -5,7 +5,7 @@ use core::fmt;
 use crate::num::u48;
 
 /// TODO: docs
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PayloadError<T> {
 	payload: T,
 }
@@ -15,6 +15,12 @@ impl<T> PayloadError<T> {
 	#[inline]
 	pub fn into_payload(self) -> T {
 		self.payload
+	}
+}
+
+impl<T> fmt::Debug for PayloadError<T> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_tuple("PayloadError").finish()
 	}
 }
 
