@@ -12,7 +12,7 @@
 
 ## Fields
 
-### Version
+### version
 
 The version field indicates what version of the protocol the packet is using. Any packets with unsupported protocol version should immediately be discarded. If a packet has a mismatched version number, then one of the following situations have occurred:
 
@@ -22,35 +22,24 @@ The version field indicates what version of the protocol the packet is using. An
 
 In any case, further communication should not be attempted.
 
-This document is the specification of the version `0xfd3f` of the protocol. That is the value the version field must have.
+This document is the specification of the version `0x42` of the protocol. That is the value this field must have.
 
-### Packet Length
+### len_words
 
-This field encodes the length of the entire packet in bytes from the start of the [Version field](#version) to the end of the [Payload](#payload). The value of this field is calculated by summing the length of  the header and the length of the payload. All packets must set this field equal to 8 or more. With 8 being the minimum size of any packet, assuming a zero-size payload.
+This field is a 2 bit unsigned number that encodes the number of 16 bit words the [data_len](###data-len) field spans. Valid values for this field is the entire range of 0 to 3 inclusive.
 
-### Header Checksum
+### frame_num
 
-> TODO: Examine the possibility of introducing Error Correction Codes here instead.
+This field is a wrapping 6 bit unsigned number that identifies the frame. It allows telling when a frame has not be received. For example, if using this protocol on top of UDP and assuming that each UDP packet holds exactly one frame, then it is possible to detect dropped packets and incorrect ordering of packets. The field starts with a value of 0 and for every frame is incremented by 1, wrapping on overflow.
 
-This field is responsible for ensuring that any error in the header is detected. The checksum must be the final modification made to the header before it is sent out and must be calculated while this field is set to 0. The algorithm used for calculating the checksum is the [Internet Checksum](https://en.wikipedia.org/wiki/Internet_checksum) algorithm.
+### checksum
 
-### Flags
+This field is responsible for ensuring that any error in the header is detected. The checksum must be the final modification made to the header before it is sent out and must be calculated while this field is set to 0. The checksum must be calculated from the start of the [version](###version) field to the end of the [data_len](###data-len) field. It does _not_ include the [payload](###payload). The algorithm used for calculating the checksum is the [Internet Checksum](https://en.wikipedia.org/wiki/Internet_checksum) algorithm.
 
-This field is a bit-flag field, ie. it holds flags important for the transmission of the packet. The current flags are:
+### data_len
 
-|     Bit     |          Name           |
-|:-----------:|:-----------------------:|
-| `0... ....` | [More data](#more-data) |
-| `.000 0000` |        Reserved         |
+This field specifies the length of the [payload](###payload) that follows. It is variable sized field that encodes a little endian 48 bit unsigned number. The value is this field is the length of the payload of the frame. The size of the field is given by the value of the [len_words](###len-words) field multiplied by 2. This is because the [len_words](###len-words) field expresses the length in 16 bit words. Being only 2 bits, the value of [len_words](###len-words) has a range of 0 to 3, meaning the [data_len](###data-len) field can be anywhere within 0 to 3 words (0 to 6 bytes). The maximum value this field can encode is `0xffff_ffff_ffff`, when `len_words` is set to 3. The minimum value of this field is 0, when `len_words` is set to 0. The size of this field must always be even. This means that if a frame that contains a payload with a size that can be represented by an odd number of bytes, there must be a padding byte to ensure the even length.
 
-#### More Data
+### payload
 
-If the sender wishes to transmit a payload larger than what the [length field](#packet-length) permits, they can set this flag to indicate to the receiver that they should continue waiting for packets containing the rest of the payload. Upon receiving a packet with this flag set, the receiver should store the payload data from that packet in a buffer and keep listening for incoming packets. Any further packets with this flag set should have their payload data appended to the buffer. The packet containing the final part of the payload must have this flag unset so as to indicate that the payload has been fully transmitted.
-
-### Packet ID
-
-This field is a short-lived identification number for the packet. It is used to ensure the correct ordering of packets and in no way a unique identifier of the packet throughout the entire conversation. Such IDs need not be cryptographically secure. The next ID must be able to be predicted by any party, given that they know the previous ID. Currently the packet ID is simply a wrapping counter that is incremented by one for every packet in the conversation.
-
-### Payload
-
-This is the final and usually the largest part of the packet and it contains the serialized data.
+This is the final and usually the largest part of the packet and contains actual data.
