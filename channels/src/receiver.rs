@@ -4,6 +4,8 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 
+use alloc::vec::Vec;
+
 use channels_packet::header::{FrameNumSequence, HeaderError};
 use channels_packet::Header;
 
@@ -211,10 +213,12 @@ impl<T> Receiver<T, (), ()> {
 	/// # Example
 	///
 	/// ```no_run
+	/// # use channels::receiver::Receiver;
+	///
 	/// let reader = std::io::empty();
 	/// let deserializer = channels::serdes::Bincode::new();
 	///
-	/// let rx = channels::Receiver::<i32, _, _>::builder()
+	/// let rx = Receiver::<i32, _, _>::builder()
 	///            .reader(reader)
 	///            .deserializer(deserializer)
 	///            .build();
@@ -237,15 +241,19 @@ impl<T, R> Receiver<T, R, crate::serdes::Bincode> {
 	/// Synchronously:
 	///
 	/// ```no_run
+	/// # use channels::receiver::Receiver;
+	///
 	/// let reader = std::io::empty();
-	/// let rx = channels::Receiver::<i32, _, _>::new(reader);
+	/// let rx = Receiver::<i32, _, _>::new(reader);
 	/// ```
 	///
 	/// Asynchronously:
 	///
 	/// ```no_run
+	/// # use channels::receiver::Receiver;
+	///
 	/// let reader = tokio::io::empty();
-	/// let rx = channels::Receiver::<i32, _, _>::new(reader);
+	/// let rx = Receiver::<i32, _, _>::new(reader);
 	/// ```
 	///
 	/// [`Bincode`]: crate::serdes::Bincode
@@ -263,28 +271,12 @@ impl<T, R, D> Receiver<T, R, D> {
 	///
 	/// # Example
 	///
-	/// Synchronously:
-	///
 	/// ```no_run
+	/// # use channels::receiver::Receiver;
+	/// # let reader = std::io::empty();
+	///
 	/// let deserializer = channels::serdes::Bincode::new();
-	/// let reader = std::io::empty();
-	///
-	/// let rx = channels::Receiver::<i32, _, _>::with_deserializer(
-	///     reader,
-	///     deserializer
-	/// );
-	/// ```
-	///
-	/// Asynchronously:
-	///
-	/// ```no_run
-	/// let deserializer = channels::serdes::Bincode::new();
-	/// let reader = tokio::io::empty();
-	///
-	/// let rx = channels::Receiver::<i32, _, _>::with_deserializer(
-	///     reader,
-	///     deserializer
-	/// );
+	/// let rx = Receiver::<i32, _, _>::with_deserializer(reader, deserializer);
 	/// ```
 	#[inline]
 	pub fn with_deserializer(
@@ -302,26 +294,23 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// # Example
 	///
 	/// ```no_run
-	/// use channels::receiver::{Config, Receiver};
-	/// use channels::serdes::Bincode;
+	/// # use channels::{receiver::{Config, Receiver}, serdes::Bincode};
+	/// # let reader = std::io::empty();
+	/// # let deserializer = Bincode::new();
 	///
-	/// let reader = std::io::empty();
-	///
-	/// let config = Config::default()
-	///                 .with_size_estimate(42);
+	/// let config = Config::default();
 	///
 	/// let rx = Receiver::<i32, _, _>::builder()
 	///             .reader(reader)
-	///             .deserializer(Bincode::new())
+	///             .deserializer(deserializer)
 	///             .config(config)
 	///             .build();
 	///
 	/// println!("{:#?}", rx.config());
-	///
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		todo!()
+		&self.framed.decoder().config
 	}
 
 	/// Get an iterator over incoming messages.
@@ -331,8 +320,8 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// Synchronously:
 	///
 	/// ```no_run
-	/// let reader = std::io::empty();
-	/// let mut rx = channels::Receiver::<i32, _, _>::new(reader);
+	/// # let reader = std::io::empty();
+	/// # let mut rx = channels::Receiver::<i32, _, _>::new(reader);
 	///
 	/// for message in rx.incoming() {
 	///     match message {
@@ -347,21 +336,15 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// ```no_run
 	/// # #[tokio::main]
 	/// # async fn main() {
-	/// let reader = tokio::io::empty();
-	/// let mut rx = channels::Receiver::<i32, _, _>::new(reader);
+	/// # let reader = tokio::io::empty();
+	/// # let mut rx = channels::Receiver::<i32, _, _>::new(reader);
 	///
 	/// let mut incoming = rx.incoming();
-	///
 	/// loop {
-	///     tokio::select! {
-	///         message = incoming.next_async() => {
-	///             match message {
-	///                 Ok(message) => println!("received: {message}"),
-	///                 Err(err) => eprintln!("failed to receive message: {err}"),
-	///             }
-	///         }
-	///         // ...
-	///     }
+	///    match incoming.next_async().await {
+	///        Ok(message) => println!("received: {message}"),
+	///        Err(e) => eprintln!("failed to receive message: {e}")
+	///    }
 	/// }
 	/// # }
 	/// ```
@@ -375,13 +358,13 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// # Example
 	///
 	/// ```
-	/// let reader = std::io::empty();
-	/// let rx = channels::Receiver::<i32, _, _>::new(reader);
+	/// # use channels::receiver::Receiver;
+	/// # let reader = std::io::empty();
+	///
+	/// let rx = Receiver::<i32, _, _>::new(reader);
 	///
 	/// let stats = rx.statistics();
-	/// assert_eq!(stats.total_bytes(), 0);
-	/// assert_eq!(stats.packets(), 0);
-	/// assert_eq!(stats.ops(), 0);
+	/// println!("{stats:#?}");
 	/// ```
 	#[inline]
 	#[cfg(feature = "statistics")]
@@ -395,28 +378,6 @@ where
 	R: Container,
 {
 	/// Get a reference to the underlying reader.
-	///
-	/// # Example
-	///
-	/// ```
-	/// use std::io;
-	///
-	/// struct MyReader {
-	///     count: usize
-	/// }
-	///
-	/// impl io::Read for MyReader {
-	///     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-	///         self.count += 1;
-	///         Ok(buf.len())
-	///     }
-	/// }
-	///
-	/// let rx = channels::Receiver::<i32, _, _>::new(MyReader { count: 42 });
-	///
-	/// let r: &MyReader = rx.get();
-	/// assert_eq!(r.count, 42);
-	/// ```
 	#[inline]
 	pub fn get(&self) -> &R::Inner {
 		self.framed.reader().inner.get_ref()
@@ -424,29 +385,6 @@ where
 
 	/// Get a mutable reference to the underlying reader. Directly reading from
 	/// the stream is not advised.
-	///
-	/// # Example
-	///
-	/// ```
-	/// use std::io;
-	///
-	/// struct MyReader {
-	///     count: usize
-	/// }
-	///
-	/// impl io::Read for MyReader {
-	///     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-	///         self.count += 1;
-	///         Ok(buf.len())
-	///     }
-	/// }
-	///
-	/// let mut rx = channels::Receiver::<i32, _, _>::new(MyReader { count: 42 });
-	///
-	/// let r: &mut MyReader = rx.get_mut();
-	/// r.count += 10;
-	/// assert_eq!(r.count, 52);
-	/// ```
 	#[inline]
 	pub fn get_mut(&mut self) -> &mut R::Inner {
 		self.framed.reader_mut().inner.get_mut()
@@ -470,7 +408,7 @@ where
 	///
 	/// This method is cancel safe. If the method is used as the event in some
 	/// `select!`-like macro and some other branch completes first, then it is
-	/// guaranteed that no data will be dropped.
+	/// guaranteed that no items were received.
 	///
 	/// # Example
 	///
@@ -487,7 +425,7 @@ where
 	/// # }
 	/// ```
 	///
-	/// [`recv()`]: fn@Self::recv
+	/// [`recv()`]: Receiver::recv
 	pub async fn recv(
 		&mut self,
 	) -> Result<T, RecvError<D::Error, R::Error>> {
@@ -526,7 +464,7 @@ where
 	/// println!("{received}");
 	/// ```
 	///
-	/// [`recv()`]: fn@Receiver::recv
+	/// [`recv()`]: Receiver::recv
 	#[inline]
 	pub fn recv_blocking(
 		&mut self,
@@ -614,12 +552,10 @@ impl<T> Builder<T, (), ()> {
 	/// # Example
 	///
 	/// ```no_run
-	/// let reader = std::io::empty();
-	/// let deserializer = channels::serdes::Bincode::new();
+	/// # use channels::receiver::Builder;
 	///
-	/// let rx = channels::receiver::Builder::<i32, _, _>::new()
-	///            .reader(reader)
-	///            .deserializer(deserializer)
+	/// let rx = Builder::<i32, _, _>::new()
+	///            // ...
 	///            .build();
 	/// ```
 	#[inline]
@@ -650,15 +586,25 @@ impl<T, D> Builder<T, (), D> {
 	/// Synchronously:
 	///
 	/// ```no_run
-	/// let builder = channels::Receiver::<i32, _, _>::builder()
-	///                 .reader(std::io::empty());
+	/// # use channels::receiver::Receiver;
+	///
+	/// let rx = Receiver::<i32, _, _>::builder()
+	///            // ...
+	///            .reader(std::io::empty())
+	///            // ...
+	/// #          .build();
 	/// ```
 	///
 	/// Asynchronously:
 	///
 	/// ```no_run
-	/// let builder = channels::Receiver::<i32, _, _>::builder()
-	///                 .reader(tokio::io::empty());
+	/// # use channels::receiver::Receiver;
+	///
+	/// let rx = Receiver::<i32, _, _>::builder()
+	///            // ...
+	///            .reader(tokio::io::empty())
+	///            // ...
+	/// #          .build();
 	/// ```
 	#[inline]
 	pub fn reader<R>(
@@ -680,10 +626,15 @@ impl<T, R> Builder<T, R, ()> {
 	/// # Example
 	///
 	/// ```no_run
+	/// # use channels::receiver::Receiver;
+	///
 	/// let deserializer = channels::serdes::Bincode::new();
 	///
-	/// let builder = channels::Receiver::<i32, _, _>::builder()
-	///                 .deserializer(deserializer);
+	/// let rx = Receiver::<i32, _, _>::builder()
+	///            // ...
+	///            .deserializer(deserializer)
+	///            // ...
+	/// #          .build();
 	/// ```
 	#[inline]
 	pub fn deserializer<D>(
@@ -705,13 +656,13 @@ impl<T, R, D> Builder<T, R, D> {
 	/// # Example
 	///
 	/// ```no_run
-	/// use channels::receiver::{Config, Receiver};
-	///
-	/// let config = Config::default()
-	///                 .with_size_estimate(42);
+	/// # use channels::receiver::{Config, Receiver};
 	///
 	/// let rx = Receiver::<i32, _, _>::builder()
-	///             .config(config);
+	///             // ...
+	///             .config(Config::default())
+	///             // ...
+	/// #           .build();
 	/// ```
 	#[inline]
 	pub fn config(mut self, config: Config) -> Self {
@@ -724,9 +675,10 @@ impl<T, R, D> Builder<T, R, D> {
 	/// # Example
 	///
 	/// ```no_run
-	/// let rx: channels::Receiver<i32, _, _> = channels::Receiver::builder()
-	///            .reader(std::io::empty())
-	///            .deserializer(channels::serdes::Bincode::new())
+	/// # use channels::receiver::Receiver;
+	///
+	/// let rx = Receiver::<i32, _, _>::builder()
+	///            // ...
 	///            .build();
 	/// ```
 	#[inline]

@@ -58,9 +58,9 @@ impl<T: AsRef<[u8]>> Frame<T> {
 	/// # Example
 	///
 	/// ```
-	/// # use channels_packet::{Frame, Header, num::{u6, u48}};
+	/// # use channels_packet::{Frame, Payload, Header, num::{u6, u48}};
 	/// let frame = Frame {
-	///     payload: [1u8, 2, 3, 4],
+	///     payload: Payload::new([1, 2, 3, 4]).unwrap(),
 	///     frame_num: u6::new_truncate(13)
 	/// };
 	///
@@ -159,10 +159,12 @@ impl<T: AsRef<[u8]>> fmt::Debug for Frame<T> {
 /// # Example
 ///
 /// ```no_run
-/// # use channels_packet::{frame::{Builder, Frame}, num::u6};
+/// # use channels_packet::{frame::{Builder, Frame}, Payload, num::u6};
+/// let payload = Payload::new([1u8, 1, 1, 1]).unwrap();
+///
 /// let mut frame = Builder::new()
 ///     .frame_num(u6::new_truncate(0))
-///     .payload([1, 1, 1, 1]);
+///     .payload(payload);
 /// ```
 #[allow(missing_debug_implementations)]
 #[must_use = "builders don't do anything unless you build them"]
@@ -183,12 +185,12 @@ impl<T> Builder<T> {
 	/// # Example
 	///
 	/// ```no_run
-	/// # use channels_packet::{frame::Builder, num::u6};
+	/// # use channels_packet::{frame::Builder, Payload, num::u6};
 	/// let frame = Builder::new()
 	///     // ...
 	///     .frame_num(u6::new_truncate(23))
 	///     // ...
-	/// #   .payload(());
+	/// #   .payload(Payload::new([]).unwrap());
 	/// ```
 	#[inline]
 	pub const fn frame_num(mut self, frame_num: u6) -> Self {
@@ -203,14 +205,14 @@ impl<T> Builder<T> {
 	/// # Example
 	///
 	/// ```no_run
-	/// # use channels_packet::{frame::Builder, header::FrameNumSequence};
+	/// # use channels_packet::{frame::Builder, Payload, header::FrameNumSequence};
 	/// let mut seq = FrameNumSequence::new();
 	///
 	/// let frame = Builder::new()
 	///     // ...
 	///     .frame_num_from_seq(&mut seq)
 	///     // ...
-	/// #   .payload(());
+	/// #   .payload(Payload::new([]).unwrap());
 	/// ```
 	#[inline]
 	pub fn frame_num_from_seq(
@@ -225,14 +227,14 @@ impl<T> Builder<T> {
 	/// # Example
 	///
 	/// ```
-	/// # use channels_packet::frame::Builder;
+	/// # use channels_packet::{frame::Builder, Payload};
 	/// let buf: [u8; 6] = [1, 2, 3, 4, 5, 6];
 	///
 	/// let frame = Builder::new()
 	///     // ...
-	///     .payload(buf);
+	///     .payload(Payload::new(buf).unwrap());
 	///
-	/// assert_eq!(frame.payload, [1, 2, 3, 4, 5, 6]);
+	/// assert_eq!(frame.payload.as_slice(), &[1, 2, 3, 4, 5, 6]);
 	/// ```
 	#[inline]
 	pub const fn payload(self, payload: Payload<T>) -> Frame<T> {

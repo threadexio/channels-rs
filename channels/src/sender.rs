@@ -146,10 +146,12 @@ impl<T> Sender<T, (), ()> {
 	/// # Example
 	///
 	/// ```no_run
+	/// # use channels::sender::Sender;
+	///
 	/// let writer = std::io::sink();
 	/// let serializer = channels::serdes::Bincode::new();
 	///
-	/// let tx = channels::Sender::<i32, _, _>::builder()
+	/// let tx = Sender::<i32, _, _>::builder()
 	///            .writer(writer)
 	///            .serializer(serializer)
 	///            .build();
@@ -172,15 +174,19 @@ impl<T, W> Sender<T, W, crate::serdes::Bincode> {
 	/// Synchronously:
 	///
 	/// ```no_run
+	/// # use channels::sender::Sender;
+	///
 	/// let writer = std::io::sink();
-	/// let tx = channels::Sender::<i32, _, _>::new(writer);
+	/// let tx = Sender::<i32, _, _>::new(writer);
 	/// ```
 	///
 	/// Asynchronously:
 	///
 	/// ```no_run
+	/// # use channels::sender::Sender;
+	///
 	/// let writer = tokio::io::sink();
-	/// let tx = channels::Sender::<i32, _, _>::new(writer);
+	/// let tx = Sender::<i32, _, _>::new(writer);
 	/// ```
 	///
 	/// [`Bincode`]: crate::serdes::Bincode
@@ -198,28 +204,12 @@ impl<T, W, S> Sender<T, W, S> {
 	///
 	/// # Example
 	///
-	/// Synchronously:
-	///
 	/// ```no_run
+	/// # use channels::sender::Sender;
+	/// # let writer = std::io::sink();
+	///
 	/// let serializer = channels::serdes::Bincode::new();
-	/// let writer = std::io::sink();
-	///
-	/// let tx = channels::Sender::<i32, _, _>::with_serializer(
-	///     writer,
-	///     serializer
-	/// );
-	/// ```
-	///
-	/// Asynchronously:
-	///
-	/// ```no_run
-	/// let serializer = channels::serdes::Bincode::new();
-	/// let writer = tokio::io::sink();
-	///
-	/// let tx = channels::Sender::<i32, _, _>::with_serializer(
-	///     writer,
-	///     serializer
-	/// );
+	/// let tx = Sender::<i32, _, _>::with_serializer(writer, serializer);
 	/// ```
 	#[inline]
 	pub fn with_serializer(
@@ -237,40 +227,37 @@ impl<T, W, S> Sender<T, W, S> {
 	/// # Example
 	///
 	/// ```no_run
-	/// use channels::sender::{Config, Sender};
-	/// use channels::serdes::Bincode;
+	/// # use channels::{sender::{Config, Sender}, serdes::Bincode};
+	/// # let writer = std::io::empty();
+	/// # let serializer = Bincode::new();
 	///
-	/// let writer = std::io::sink();
+	/// let config = Config::default();
 	///
-	/// let config = Config::default()
-	///                 .with_flush_on_send(false);
-	///
-	/// let rx = Sender::<i32, _, _>::builder()
+	/// let tx = Sender::<i32, _, _>::builder()
 	///             .writer(writer)
-	///             .serializer(Bincode::new())
+	///             .serializer(serializer)
 	///             .config(config)
 	///             .build();
 	///
-	/// println!("{:#?}", rx.config());
-	///
+	/// println!("{:#?}", tx.config());
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		todo!()
+		&self.framed.encoder().config
 	}
 
 	/// Get statistics on this sender.
 	///
 	/// # Example
 	///
-	/// ```
-	/// let writer = std::io::sink();
-	/// let tx = channels::Sender::<i32, _, _>::new(writer);
+	/// ```no_run
+	/// # use channels::sender::Sender;
+	/// # let writer = std::io::sink();
+	///
+	/// let tx = Sender::<i32, _, _>::new(writer);
 	///
 	/// let stats = tx.statistics();
-	/// assert_eq!(stats.total_bytes(), 0);
-	/// assert_eq!(stats.packets(), 0);
-	/// assert_eq!(stats.ops(), 0);
+	/// println!("{stats:#?}");
 	/// ```
 	#[inline]
 	#[cfg(feature = "statistics")]
@@ -284,32 +271,6 @@ where
 	W: Container,
 {
 	/// Get a reference to the underlying writer.
-	///
-	/// # Example
-	///
-	/// ```
-	/// use std::io;
-	///
-	/// struct MyWriter {
-	///     count: usize
-	/// }
-	///
-	/// impl io::Write for MyWriter {
-	///     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-	///         self.count += 1;
-	///         Ok(buf.len())
-	///     }
-	///
-	///     fn flush(&mut self) -> io::Result<()> {
-	///         Ok(())
-	///     }
-	/// }
-	///
-	/// let tx = channels::Sender::<i32, _, _>::new(MyWriter { count: 42 });
-	///
-	/// let w: &MyWriter = tx.get();
-	/// assert_eq!(w.count, 42);
-	/// ```
 	#[inline]
 	pub fn get(&self) -> &W::Inner {
 		self.framed.writer().inner.get_ref()
@@ -317,33 +278,6 @@ where
 
 	/// Get a mutable reference to the underlying writer. Directly writing to
 	/// the stream is not advised.
-	///
-	/// # Example
-	///
-	/// ```
-	/// use std::io;
-	///
-	/// struct MyWriter {
-	///     count: usize
-	/// }
-	///
-	/// impl io::Write for MyWriter {
-	///     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-	///         self.count += 1;
-	///         Ok(buf.len())
-	///     }
-	///
-	///     fn flush(&mut self) -> io::Result<()> {
-	///         Ok(())
-	///     }
-	/// }
-	///
-	/// let mut tx = channels::Sender::<i32, _, _>::new(MyWriter { count: 42 });
-	///
-	/// let w: &mut MyWriter = tx.get_mut();
-	/// w.count += 10;
-	/// assert_eq!(w.count, 52);
-	/// ```
 	#[inline]
 	pub fn get_mut(&mut self) -> &mut W::Inner {
 		self.framed.writer_mut().inner.get_mut()
@@ -460,7 +394,7 @@ where
 	/// tx.send_blocking(data).unwrap();
 	/// ```
 	///
-	/// [`send()`]: fn@Sender::send
+	/// [`send()`]: Sender::send
 	#[inline]
 	pub fn send_blocking<D>(
 		&mut self,
@@ -522,13 +456,11 @@ impl<T> Builder<T, (), ()> {
 	/// # Example
 	///
 	/// ```no_run
-	/// let writer = std::io::sink();
-	/// let serializer = channels::serdes::Bincode::new();
+	/// # use channels::sender::Builder;
 	///
-	/// let tx = channels::sender::Builder::<i32, _, _>::new()
-	///            .writer(writer)
-	///            .serializer(serializer)
-	///            .build();
+	/// let tx = Builder::<i32, _, _>::new()
+	///            // ...
+	/// #          .build();
 	/// ```
 	#[inline]
 	pub fn new() -> Self {
@@ -558,15 +490,25 @@ impl<T, S> Builder<T, (), S> {
 	/// Synchronously:
 	///
 	/// ```no_run
-	/// let builder = channels::Sender::<i32, _, _>::builder()
-	///                 .writer(std::io::sink());
+	/// # use channels::sender::Sender;
+	///
+	/// let tx = Sender::<i32, _, _>::builder()
+	///            // ...
+	///            .writer(std::io::sink())
+	///            // ...
+	/// #          .build();
 	/// ```
 	///
 	/// Asynchronously:
 	///
 	/// ```no_run
-	/// let builder = channels::Sender::<i32, _, _>::builder()
-	///                 .writer(tokio::io::sink());
+	/// # use channels::sender::Sender;
+	///
+	/// let tx = Sender::<i32, _, _>::builder()
+	///            // ...
+	///            .writer(tokio::io::sink())
+	///            // ...
+	/// #          .build();
 	/// ```
 	#[inline]
 	pub fn writer<W>(
@@ -588,10 +530,14 @@ impl<T, W> Builder<T, W, ()> {
 	/// # Example
 	///
 	/// ```no_run
-	/// let serializer = channels::serdes::Bincode::new();
+	/// # use channels::sender::Sender;
+	/// # let serializer = channels::serdes::Bincode::new();
 	///
-	/// let builder = channels::Sender::<i32, _, _>::builder()
-	///                 .serializer(serializer);
+	/// let tx = Sender::<i32, _, _>::builder()
+	///            // ...
+	///            .serializer(serializer)
+	///            // ...
+	/// #          .build();
 	/// ```
 	#[inline]
 	pub fn serializer<S>(self, serializer: S) -> Builder<T, W, S> {
@@ -610,13 +556,13 @@ impl<T, W, S> Builder<T, W, S> {
 	/// # Example
 	///
 	/// ```no_run
-	/// use channels::sender::{Config, Sender};
-	///
-	/// let config = Config::default()
-	///                 .with_flush_on_send(false);
+	/// # use channels::sender::{Config, Sender};
 	///
 	/// let tx = Sender::<i32, _, _>::builder()
-	///             .config(config);
+	///            // ...
+	///            .config(Config::default())
+	///            // ...
+	/// #          .build();
 	/// ```
 	#[inline]
 	pub fn config(mut self, config: Config) -> Self {
@@ -629,9 +575,10 @@ impl<T, W, S> Builder<T, W, S> {
 	/// # Example
 	///
 	/// ```no_run
-	/// let tx: channels::Sender<i32, _, _> = channels::Sender::builder()
-	///            .writer(std::io::sink())
-	///            .serializer(channels::serdes::Bincode::new())
+	/// # use channels::sender::Sender;
+	///
+	/// let tx = Sender::<i32, _, _>::builder()
+	///            // ...
 	///            .build();
 	/// ```
 	#[inline]

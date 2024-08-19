@@ -8,6 +8,8 @@ use channels_io::buf::Buf;
 /// An encoded [`Frame`].
 ///
 /// This struct is a [`Buf`] that contains the encoded frame.
+///
+/// [`Frame`]: crate::frame::Frame
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Encoded<T: AsRef<[u8]>> {
 	header: HeaderBytes,
