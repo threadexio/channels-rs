@@ -12,5 +12,5 @@ pub trait Decoder {
 	fn decode(
 		&mut self,
 		buf: &mut Vec<u8>,
-	) -> Option<Result<Self::Output, Self::Error>>;
+	) -> Result<Option<Self::Output>, Self::Error>;
 }

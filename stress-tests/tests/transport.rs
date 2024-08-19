@@ -81,7 +81,7 @@ mod sync_tests {
 			"{}",
 			TestResults {
 				duration: server.0,
-				stats: server.1 .0.statistics()
+				stats: server.1 .1.statistics()
 			}
 		);
 	}

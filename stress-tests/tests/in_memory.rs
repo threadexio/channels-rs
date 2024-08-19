@@ -22,6 +22,6 @@ fn test_in_memory() {
 		}
 	});
 
-	let stats = TestResults { duration, stats: tx.statistics() };
+	let stats = TestResults { duration, stats: rx.statistics() };
 	eprintln!("{stats}\n");
 }

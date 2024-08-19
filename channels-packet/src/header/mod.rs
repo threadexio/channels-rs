@@ -13,9 +13,6 @@ mod seq;
 pub use self::checksum::Checksum;
 pub use self::seq::FrameNumSequence;
 
-const VERSION: u8 = 0x42;
-const MAX_HEADER_LEN: usize = 10;
-
 /// TODO: docs
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Header {
@@ -26,6 +23,8 @@ pub struct Header {
 }
 
 impl Header {
+	const VERSION: u8 = 0x42;
+
 	/// TODO: docs
 	pub const MAX_SIZE: usize = 10;
 
@@ -42,19 +41,73 @@ impl Header {
 	#[inline]
 	#[must_use]
 	pub fn to_bytes(self) -> HeaderBytes {
-		HeaderBytes::from(self)
+		HeaderBytes::from_header(self)
 	}
 
 	/// TODO: docs
 	#[inline]
 	#[must_use]
 	pub fn length(&self) -> usize {
-		4_usize.saturating_add(
-			(words_needed(self.data_len).get() * 2) as usize,
-		)
+		4 + (words_needed(self.data_len).get() * 2) as usize
 	}
 }
 
+/// TODO: docs
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HeaderError {
+	/// TODO: docs
+	InvalidChecksum,
+	/// TODO: docs
+	VersionMismatch,
+}
+
+impl fmt::Display for HeaderError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match *self {
+			Self::InvalidChecksum => f.write_str("invalid checksum"),
+			Self::VersionMismatch => f.write_str("version mismatch"),
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for HeaderError {}
+
+impl Header {
+	/// TODO: docs
+	#[must_use = "unused parse result"]
+	pub fn try_parse(
+		bytes: &[u8],
+	) -> Result<Option<Self>, HeaderError> {
+		if bytes.len() < 4 {
+			return Ok(None);
+		}
+
+		let version = bytes[0];
+		if version != Self::VERSION {
+			return Err(HeaderError::VersionMismatch);
+		}
+
+		let octet1 = bytes[1];
+		let frame_num = u6::new_truncate(octet1 >> 2);
+		let len_words = u2::new_truncate(octet1);
+
+		let len_bytes = (len_words.get() * 2) as usize;
+		let header_len = 4 + len_bytes;
+
+		if bytes.len() < header_len {
+			return Ok(None);
+		}
+
+		if Checksum::checksum(&bytes[..header_len]) != 0 {
+			return Err(HeaderError::InvalidChecksum);
+		}
+
+		let data_len = read_u48_from_slice(&bytes[4..4 + len_bytes]);
+
+		Ok(Some(Self { frame_num, data_len }))
+	}
+}
 /// TODO: docs
 #[allow(missing_debug_implementations)]
 #[must_use = "builders don't do anything unless you build them"]
@@ -105,80 +158,22 @@ impl Builder {
 }
 
 /// TODO: docs
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum HeaderError {
-	/// TODO: docs
-	InvalidChecksum,
-	/// TODO: docs
-	NotEnough,
-	/// TODO: docs
-	VersionMismatch,
-}
-
-impl fmt::Display for HeaderError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match *self {
-			Self::InvalidChecksum => f.write_str("invalid checksum"),
-			Self::NotEnough => f.write_str("not enough data"),
-			Self::VersionMismatch => f.write_str("version mismatch"),
-		}
-	}
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for HeaderError {}
-
-impl TryFrom<&[u8]> for Header {
-	type Error = HeaderError;
-
-	fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-		if bytes.len() < 4 {
-			return Err(HeaderError::NotEnough);
-		}
-
-		let version = bytes[0];
-		if version != VERSION {
-			return Err(HeaderError::VersionMismatch);
-		}
-
-		let octet1 = bytes[1];
-		let frame_num = u6::new_truncate(octet1 >> 2);
-		let len_words = u2::new_truncate(octet1);
-
-		let len_bytes = (len_words.get() * 2) as usize;
-		let header_len = 4 + len_bytes;
-
-		if bytes.len() < header_len {
-			return Err(HeaderError::NotEnough);
-		}
-
-		if Checksum::checksum(&bytes[..header_len]) != 0 {
-			return Err(HeaderError::InvalidChecksum);
-		}
-
-		let data_len = read_u48_from_slice(&bytes[4..4 + len_bytes]);
-
-		Ok(Self { frame_num, data_len })
-	}
-}
-
-/// TODO: docs
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HeaderBytes {
-	data: [u8; MAX_HEADER_LEN],
+	data: [u8; Header::MAX_SIZE],
 	len: u8,
 }
 
-impl From<Header> for HeaderBytes {
+impl HeaderBytes {
 	#[allow(clippy::cast_possible_truncation)]
-	fn from(hdr: Header) -> Self {
-		let mut data = [0u8; MAX_HEADER_LEN];
+	fn from_header(hdr: Header) -> Self {
+		let mut data = [0u8; Header::MAX_SIZE];
 
 		let len_words = words_needed(hdr.data_len);
 		let len_bytes = (len_words.get() * 2) as usize;
 		let header_len = 4 + len_bytes;
 
-		data[0] = VERSION;
+		data[0] = Header::VERSION;
 		data[1] = (hdr.frame_num.get() << 2) | len_words.get();
 
 		write_u48_to_slice(hdr.data_len, &mut data[4..10]);
@@ -342,7 +337,7 @@ mod tests {
                 #[test]
                 fn $test_decode() {
                     let Vector { header, bytes } = TEST_VECTORS[$test_vector_idx];
-                    let x = Header::try_from(bytes).unwrap();
+                    let x = Header::try_parse(bytes).unwrap().unwrap();
                     assert_eq!(header, x);
                 }
             )*
@@ -363,7 +358,7 @@ mod tests {
 	fn test_header_decode_invalid_version() {
 		let bytes: &[u8] = &[0x43, 0b000000_00, 0x00, 0x00];
 		assert_eq!(
-			Header::try_from(bytes),
+			Header::try_parse(bytes),
 			Err(HeaderError::VersionMismatch)
 		);
 	}
@@ -373,7 +368,7 @@ mod tests {
 		let bytes: &[u8] =
 			&[0x42, 0b000100_01, 0xCC, 0xCC, 0x23, 0x00];
 		assert_eq!(
-			Header::try_from(bytes),
+			Header::try_parse(bytes),
 			Err(HeaderError::InvalidChecksum)
 		);
 	}
@@ -401,11 +396,7 @@ mod tests {
 		];
 
 		HEADERS.iter().copied().for_each(|bytes| {
-			assert_eq!(
-				Header::try_from(bytes),
-				Err(HeaderError::NotEnough),
-				"fail"
-			);
+			assert_eq!(Header::try_parse(bytes), Ok(None), "fail");
 		});
 	}
 }

@@ -75,6 +75,18 @@ enum FrameDecodeError {
 	VersionMismatch,
 }
 
+impl From<HeaderError> for FrameDecodeError {
+	fn from(err: HeaderError) -> Self {
+		use FrameDecodeError as B;
+		use HeaderError as A;
+
+		match err {
+			A::InvalidChecksum => B::InvalidChecksum,
+			A::VersionMismatch => B::VersionMismatch,
+		}
+	}
+}
+
 impl<Des, Io> From<FramedReadError<FrameDecodeError, Io>>
 	for RecvError<Des, Io>
 {
@@ -105,54 +117,44 @@ impl Decoder for FrameDecoder {
 	fn decode(
 		&mut self,
 		buf: &mut Vec<u8>,
-	) -> Option<Result<Self::Output, Self::Error>> {
-		let hdr = match Header::try_from(buf.as_slice()) {
-			Ok(x) => x,
-			Err(HeaderError::NotEnough) => {
-				buf.reserve(Header::MAX_SIZE - buf.len());
-				return None;
-			},
-			Err(HeaderError::InvalidChecksum) => {
-				return Some(Err(FrameDecodeError::InvalidChecksum))
-			},
-			Err(HeaderError::VersionMismatch) => {
-				return Some(Err(FrameDecodeError::VersionMismatch))
-			},
+	) -> Result<Option<Self::Output>, Self::Error> {
+		let Some(hdr) = Header::try_parse(buf.as_slice())? else {
+			buf.reserve(Header::MAX_SIZE - buf.len());
+			return Ok(None);
 		};
 
-		let payload_len: usize = match hdr.data_len.get().try_into() {
-			Ok(x) => x,
-			Err(_) => return Some(Err(FrameDecodeError::TooLarge)),
-		};
+		let hdr_len = hdr.length();
+
+		let payload_len: usize = hdr
+			.data_len
+			.get()
+			.try_into()
+			.map_err(|_| FrameDecodeError::TooLarge)?;
+
+		let frame_len = hdr_len
+			.checked_add(payload_len)
+			.ok_or(FrameDecodeError::TooLarge)?;
 
 		if let Some(max_size) = self.config.max_size {
 			if payload_len > max_size.get() {
-				return Some(Err(FrameDecodeError::TooLarge));
+				return Err(FrameDecodeError::TooLarge);
 			}
 		}
 
 		if hdr.frame_num != self.seq.peek() {
-			return Some(Err(FrameDecodeError::OutOfOrder));
+			return Err(FrameDecodeError::OutOfOrder);
 		}
-
-		let hdr_len = hdr.length();
-
-		let Some(frame_len) =
-			usize::checked_add(hdr_len, payload_len)
-		else {
-			return Some(Err(FrameDecodeError::TooLarge));
-		};
 
 		if buf.len() < frame_len {
 			buf.reserve(frame_len - buf.len());
-			return None;
+			return Ok(None);
 		}
 
 		let payload = buf[hdr_len..frame_len].to_vec();
 
 		let _ = self.seq.advance();
 		buf.drain(..frame_len);
-		Some(Ok(payload))
+		Ok(Some(payload))
 	}
 }
 

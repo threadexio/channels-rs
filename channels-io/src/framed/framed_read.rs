@@ -164,13 +164,8 @@ where
 
 		loop {
 			match this.decoder.decode(this.buf) {
-				Some(Ok(x)) => return Poll::Ready(Ok(x)),
-				Some(Err(e)) => {
-					return Poll::Ready(Err(FramedReadError::Decode(
-						e,
-					)))
-				},
-				None => {
+				Ok(Some(x)) => return Poll::Ready(Ok(x)),
+				Ok(None) => {
 					if this.buf.spare_capacity_mut().is_empty() {
 						this.buf.reserve(1024);
 					}
@@ -181,6 +176,11 @@ where
 						&mut read_buf
 					))
 					.map_err(FramedReadError::Io)?;
+				},
+				Err(e) => {
+					return Poll::Ready(Err(FramedReadError::Decode(
+						e,
+					)))
 				},
 			}
 		}
@@ -272,12 +272,16 @@ mod tests {
 		fn decode(
 			&mut self,
 			buf: &mut Vec<u8>,
-		) -> Option<Result<Self::Output, Self::Error>> {
-			let x = buf.get(..4)?.try_into().expect("");
+		) -> Result<Option<Self::Output>, Self::Error> {
+			let x = match buf.get(..4) {
+				Some(x) => x.try_into().expect(""),
+				None => return Ok(None),
+			};
+
 			let x = i32::from_be_bytes(x);
 
 			buf.drain(..4);
-			Some(Ok(x))
+			Ok(Some(x))
 		}
 	}
 
