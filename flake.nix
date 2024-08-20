@@ -9,11 +9,24 @@
       url = "github:edolstra/flake-compat";
       flake = false;
     };
+
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { nixpkgs, flake-utils, ... }:
+  outputs = { nixpkgs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = import nixpkgs { inherit system; }; in {
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
+        };
+
+        rustVersion = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+      in
+      {
         formatter = pkgs.nixpkgs-fmt;
 
         devShells = rec {
@@ -21,8 +34,8 @@
           # $ nix develop
           dev = pkgs.mkShell {
             packages = with pkgs; [
-              cargo
-              rustc
+              rustVersion
+              just
 
               gdb
               lldb
@@ -37,7 +50,7 @@
 
               python3 -m venv .python
               source .python/bin/activate
-              python -m pip install -r tools/requirements.txt
+              python -m pip install -r bin/requirements.txt
             '';
           };
 
