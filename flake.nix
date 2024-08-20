@@ -41,6 +41,7 @@
               lldb
               valgrind
               linuxPackages.perf
+              cargo-flamegraph
 
               python311Packages.virtualenv
             ];
