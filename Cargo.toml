@@ -13,6 +13,7 @@ members = [
     "examples/stdio",
     "stress-tests",
     "tests-integration",
+    "perf",
 ]
 default-members = [
     "channels-io",
@@ -75,3 +76,11 @@ debug = 0
 [profile.release]
 incremental = true
 debug = 0
+
+[profile.perf]
+inherits = "release"
+incremental = false
+debug = true
+opt-level = 3
+lto = "fat"
+codegen-units = 1

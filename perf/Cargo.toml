@@ -1,0 +1,19 @@
+[package]
+name = "perf"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "recv"
+path = "src/bin/recv.rs"
+
+[[bin]]
+name = "send"
+path = "src/bin/send.rs"
+
+[dependencies]
+channels = { workspace = true }
