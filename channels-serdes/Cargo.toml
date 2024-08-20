@@ -32,11 +32,11 @@ hmac = ["dep:ring"]
 json = ["dep:serde", "dep:serde_json"]
 
 [dependencies]
-bincode = { version = "1.3", optional = true }
-borsh = { version = "1.3", optional = true }
+bincode = { version = "1", optional = true }
+borsh = { version = "1", optional = true }
 ciborium = { version = "0.2", optional = true }
-crc = { version = "3.0", optional = true }
-flate2 = { version = "1.0", optional = true }
+crc = { version = "3", optional = true }
+flate2 = { version = "1", optional = true }
 ring = { version = "0.17", default-features = false, optional = true }
 serde = { version = "1.0", default-features = false, optional = true }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
