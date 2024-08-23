@@ -76,6 +76,10 @@ impl std::error::Error for HeaderError {}
 impl Header {
 	/// TODO: docs
 	#[must_use = "unused parse result"]
+	#[allow(
+		clippy::missing_panics_doc,
+		clippy::cast_possible_truncation
+	)]
 	pub fn try_parse(
 		bytes: &[u8],
 	) -> Result<Option<Self>, HeaderError> {
@@ -83,16 +87,21 @@ impl Header {
 			return Ok(None);
 		}
 
-		let version = bytes[0];
+		let fixed = u32::from_le_bytes(
+			bytes[..4]
+				.try_into()
+				.expect("cast slice to array failed"),
+		);
+
+		let version = fixed as u8;
+		let len_words = u2::new_truncate((fixed >> 8) as u8);
+		let frame_num = u6::new_truncate((fixed >> 10) as u8);
+
 		if version != Self::VERSION {
 			return Err(HeaderError::VersionMismatch);
 		}
 
-		let octet1 = bytes[1];
-		let frame_num = u6::new_truncate(octet1 >> 2);
-		let len_words = u2::new_truncate(octet1);
-
-		let len_bytes = (len_words.get() * 2) as usize;
+		let len_bytes = (len_words.get() << 1) as usize;
 		let header_len = 4 + len_bytes;
 
 		if bytes.len() < header_len {
@@ -228,15 +237,18 @@ impl fmt::Debug for HeaderBytes {
 }
 
 /// Read a variable sized `u48` value from `bytes` in little-endian order.
+#[allow(clippy::cast_lossless)]
 fn read_u48_from_slice(bytes: &[u8]) -> u48 {
 	assert!(
 		bytes.len() <= 6,
 		"data_len must not be larger than 6 bytes"
 	);
 
-	let mut x = [0u8; 8];
-	x[..bytes.len()].copy_from_slice(bytes);
-	let x = u64::from_le_bytes(x);
+	let x = bytes
+		.iter()
+		.rev()
+		.copied()
+		.fold(0, |acc, x| (acc << 8) | (x as u64));
 
 	u48::new(x).expect("data_len should fit inside a u48")
 }
