@@ -48,8 +48,10 @@ fn main() {
 			.config(Config::default().with_verify_order(false))
 			.build();
 
-	perf::run_for_default_duration(|| {
+	let r = perf::run_for_default_duration(|| {
 		#[allow(clippy::unit_arg)]
 		black_box(rx.recv_blocking().unwrap());
 	});
+
+	eprintln!("{r}");
 }

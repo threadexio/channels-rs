@@ -22,8 +22,10 @@ fn main() {
 		.config(Config::default())
 		.build();
 
-	perf::run_for_default_duration(|| {
+	let r = perf::run_for_default_duration(|| {
 		#[allow(clippy::unit_arg)]
 		black_box(tx.send_blocking(black_box(())).unwrap());
 	});
+
+	eprintln!("{r}");
 }

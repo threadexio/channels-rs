@@ -261,16 +261,10 @@ fn write_u48_to_slice(x: u48, out: &mut [u8]) {
 	out[..6].copy_from_slice(&x[..6]);
 }
 
+#[allow(clippy::cast_possible_truncation)]
 const fn words_needed(len: u48) -> u2 {
-	let mut len = len.get();
-	let mut x = 0;
-
-	while len != 0 {
-		x += 1;
-		len >>= 16;
-	}
-
-	u2::new_truncate(x)
+	let leading_words = len.get().leading_zeros() >> 4;
+	u2::new_truncate((4 - leading_words) as u8)
 }
 
 #[cfg(test)]
