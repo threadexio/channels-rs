@@ -10,8 +10,8 @@ use channels_packet::frame::Frame;
 use channels_packet::header::FrameNumSequence;
 use channels_packet::payload::Payload;
 
-use crate::error::SendError;
-use crate::io::framed::{Encoder, FramedWrite, FramedWriteError};
+use crate::error::{EncodeError, SendError};
+use crate::io::framed::{Encoder, FramedWrite};
 use crate::io::sink::{AsyncSink, Sink};
 use crate::io::{
 	AsyncWrite, AsyncWriteExt, Container, IntoWrite, Write, WriteExt,
@@ -80,41 +80,39 @@ impl fmt::Debug for Config {
 	}
 }
 
-enum FrameEncodeError {
-	TooLarge,
-}
-
-impl<Ser, Io> From<FramedWriteError<FrameEncodeError, Io>>
-	for SendError<Ser, Io>
-{
-	fn from(value: FramedWriteError<FrameEncodeError, Io>) -> Self {
-		use FrameEncodeError as C;
-		use FramedWriteError as A;
-		use SendError as B;
-
-		match value {
-			A::Encode(C::TooLarge) => B::TooLarge,
-			A::Io(e) => B::Io(e),
-		}
-	}
-}
-
-struct FrameEncoder {
+/// TODO: docs
+#[derive(Debug, Default)]
+pub struct FrameEncoder {
 	config: Config,
 	seq: FrameNumSequence,
 }
 
+impl FrameEncoder {
+	/// TODO: docs
+	#[inline]
+	#[must_use]
+	pub const fn with_config(config: Config) -> Self {
+		Self { config, seq: FrameNumSequence::new() }
+	}
+
+	/// TODO: docs
+	#[inline]
+	pub fn config(&self) -> &Config {
+		&self.config
+	}
+}
+
 impl Encoder for FrameEncoder {
-	type Item = Vec<u8>;
-	type Error = FrameEncodeError;
+	type Item = [u8];
+	type Error = EncodeError;
 
 	fn encode(
 		&mut self,
-		item: Self::Item,
+		item: &Self::Item,
 		buf: &mut Vec<u8>,
 	) -> Result<(), Self::Error> {
-		let payload = Payload::new(item)
-			.map_err(|_| FrameEncodeError::TooLarge)?;
+		let payload =
+			Payload::new(item).map_err(|_| EncodeError::TooLarge)?;
 
 		let frame = Frame { payload, frame_num: self.seq.advance() };
 		let header = frame.header().to_bytes();
@@ -124,7 +122,7 @@ impl Encoder for FrameEncoder {
 			header.as_ref().len(),
 			payload.as_slice().len(),
 		)
-		.ok_or(FrameEncodeError::TooLarge)?;
+		.ok_or(EncodeError::TooLarge)?;
 
 		buf.reserve(frame_len);
 		buf.extend_from_slice(header.as_ref());
@@ -255,7 +253,7 @@ impl<T, W, S> Sender<T, W, S> {
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		&self.framed.encoder().config
+		self.framed.encoder().config()
 	}
 
 	/// Get statistics on this sender.
@@ -363,10 +361,13 @@ where
 		data: &T,
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
-		self.framed.send(payload).await.map_err(SendError::from)?;
+		self.framed
+			.send(payload.as_slice())
+			.await
+			.map_err(SendError::from)?;
 		self.framed.writer_mut().statistics.inc_total_items();
 
-		if self.framed.encoder().config.flush_on_send() {
+		if self.framed.encoder().config().flush_on_send() {
 			self.framed
 				.writer_mut()
 				.flush()
@@ -424,10 +425,12 @@ where
 		data: &T,
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
-		self.framed.send(payload).map_err(SendError::from)?;
+		self.framed
+			.send(payload.as_slice())
+			.map_err(SendError::from)?;
 		self.framed.writer_mut().statistics.inc_total_items();
 
-		if self.framed.encoder().config.flush_on_send() {
+		if self.framed.encoder().config().flush_on_send() {
 			self.framed
 				.writer_mut()
 				.flush()
@@ -602,10 +605,7 @@ impl<T, W, S> Builder<T, W, S> {
 			serializer,
 			framed: FramedWrite::new(
 				StatIO::new(writer),
-				FrameEncoder {
-					config: config.unwrap_or_default(),
-					seq: FrameNumSequence::new(),
-				},
+				FrameEncoder::with_config(config.unwrap_or_default()),
 			),
 		}
 	}

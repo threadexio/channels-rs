@@ -9,12 +9,10 @@ use alloc::vec::Vec;
 use channels_packet::header::{FrameNumSequence, HeaderError};
 use channels_packet::Header;
 
-use crate::error::RecvError;
-use crate::io::framed::{Decoder, FramedRead, FramedReadError};
+use crate::error::{DecodeError, RecvError};
+use crate::io::framed::{Decoder, FramedRead};
 use crate::io::source::{AsyncSource, Source};
-use crate::io::{
-	AsyncRead, AsyncReadExt, Container, IntoRead, Read, ReadExt,
-};
+use crate::io::{AsyncRead, Container, IntoRead, Read};
 use crate::serdes::Deserializer;
 use crate::statistics::{StatIO, Statistics};
 
@@ -47,7 +45,7 @@ impl Config {
 impl Default for Config {
 	#[inline]
 	fn default() -> Self {
-		Self { max_size: None, flags: Self::VERIFY_ORDER }
+		Self { flags: Self::VERIFY_ORDER, max_size: None }
 	}
 }
 
@@ -104,20 +102,14 @@ impl fmt::Debug for Config {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.debug_struct("Config")
 			.field("max_size", &self.max_size())
+			.field("verify_order", &self.verify_order())
 			.finish()
 	}
 }
 
-enum FrameDecodeError {
-	InvalidChecksum,
-	OutOfOrder,
-	TooLarge,
-	VersionMismatch,
-}
-
-impl From<HeaderError> for FrameDecodeError {
+impl From<HeaderError> for DecodeError {
 	fn from(err: HeaderError) -> Self {
-		use FrameDecodeError as B;
+		use DecodeError as B;
 		use HeaderError as A;
 
 		match err {
@@ -127,32 +119,31 @@ impl From<HeaderError> for FrameDecodeError {
 	}
 }
 
-impl<Des, Io> From<FramedReadError<FrameDecodeError, Io>>
-	for RecvError<Des, Io>
-{
-	fn from(value: FramedReadError<FrameDecodeError, Io>) -> Self {
-		use FrameDecodeError as C;
-		use FramedReadError as A;
-		use RecvError as B;
-
-		match value {
-			A::Decode(C::OutOfOrder) => B::OutOfOrder,
-			A::Decode(C::InvalidChecksum) => B::InvalidChecksum,
-			A::Decode(C::TooLarge) => B::TooLarge,
-			A::Decode(C::VersionMismatch) => B::VersionMismatch,
-			A::Io(e) => B::Io(e),
-		}
-	}
-}
-
-struct FrameDecoder {
+/// TODO: docs
+#[derive(Debug, Default)]
+pub struct FrameDecoder {
 	config: Config,
 	seq: FrameNumSequence,
 }
 
+impl FrameDecoder {
+	/// TODO: docs
+	#[inline]
+	#[must_use]
+	pub const fn with_config(config: Config) -> Self {
+		Self { config, seq: FrameNumSequence::new() }
+	}
+
+	/// TODO: docs
+	#[inline]
+	pub fn config(&self) -> &Config {
+		&self.config
+	}
+}
+
 impl Decoder for FrameDecoder {
 	type Output = Vec<u8>;
-	type Error = FrameDecodeError;
+	type Error = DecodeError;
 
 	fn decode(
 		&mut self,
@@ -169,22 +160,22 @@ impl Decoder for FrameDecoder {
 			.data_len
 			.get()
 			.try_into()
-			.map_err(|_| FrameDecodeError::TooLarge)?;
+			.map_err(|_| DecodeError::TooLarge)?;
 
 		let frame_len = hdr_len
 			.checked_add(payload_len)
-			.ok_or(FrameDecodeError::TooLarge)?;
+			.ok_or(DecodeError::TooLarge)?;
 
 		if let Some(max_size) = self.config.max_size {
 			if payload_len > max_size.get() {
-				return Err(FrameDecodeError::TooLarge);
+				return Err(DecodeError::TooLarge);
 			}
 		}
 
 		if self.config.verify_order()
 			&& hdr.frame_num != self.seq.peek()
 		{
-			return Err(FrameDecodeError::OutOfOrder);
+			return Err(DecodeError::OutOfOrder);
 		}
 
 		if buf.len() < frame_len {
@@ -322,7 +313,7 @@ impl<T, R, D> Receiver<T, R, D> {
 	/// ```
 	#[inline]
 	pub fn config(&self) -> &Config {
-		&self.framed.decoder().config
+		self.framed.decoder().config()
 	}
 
 	/// Get an iterator over incoming messages.
@@ -515,7 +506,7 @@ pub struct Incoming<'a, T, R, D> {
 
 impl<'a, T, R, D> Iterator for Incoming<'a, T, R, D>
 where
-	R: ReadExt,
+	R: Read,
 	D: Deserializer<T>,
 {
 	type Item = Result<T, RecvError<D::Error, R::Error>>;
@@ -528,7 +519,7 @@ where
 
 impl<'a, T, R, D> Incoming<'a, T, R, D>
 where
-	R: AsyncReadExt + Unpin,
+	R: AsyncRead + Unpin,
 	D: Deserializer<T>,
 {
 	/// Return the next message.

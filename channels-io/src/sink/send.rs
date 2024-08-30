@@ -12,7 +12,7 @@ where
 	S::Item: Unpin,
 {
 	sink: &'a mut S,
-	item: Option<S::Item>,
+	item: Option<&'a S::Item>,
 }
 
 impl<'a, S> Send<'a, S>
@@ -20,7 +20,7 @@ where
 	S: AsyncSink + Unpin + ?Sized,
 	S::Item: Unpin,
 {
-	pub fn new(sink: &'a mut S, item: S::Item) -> Self {
+	pub fn new(sink: &'a mut S, item: &'a S::Item) -> Self {
 		Self { sink, item: Some(item) }
 	}
 }

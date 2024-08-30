@@ -139,7 +139,10 @@ impl<W, E> FramedWrite<W, E>
 where
 	E: Encoder,
 {
-	fn encode_item(&mut self, item: E::Item) -> Result<(), E::Error> {
+	fn encode_item(
+		&mut self,
+		item: &E::Item,
+	) -> Result<(), E::Error> {
 		self.encoder.encode(item, &mut self.buf)
 	}
 
@@ -192,7 +195,7 @@ where
 
 	fn start_send(
 		mut self: Pin<&mut Self>,
-		item: Self::Item,
+		item: &Self::Item,
 	) -> Result<(), Self::Error> {
 		self.encode_item(item).map_err(FramedWriteError::Encode)
 	}
@@ -217,7 +220,7 @@ where
 
 	type Error = FramedWriteError<E::Error, W::Error>;
 
-	fn send(&mut self, item: Self::Item) -> Result<(), Self::Error> {
+	fn send(&mut self, item: &Self::Item) -> Result<(), Self::Error> {
 		self.encode_item(item).map_err(FramedWriteError::Encode)?;
 
 		let pinned = unsafe { Pin::new_unchecked(self) };
@@ -249,7 +252,7 @@ mod tests {
 
 		fn encode(
 			&mut self,
-			item: Self::Item,
+			item: &Self::Item,
 			buf: &mut Vec<u8>,
 		) -> Result<(), Self::Error> {
 			buf.extend(&item.to_be_bytes());
@@ -263,8 +266,8 @@ mod tests {
 		let mut framed =
 			FramedWrite::new(buf.by_ref().writer(), U32Encoder);
 
-		Sink::send(&mut framed, 42).expect("");
-		Sink::send(&mut framed, 0xff_12_34).expect("");
+		Sink::send(&mut framed, &42).expect("");
+		Sink::send(&mut framed, &0xff_12_34).expect("");
 
 		assert_eq!(buf.get(), &[0, 0, 0, 42, 0, 0xff, 0x12, 0x34, 0]);
 	}
@@ -275,10 +278,10 @@ mod tests {
 		let mut framed =
 			FramedWrite::new(buf.by_ref().writer(), U32Encoder);
 
-		Sink::send(&mut framed, 42).expect("");
-		Sink::send(&mut framed, 0xff_12_34).expect("");
+		Sink::send(&mut framed, &42).expect("");
+		Sink::send(&mut framed, &0xff_12_34).expect("");
 		assert!(matches!(
-			Sink::send(&mut framed, 1),
+			Sink::send(&mut framed, &1),
 			Err(FramedWriteError::Io(_))
 		));
 	}

@@ -9,19 +9,19 @@ use self::send::Send;
 /// TODO: docs
 pub trait Sink {
 	/// TODO: docs
-	type Item;
+	type Item: ?Sized;
 
 	/// TODO: docs
 	type Error;
 
 	/// TODO: docs
-	fn send(&mut self, item: Self::Item) -> Result<(), Self::Error>;
+	fn send(&mut self, item: &Self::Item) -> Result<(), Self::Error>;
 }
 
 /// TODO: docs
 pub trait AsyncSink {
 	/// TODO: docs
-	type Item;
+	type Item: ?Sized;
 
 	/// TODO: docs
 	type Error;
@@ -29,7 +29,7 @@ pub trait AsyncSink {
 	/// TODO: docs
 	fn start_send(
 		self: Pin<&mut Self>,
-		item: Self::Item,
+		item: &Self::Item,
 	) -> Result<(), Self::Error>;
 
 	/// TODO: docs
@@ -39,7 +39,7 @@ pub trait AsyncSink {
 	) -> Poll<Result<(), Self::Error>>;
 
 	/// TODO: docs
-	fn send(&mut self, item: Self::Item) -> Send<'_, Self>
+	fn send<'a>(&'a mut self, item: &'a Self::Item) -> Send<'a, Self>
 	where
 		Self: Unpin,
 		Self::Item: Unpin,
