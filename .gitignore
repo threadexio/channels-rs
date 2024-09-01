@@ -4,6 +4,8 @@
 target
 Cargo.lock
 
-perf.data
-perf.data.old
+perf.data*
+gecko_profile.json
+firefox_profiler.json
 flamegraph.svg
+flamegraph.html
