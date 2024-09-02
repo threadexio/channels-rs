@@ -6,136 +6,24 @@ use core::marker::PhantomData;
 
 use alloc::vec::Vec;
 
-use channels_packet::frame::Frame;
-use channels_packet::header::FrameNumSequence;
-use channels_packet::payload::Payload;
-
-use crate::error::{EncodeError, SendError};
-use crate::io::framed::{Encoder, FramedWrite};
-use crate::io::sink::{AsyncSink, Sink};
-use crate::io::{
-	AsyncWrite, AsyncWriteExt, Container, IntoWrite, Write, WriteExt,
-};
+use crate::error::SendError;
+use crate::io::framed::FramedWrite;
+use crate::io::sink::{AsyncSinkExt, SinkExt};
+use crate::io::{AsyncWrite, Container, IntoWrite, Write};
 use crate::serdes::Serializer;
 use crate::statistics::{StatIO, Statistics};
 
-/// Configuration for [`Sender`].
-#[derive(Clone)]
-#[must_use = "`Config`s don't do anything on their own"]
-pub struct Config {
-	flags: u8,
-}
+mod config;
+mod encoder;
 
-impl Config {
-	const FLUSH_ON_SEND: u8 = 1 << 0;
-
-	#[inline]
-	const fn get_flag(&self, flag: u8) -> bool {
-		self.flags & flag != 0
-	}
-
-	#[inline]
-	fn set_flag(&mut self, flag: u8, value: bool) {
-		if value {
-			self.flags |= flag;
-		} else {
-			self.flags &= !flag;
-		}
-	}
-}
-
-impl Default for Config {
-	#[inline]
-	fn default() -> Self {
-		Self { flags: Self::FLUSH_ON_SEND }
-	}
-}
-
-impl Config {
-	/// TODO: docs
-	#[inline]
-	#[must_use]
-	pub fn flush_on_send(&self) -> bool {
-		self.get_flag(Self::FLUSH_ON_SEND)
-	}
-
-	/// TODO: docs
-	#[inline]
-	pub fn set_flush_on_send(&mut self, yes: bool) {
-		self.set_flag(Self::FLUSH_ON_SEND, yes);
-	}
-
-	/// TODO: docs
-	#[inline]
-	pub fn with_flush_on_send(mut self, yes: bool) -> Self {
-		self.set_flush_on_send(yes);
-		self
-	}
-}
-
-impl fmt::Debug for Config {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		// TODO: fix config debug impl
-		f.debug_struct("Config").finish()
-	}
-}
-
-/// TODO: docs
-#[derive(Debug, Default)]
-pub struct FrameEncoder {
-	config: Config,
-	seq: FrameNumSequence,
-}
-
-impl FrameEncoder {
-	/// TODO: docs
-	#[inline]
-	#[must_use]
-	pub const fn with_config(config: Config) -> Self {
-		Self { config, seq: FrameNumSequence::new() }
-	}
-
-	/// TODO: docs
-	#[inline]
-	pub fn config(&self) -> &Config {
-		&self.config
-	}
-}
-
-impl Encoder for FrameEncoder {
-	type Item = [u8];
-	type Error = EncodeError;
-
-	fn encode(
-		&mut self,
-		item: &Self::Item,
-		buf: &mut Vec<u8>,
-	) -> Result<(), Self::Error> {
-		let payload =
-			Payload::new(item).map_err(|_| EncodeError::TooLarge)?;
-
-		let frame = Frame { payload, frame_num: self.seq.advance() };
-		let header = frame.header().to_bytes();
-		let payload = frame.payload;
-
-		let frame_len = usize::checked_add(
-			header.as_ref().len(),
-			payload.as_slice().len(),
-		)
-		.ok_or(EncodeError::TooLarge)?;
-
-		buf.reserve(frame_len);
-		buf.extend_from_slice(header.as_ref());
-		buf.extend_from_slice(payload.as_slice());
-		Ok(())
-	}
-}
+pub use self::config::Config;
+pub use self::encoder::Encoder;
 
 /// The sending-half of the channel.
 pub struct Sender<T, W, S> {
 	_marker: PhantomData<fn() -> T>,
 	serializer: S,
-	framed: FramedWrite<StatIO<W>, FrameEncoder>,
+	framed: FramedWrite<StatIO<W>, Encoder>,
 }
 
 impl<T> Sender<T, (), ()> {
@@ -355,26 +243,13 @@ where
 		self._send(data.borrow()).await
 	}
 
-	#[inline(never)]
 	async fn _send(
 		&mut self,
 		data: &T,
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
-		self.framed
-			.send(payload.as_slice())
-			.await
-			.map_err(SendError::from)?;
+		self.framed.send(payload).await.map_err(SendError::from)?;
 		self.framed.writer_mut().statistics.inc_total_items();
-
-		if self.framed.encoder().config().flush_on_send() {
-			self.framed
-				.writer_mut()
-				.flush()
-				.await
-				.map_err(SendError::Io)?;
-		}
-
 		Ok(())
 	}
 }
@@ -419,24 +294,13 @@ where
 		self._send_blocking(data.borrow())
 	}
 
-	#[inline(never)]
 	fn _send_blocking(
 		&mut self,
 		data: &T,
 	) -> Result<(), SendError<S::Error, W::Error>> {
 		let payload = self.serialize_t(data)?;
-		self.framed
-			.send(payload.as_slice())
-			.map_err(SendError::from)?;
+		self.framed.send(payload).map_err(SendError::from)?;
 		self.framed.writer_mut().statistics.inc_total_items();
-
-		if self.framed.encoder().config().flush_on_send() {
-			self.framed
-				.writer_mut()
-				.flush()
-				.map_err(SendError::Io)?;
-		}
-
 		Ok(())
 	}
 }
@@ -605,7 +469,7 @@ impl<T, W, S> Builder<T, W, S> {
 			serializer,
 			framed: FramedWrite::new(
 				StatIO::new(writer),
-				FrameEncoder::with_config(config.unwrap_or_default()),
+				Encoder::with_config(config.unwrap_or_default()),
 			),
 		}
 	}

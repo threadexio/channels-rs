@@ -1,17 +1,20 @@
 use alloc::vec::Vec;
 
-/// TODO: docs
+/// Encode an item into a buffer of bytes.
 pub trait Encoder {
-	/// TODO: docs
-	type Item: ?Sized;
+	/// The type of items the encoder accepts.
+	type Item;
 
-	/// TODO: docs
+	/// Error type returned by the encoder.
 	type Error;
 
-	/// TODO: docs
+	/// Encode `item` into `buf`.
+	///
+	/// Implementations should only append data to `buf`. Additionally, it is not guaranteed
+	/// that `buf` is empty on each call of this method.
 	fn encode(
 		&mut self,
-		item: &Self::Item,
+		item: Self::Item,
 		buf: &mut Vec<u8>,
 	) -> Result<(), Self::Error>;
 }

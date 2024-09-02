@@ -2,22 +2,14 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
-use super::{AsyncSink, Sink};
+use super::AsyncSink;
 
-pub fn send<S>(sink: &mut S, item: S::Item) -> Result<(), S::Error>
-where
-	S: Sink + ?Sized,
-{
-	sink.feed(item)?;
-	sink.flush()
-}
-
-/// Future for the [`send()`] method.
+/// Future for the [`feed()`] method.
 ///
-/// [`send()`]: super::AsyncSinkExt::send
+/// [`feed()`]: super::AsyncSinkExt::feed
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` them"]
-pub struct Send<'a, S>
+pub struct Feed<'a, S>
 where
 	S: AsyncSink + Unpin + ?Sized,
 	S::Item: Unpin,
@@ -26,7 +18,7 @@ where
 	item: Option<S::Item>,
 }
 
-impl<'a, S> Send<'a, S>
+impl<'a, S> Feed<'a, S>
 where
 	S: AsyncSink + Unpin + ?Sized,
 	S::Item: Unpin,
@@ -36,7 +28,7 @@ where
 	}
 }
 
-impl<'a, S> Future for Send<'a, S>
+impl<'a, S> Future for Feed<'a, S>
 where
 	S: AsyncSink + Unpin + ?Sized,
 	S::Item: Unpin,
@@ -50,18 +42,18 @@ where
 		let this = self.get_mut();
 		let mut sink = Pin::new(&mut *this.sink);
 
-		if this.item.is_some() {
-			ready!(sink.as_mut().poll_ready(cx))?;
+		assert!(
+			this.item.is_some(),
+			"Feed future polled after completion"
+		);
 
-			// SAFETY: We checked this above.
-			let item = this
-				.item
-				.take()
-				.expect("item should not have been None");
+		ready!(sink.as_mut().poll_ready(cx))?;
 
-			sink.as_mut().start_send(item)?;
-		}
+		// SAFETY: We checked this above.
+		let item =
+			this.item.take().expect("item should not have been None");
+		sink.start_send(item)?;
 
-		sink.poll_flush(cx)
+		Poll::Ready(Ok(()))
 	}
 }

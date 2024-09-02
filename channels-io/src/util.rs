@@ -1,4 +1,5 @@
 use core::cmp::min;
+use core::future::Future;
 use core::mem::MaybeUninit;
 use core::task::Poll;
 
@@ -56,4 +57,12 @@ pub fn copy_slice(src: &[u8], dst: &mut [u8]) -> usize {
 		dst[..n].copy_from_slice(&src[..n]);
 	}
 	n
+}
+
+#[inline]
+pub fn assert_future<T, F>(f: F) -> F
+where
+	F: Future<Output = T>,
+{
+	f
 }

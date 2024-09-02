@@ -69,10 +69,6 @@ fn send_benchmarks() -> Vec<SendBenchmark> {
 			variant: "default",
 			config: Config::default(),
 		},
-		SendBenchmark {
-			variant: "no_flush",
-			config: Config::default().with_flush_on_send(false),
-		},
 	]
 	.into()
 }

@@ -4,7 +4,7 @@ use core::fmt::{self, Debug, Display};
 
 use channels_io::framed::{FramedReadError, FramedWriteError};
 
-/// TODO: docs
+/// Errors during encoding of a frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EncodeError {
 	/// Frame is too large.
