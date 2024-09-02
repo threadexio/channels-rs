@@ -2,7 +2,9 @@ use core::cmp::min;
 
 use crate::buf::Buf;
 
-/// TODO: docs
+/// The `take` adapter.
+///
+/// See: [`Buf::take`].
 #[derive(Debug, Clone, Copy)]
 pub struct Take<T> {
 	inner: T,
@@ -14,31 +16,35 @@ impl<T> Take<T> {
 		Self { inner, left }
 	}
 
-	/// TODO: docs
-	#[inline]
-	pub fn get(&self) -> &T {
-		&self.inner
-	}
-
-	/// TODO: docs
-	#[inline]
-	pub fn get_mut(&mut self) -> &mut T {
-		&mut self.inner
-	}
-
-	/// TODO: docs
+	/// Get the number of bytes logically left in the buffer.
+	///
+	/// This method is not the same as [`Buf::remaining()`]. It returns the maximum number
+	/// of bytes the underlying buffer is allowed to have left. The returned value might be
+	/// greater than the actual amount of bytes the underlying buffer has left.
 	#[inline]
 	pub fn left(&self) -> usize {
 		self.left
 	}
 
-	/// TODO: docs
+	/// Set the maximum amount of bytes the underlying buffer is allowed to have.
 	#[inline]
 	pub fn set_left(&mut self, left: usize) {
 		self.left = left;
 	}
 
-	/// TODO: docs
+	/// Get a reference to the underlying buffer.
+	#[inline]
+	pub fn get(&self) -> &T {
+		&self.inner
+	}
+
+	/// Get a mutable reference to the underlying buffer.
+	#[inline]
+	pub fn get_mut(&mut self) -> &mut T {
+		&mut self.inner
+	}
+
+	/// Destruct the adapter and get back the underlying buffer.
 	#[inline]
 	pub fn into_inner(self) -> T {
 		self.inner

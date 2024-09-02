@@ -2,6 +2,8 @@ use core::fmt;
 use core::num::NonZeroUsize;
 
 /// Configuration for [`Receiver`].
+///
+/// [`Receiver`]: super::Receiver
 #[derive(Clone)]
 #[must_use = "`Config`s don't do anything on their own"]
 pub struct Config {
@@ -36,6 +38,8 @@ impl Default for Config {
 
 impl Config {
 	/// Get the max payload size the [`Receiver`] will accept.
+	///
+	/// [`Receiver`]: super::Receiver
 	#[inline]
 	#[must_use]
 	pub fn max_size(&self) -> usize {
@@ -43,6 +47,8 @@ impl Config {
 	}
 
 	/// Set the max payload size the [`Receiver`] will accept.
+	///
+	/// [`Receiver`]: super::Receiver
 	#[allow(clippy::missing_panics_doc)]
 	#[inline]
 	pub fn set_max_size(&mut self, max_size: usize) -> &mut Self {
@@ -57,6 +63,8 @@ impl Config {
 	}
 
 	/// Set the max payload size the [`Receiver`] will accept.
+	///
+	/// [`Receiver`]: super::Receiver
 	#[inline]
 	pub fn with_max_size(mut self, max_size: usize) -> Self {
 		self.set_max_size(max_size);
@@ -64,6 +72,8 @@ impl Config {
 	}
 
 	/// Check whether the [`Receiver`] will verify the order of received frames.
+	///
+	/// [`Receiver`]: super::Receiver
 	#[inline]
 	#[must_use]
 	pub fn verify_order(&self) -> bool {
@@ -71,12 +81,16 @@ impl Config {
 	}
 
 	/// Set whether the [`Receiver`] will verify the order of received frames.
+	///
+	/// [`Receiver`]: super::Receiver
 	pub fn set_verify_order(&mut self, yes: bool) -> &mut Self {
 		self.set_flag(Self::VERIFY_ORDER, yes);
 		self
 	}
 
 	/// Set whether the [`Receiver`] will verify the order of received frames.
+	///
+	/// [`Receiver`]: super::Receiver
 	pub fn with_verify_order(mut self, yes: bool) -> Self {
 		self.set_verify_order(yes);
 		self

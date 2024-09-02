@@ -73,7 +73,7 @@ impl<Ser, Io> From<FramedWriteError<EncodeError, Io>>
 	}
 }
 
-/// TODO: docs
+/// Errors during decoding of a frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DecodeError {
 	/// The underlying transport is not reliable and the sent data has suffered

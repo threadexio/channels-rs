@@ -1,6 +1,8 @@
 use crate::buf::{Buf, BufMut};
 
-/// TODO: docs
+/// The `chain` adapter.
+///
+/// See: [`Buf::chain`] and [`BufMut::chain`].
 #[derive(Debug, Clone, Copy)]
 pub struct Chain<A, B> {
 	first: A,
@@ -12,43 +14,43 @@ impl<A, B> Chain<A, B> {
 		Self { first, second }
 	}
 
-	/// TODO: docs
+	/// Get a reference to the first buffer in the chain.
 	#[inline]
 	pub fn first(&self) -> &A {
 		&self.first
 	}
 
-	/// TODO: docs
+	/// Get a mutable reference to the first buffer in the chain.
 	#[inline]
 	pub fn first_mut(&mut self) -> &mut A {
 		&mut self.first
 	}
 
-	/// TODO: docs
+	/// Get a reference to the second buffer in the chain.
 	#[inline]
 	pub fn second(&self) -> &B {
 		&self.second
 	}
 
-	/// TODO: docs
+	/// Get a mutable reference to the second buffer in the chain.
 	#[inline]
 	pub fn second_mut(&mut self) -> &mut B {
 		&mut self.second
 	}
 
-	/// TODO: docs
+	/// Destruct the adapter and get back the first buffer.
 	#[inline]
 	pub fn into_first(self) -> A {
 		self.first
 	}
 
-	/// TODO: docs
+	/// Destruct the adapter and get back the second buffer.
 	#[inline]
 	pub fn into_second(self) -> B {
 		self.second
 	}
 
-	/// TODO: docs
+	/// Destruct the adapter and get back both buffers.
 	#[inline]
 	pub fn into_inner(self) -> (A, B) {
 		(self.first, self.second)
