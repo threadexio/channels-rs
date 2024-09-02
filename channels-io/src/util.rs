@@ -1,35 +1,6 @@
 use core::cmp::min;
 use core::future::Future;
 use core::mem::MaybeUninit;
-use core::task::Poll;
-
-/// Extension trait for [`Poll`].
-///
-/// This traits provides convinience methods like `unwrap` but for [`Poll`].
-pub trait PollExt: Sized {
-	type Inner;
-
-	/// Unwrap a `Poll::Ready(T)`.
-	fn unwrap(self) -> Self::Inner;
-}
-
-impl<T> PollExt for Poll<T> {
-	type Inner = T;
-
-	fn unwrap(self) -> Self::Inner {
-		#[inline(never)]
-		#[track_caller]
-		#[cold]
-		fn poll_pending_fail() -> ! {
-			panic!("unwrapped a Poll::Pending");
-		}
-
-		match self {
-			Poll::Ready(x) => x,
-			Poll::Pending => poll_pending_fail(),
-		}
-	}
-}
 
 /// Convert a `&mut [MaybeUninit<T>]` to a `&mut [T]`.
 ///

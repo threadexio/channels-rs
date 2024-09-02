@@ -1,4 +1,4 @@
-//! TODO: docs
+//! [`Sink`] and [`AsyncSink`] traits.
 
 use core::pin::Pin;
 use core::task::{Context, Poll};

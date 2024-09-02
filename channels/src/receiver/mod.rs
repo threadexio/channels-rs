@@ -2,200 +2,25 @@
 
 use core::fmt;
 use core::marker::PhantomData;
-use core::num::NonZeroUsize;
 
-use alloc::vec::Vec;
-
-use channels_packet::header::{FrameNumSequence, HeaderError};
-use channels_packet::Header;
-
-use crate::error::{DecodeError, RecvError};
-use crate::io::framed::{Decoder, FramedRead};
-use crate::io::source::{AsyncSource, Source};
+use crate::error::RecvError;
+use crate::io::framed::FramedRead;
+use crate::io::source::{AsyncSourceExt, Source};
 use crate::io::{AsyncRead, Container, IntoRead, Read};
 use crate::serdes::Deserializer;
 use crate::statistics::{StatIO, Statistics};
 
-/// Configuration for [`Receiver`].
-#[derive(Clone)]
-#[must_use = "`Config`s don't do anything on their own"]
-pub struct Config {
-	pub(crate) max_size: Option<NonZeroUsize>,
-	pub(crate) flags: u8,
-}
+mod config;
+mod decoder;
 
-impl Config {
-	const VERIFY_ORDER: u8 = 1 << 0;
-
-	#[inline]
-	const fn get_flag(&self, flag: u8) -> bool {
-		self.flags & flag != 0
-	}
-
-	#[inline]
-	fn set_flag(&mut self, flag: u8, value: bool) {
-		if value {
-			self.flags |= flag;
-		} else {
-			self.flags &= !flag;
-		}
-	}
-}
-
-impl Default for Config {
-	#[inline]
-	fn default() -> Self {
-		Self { flags: Self::VERIFY_ORDER, max_size: None }
-	}
-}
-
-impl Config {
-	/// Get the max payload size the [`Receiver`] will accept.
-	#[inline]
-	#[must_use]
-	pub fn max_size(&self) -> usize {
-		self.max_size.map_or(0, NonZeroUsize::get)
-	}
-
-	/// Set the max payload size the [`Receiver`] will accept.
-	#[allow(clippy::missing_panics_doc)]
-	#[inline]
-	pub fn set_max_size(&mut self, max_size: usize) -> &mut Self {
-		self.max_size = match max_size {
-			0 => None,
-			x => Some(
-				NonZeroUsize::new(x)
-					.expect("max_size should never be 0"),
-			),
-		};
-		self
-	}
-
-	/// Set the max payload size the [`Receiver`] will accept.
-	#[inline]
-	pub fn with_max_size(mut self, max_size: usize) -> Self {
-		self.set_max_size(max_size);
-		self
-	}
-
-	/// Check whether the [`Receiver`] will verify the order of received frames.
-	#[inline]
-	#[must_use]
-	pub fn verify_order(&self) -> bool {
-		self.get_flag(Self::VERIFY_ORDER)
-	}
-
-	/// Set whether the [`Receiver`] will verify the order of received frames.
-	pub fn set_verify_order(&mut self, yes: bool) -> &mut Self {
-		self.set_flag(Self::VERIFY_ORDER, yes);
-		self
-	}
-
-	/// Set whether the [`Receiver`] will verify the order of received frames.
-	pub fn with_verify_order(mut self, yes: bool) -> Self {
-		self.set_verify_order(yes);
-		self
-	}
-}
-
-impl fmt::Debug for Config {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Config")
-			.field("max_size", &self.max_size())
-			.field("verify_order", &self.verify_order())
-			.finish()
-	}
-}
-
-impl From<HeaderError> for DecodeError {
-	fn from(err: HeaderError) -> Self {
-		use DecodeError as B;
-		use HeaderError as A;
-
-		match err {
-			A::InvalidChecksum => B::InvalidChecksum,
-			A::VersionMismatch => B::VersionMismatch,
-		}
-	}
-}
-
-/// TODO: docs
-#[derive(Debug, Default)]
-pub struct FrameDecoder {
-	config: Config,
-	seq: FrameNumSequence,
-}
-
-impl FrameDecoder {
-	/// TODO: docs
-	#[inline]
-	#[must_use]
-	pub const fn with_config(config: Config) -> Self {
-		Self { config, seq: FrameNumSequence::new() }
-	}
-
-	/// TODO: docs
-	#[inline]
-	pub fn config(&self) -> &Config {
-		&self.config
-	}
-}
-
-impl Decoder for FrameDecoder {
-	type Output = Vec<u8>;
-	type Error = DecodeError;
-
-	fn decode(
-		&mut self,
-		buf: &mut Vec<u8>,
-	) -> Result<Option<Self::Output>, Self::Error> {
-		let Some(hdr) = Header::try_parse(buf.as_slice())? else {
-			buf.reserve(Header::MAX_SIZE - buf.len());
-			return Ok(None);
-		};
-
-		let hdr_len = hdr.length();
-
-		let payload_len: usize = hdr
-			.data_len
-			.get()
-			.try_into()
-			.map_err(|_| DecodeError::TooLarge)?;
-
-		let frame_len = hdr_len
-			.checked_add(payload_len)
-			.ok_or(DecodeError::TooLarge)?;
-
-		if let Some(max_size) = self.config.max_size {
-			if payload_len > max_size.get() {
-				return Err(DecodeError::TooLarge);
-			}
-		}
-
-		if self.config.verify_order()
-			&& hdr.frame_num != self.seq.peek()
-		{
-			return Err(DecodeError::OutOfOrder);
-		}
-
-		if buf.len() < frame_len {
-			buf.reserve(frame_len - buf.len());
-			return Ok(None);
-		}
-
-		let payload = buf[hdr_len..frame_len].to_vec();
-
-		let _ = self.seq.advance();
-		buf.drain(..frame_len);
-		Ok(Some(payload))
-	}
-}
+pub use self::config::Config;
+pub use self::decoder::Decoder;
 
 /// The receiving-half of the channel.
 pub struct Receiver<T, R, D> {
 	_marker: PhantomData<fn() -> T>,
 	deserializer: D,
-	framed: FramedRead<StatIO<R>, FrameDecoder>,
+	framed: FramedRead<StatIO<R>, Decoder>,
 }
 
 impl<T> Receiver<T, (), ()> {
@@ -693,10 +518,7 @@ impl<T, R, D> Builder<T, R, D> {
 			deserializer,
 			framed: FramedRead::new(
 				StatIO::new(reader),
-				FrameDecoder {
-					seq: FrameNumSequence::new(),
-					config: config.unwrap_or_default(),
-				},
+				Decoder::with_config(config.unwrap_or_default()),
 			),
 		}
 	}

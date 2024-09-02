@@ -13,9 +13,9 @@ use crate::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 
 /// Convert a [`Write`] to a [`Sink`] or an [`AsyncWrite`] to an [`AsyncSink`].
 ///
-/// This abstraction converts unstructured byte to structured typed output streams. It
-/// accepts "items" that are then processed by an [`Encoder`] and sent to the writer. The
-/// [`Encoder`] decides how the provided items are converted to bytes. At the other end
+/// This abstraction converts unstructured byte streams to structured typed output streams.
+/// It accepts "items" that are then processed by an [`Encoder`] and sent to the writer.
+/// The [`Encoder`] decides how the provided items are converted to bytes. At the other end
 /// of the stream, a [`FramedRead`] will read the output of the encoder and using a
 /// matching [`Decoder`] will decode the byte stream back into the items given to this
 /// [`FramedWrite`].
@@ -158,7 +158,7 @@ impl<W, E> FramedWrite<W, E> {
 	}
 }
 
-/// Errors when sending an iter over a [`FramedWrite`].
+/// Errors when sending an item over a [`FramedWrite`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FramedWriteError<T, Io> {
 	/// The encoder returned an error.

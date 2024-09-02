@@ -1,14 +1,16 @@
 use alloc::vec::Vec;
 
-/// TODO: docs
+/// Decode an item from a buffer of bytes.
 pub trait Decoder {
-	/// TODO: docs
+	/// The type of items the decoder accepts.
 	type Output;
 
-	/// TODO: docs
+	/// Error type returned by the decoder.
 	type Error;
 
-	/// TODO: docs
+	/// Decode an item from `buf`.
+	///
+	/// Implementations should remove data from `buf` as each item is decoded.
 	fn decode(
 		&mut self,
 		buf: &mut Vec<u8>,

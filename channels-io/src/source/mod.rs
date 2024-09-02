@@ -1,36 +1,77 @@
-//! TODO: docs
+//! [`Source`] and [`AsyncSource`] traits.
 
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-mod next;
-use self::next::Next;
+use crate::util::assert_future;
 
-/// TODO: docs
+mod next;
+
+pub use self::next::Next;
+
+/// This trait allows receiving items from somewhere.
+///
+/// Types implementing this trait are called "sources".
 pub trait Source {
-	/// TODO: docs
+	/// The type of items the source receives.
 	type Item;
 
-	/// TODO: docs
+	/// Get the next item.
 	fn next(&mut self) -> Self::Item;
+
+	/// Get an estimation of the number of items yet to be received.
+	///
+	/// Returns a tuple where the 2 elements are the lower and upper bounds of the number
+	/// of items expected to be received. The upper bound is an `Option<usize>` to account
+	/// for cases where the upper bound is not known. In such cases, implementations should
+	/// return `None` as the upper bound.
+	///
+	/// The default implementation returns `(0, None)`.
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		(0, None)
+	}
 }
 
-/// TODO: docs
+/// Extension trait for [`Source`].
+pub trait SourceExt: Source {}
+
+impl<T: Source + ?Sized> SourceExt for T {}
+
+/// The asynchronous version of [`Source`].
 pub trait AsyncSource {
-	/// TODO: docs
+	/// The type of items the source receives.
 	type Item;
 
-	/// TODO: docs
+	/// Attempt to receive the next item from the source.
 	fn poll_next(
 		self: Pin<&mut Self>,
 		cx: &mut Context,
 	) -> Poll<Self::Item>;
 
-	/// TODO: docs
+	/// Get an estimation of the number of items yet to be received.
+	///
+	/// Returns a tuple where the 2 elements are the lower and upper bounds of the number
+	/// of items expected to be received. The upper bound is an `Option<usize>` to account
+	/// for cases where the upper bound is not known. In such cases, implementations should
+	/// return `None` as the upper bound.
+	///
+	/// The default implementation returns `(0, None)`.
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		(0, None)
+	}
+}
+
+/// Extension trait for [`AsyncSource`].
+pub trait AsyncSourceExt: AsyncSource {
+	/// The asynchronous version of [`next()`].
+	///
+	/// [`next()`]: Source::next
 	fn next(&mut self) -> Next<'_, Self>
 	where
 		Self: Unpin,
 	{
-		Next::new(self)
+		assert_future::<Self::Item, _>(Next::new(self))
 	}
 }
+
+impl<T: AsyncSource + ?Sized> AsyncSourceExt for T {}

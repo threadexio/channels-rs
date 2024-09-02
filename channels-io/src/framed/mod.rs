@@ -1,4 +1,10 @@
-//! TODO: docs
+//! Abstractions for turning unstructure I/O streams like [`Read`] and [`Write`] to structured
+//! types streams like [`Source`] and [`Sink`].
+//!
+//! [`Read`]: crate::Read
+//! [`Write`]: crate::Write
+//! [`Source`]: crate::source::Source
+//! [`Sink`]: crate::sink::Sink
 
 mod decoder;
 mod encoder;
