@@ -24,9 +24,9 @@ In any case, further communication should not be attempted.
 
 This document is the specification of the version `0x42` of the protocol. That is the value this field must have.
 
-### len_words
+### flags
 
-This field is a 2 bit unsigned number that encodes the number of 16 bit words the [data_len](###data-len) field spans. Valid values for this field is the entire range of 0 to 3 inclusive.
+This field is a 2 bit unsigned number that holds flags for the frame. Currently no flags are used and as such this field must be 0.
 
 ### frame_num
 
@@ -34,11 +34,11 @@ This field is a wrapping 6 bit unsigned number that identifies the frame. It all
 
 ### checksum
 
-This field is responsible for ensuring that any error in the header is detected. The checksum must be the final modification made to the header before it is sent out and must be calculated while this field is set to 0. The checksum must be calculated from the start of the [version](###version) field to the end of the [data_len](###data-len) field. It does _not_ include the [payload](###payload). The algorithm used for calculating the checksum is the [Internet Checksum](https://en.wikipedia.org/wiki/Internet_checksum) algorithm.
+This field is responsible for ensuring that any error in the header is detected. The checksum must be the final modification made to the header before it is sent out and must be calculated while this field is set to 0. The checksum must be calculated from the start of the [version](#version) field to the end of the [data_len](#data_len) field. It does _not_ include the [payload](#payload). The algorithm used for calculating the checksum is the [Internet Checksum](https://en.wikipedia.org/wiki/Internet_checksum) algorithm.
 
 ### data_len
 
-This field specifies the length of the [payload](###payload) that follows. It is variable sized field that encodes a little endian 48 bit unsigned number. The value is this field is the length of the payload of the frame. The size of the field is given by the value of the [len_words](###len-words) field multiplied by 2. This is because the [len_words](###len-words) field expresses the length in 16 bit words. Being only 2 bits, the value of [len_words](###len-words) has a range of 0 to 3, meaning the [data_len](###data-len) field can be anywhere within 0 to 3 words (0 to 6 bytes). The maximum value this field can encode is `0xffff_ffff_ffff`, when `len_words` is set to 3. The minimum value of this field is 0, when `len_words` is set to 0. The size of this field must always be even. This means that if a frame that contains a payload with a size that can be represented by an odd number of bytes, there must be a padding byte to ensure the even length.
+This field specifies the length of the [payload](#payload) that follows. It is a 32-bit little-endian unsigned number. The value of this field is the length of the payload of the frame.
 
 ### payload
 
