@@ -45,10 +45,18 @@ jobs:
       - run: cargo +nightly doc --workspace --no-deps --all-features
 
   miri:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-unknown-linux-gnu, s390x-unknown-linux-gnu]
     runs-on: ubuntu-latest
+    name: miri (${{ matrix.target }})
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@miri
+        with:
+          targets: ${{ matrix.target }}
+
       - run: cargo +nightly miri setup
-      - run: cargo +nightly miri test --all-features -p channels-io -p channels-packet -p channels-serdes -p channels --lib
+      - run: cargo +nightly miri test --target ${{ matrix.target }} --all-features -p channels-io -p channels-packet -p channels-serdes -p channels --lib
