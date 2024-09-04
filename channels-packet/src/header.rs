@@ -126,9 +126,8 @@ impl Header {
 			((hdr & FRAME_NUM_MASK) >> FRAME_NUM_SHIFT) as u8,
 		);
 
-		let data_len = u32::from_le(
-			((hdr & DATA_LEN_MASK) >> DATA_LEN_SHIFT) as u32,
-		);
+		let data_len =
+			((hdr & DATA_LEN_MASK) >> DATA_LEN_SHIFT) as u32;
 
 		if version != Self::VERSION {
 			return Err(HeaderError::VersionMismatch);
