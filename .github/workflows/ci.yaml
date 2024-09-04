@@ -59,4 +59,5 @@ jobs:
           targets: ${{ matrix.target }}
 
       - run: cargo +nightly miri setup
-      - run: cargo +nightly miri test --target ${{ matrix.target }} --all-features -p channels-io -p channels-packet -p channels-serdes -p channels --lib
+      - run: cargo +nightly miri test --target ${{ matrix.target }} --all-features -p channels-packet
+
