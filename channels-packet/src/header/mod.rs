@@ -2,10 +2,9 @@
 
 use core::borrow::Borrow;
 use core::fmt;
-use core::ops::Deref;
-use core::slice;
+use core::ops::{Deref, Range};
 
-use crate::num::{u2, u48, u6};
+use crate::num::{u2, u6};
 
 mod checksum;
 mod seq;
@@ -13,42 +12,57 @@ mod seq;
 pub use self::checksum::Checksum;
 pub use self::seq::FrameNumSequence;
 
+const VERSION_MASK: u64 = 0x0000_0000_0000_00ff;
+const VERSION_SHIFT: u32 = 0;
+
+const FLAGS_MASK: u64 = 0x0000_0000_0000_0300;
+const FLAGS_SHIFT: u32 = 8;
+
+const FRAME_NUM_MASK: u64 = 0x0000_0000_0000_fc00;
+const FRAME_NUM_SHIFT: u32 = 10;
+
+const CHECKSUM_FIELD: Range<usize> = 2..4;
+
+const DATA_LEN_MASK: u64 = 0xffff_ffff_0000_0000;
+const DATA_LEN_SHIFT: u32 = 32;
+
 /// TODO: docs
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Header {
 	/// TODO: docs
 	pub frame_num: u6,
 	/// TODO: docs
-	pub data_len: u48,
+	pub data_len: u32,
 }
 
 impl Header {
 	const VERSION: u8 = 0x42;
 
 	/// TODO: docs
-	pub const MAX_SIZE: usize = 10;
+	pub const SIZE: usize = 8;
 
 	/// TODO: docs
 	#[inline]
 	pub const fn builder() -> Builder {
-		Builder {
-			data_len: u48::new_truncate(0),
-			frame_num: u6::new_truncate(0),
-		}
+		Builder { data_len: 0, frame_num: u6::new_truncate(0) }
 	}
 
 	/// TODO: docs
 	#[inline]
 	#[must_use]
+	#[allow(clippy::cast_lossless)]
 	pub fn to_bytes(self) -> HeaderBytes {
-		HeaderBytes::from_header(self)
-	}
+		let x = ((Header::VERSION as u64) << VERSION_SHIFT) // version
+			| ((0u8 as u64) << FLAGS_SHIFT) // flags
+			| ((self.frame_num.get() as u64) << FRAME_NUM_SHIFT) // frame_num
+			| ((self.data_len as u64) << DATA_LEN_SHIFT); // data_len
 
-	/// TODO: docs
-	#[inline]
-	#[must_use]
-	pub fn length(&self) -> usize {
-		4 + (words_needed(self.data_len).get() * 2) as usize
+		let mut data = u64::to_le_bytes(x);
+
+		let checksum = Checksum::checksum(&data);
+		data[CHECKSUM_FIELD].copy_from_slice(&checksum.to_ne_bytes());
+
+		HeaderBytes { data }
 	}
 }
 
@@ -83,46 +97,48 @@ impl Header {
 	pub fn try_parse(
 		bytes: &[u8],
 	) -> Result<Option<Self>, HeaderError> {
-		if bytes.len() < 4 {
+		let Some(hdr_bytes) = bytes.get(..Self::SIZE) else {
 			return Ok(None);
-		}
+		};
 
-		let fixed = u32::from_le_bytes(
-			bytes[..4]
-				.try_into()
-				.expect("cast slice to array failed"),
+		let hdr_bytes: &[u8; Self::SIZE] = hdr_bytes
+			.try_into()
+			.expect("cast header slice to array failed");
+
+		let hdr = u64::from_le_bytes(*hdr_bytes);
+
+		let version = ((hdr & VERSION_MASK) >> VERSION_SHIFT) as u8;
+
+		let _flags = u2::new_truncate(
+			((hdr & FLAGS_MASK) >> FLAGS_SHIFT) as u8,
 		);
 
-		let version = fixed as u8;
-		let len_words = u2::new_truncate((fixed >> 8) as u8);
-		let frame_num = u6::new_truncate((fixed >> 10) as u8);
+		let frame_num = u6::new_truncate(
+			((hdr & FRAME_NUM_MASK) >> FRAME_NUM_SHIFT) as u8,
+		);
+
+		let data_len = u32::from_le(
+			((hdr & DATA_LEN_MASK) >> DATA_LEN_SHIFT) as u32,
+		);
 
 		if version != Self::VERSION {
 			return Err(HeaderError::VersionMismatch);
 		}
 
-		let len_bytes = (len_words.get() << 1) as usize;
-		let header_len = 4 + len_bytes;
-
-		if bytes.len() < header_len {
-			return Ok(None);
-		}
-
-		if Checksum::checksum(&bytes[..header_len]) != 0 {
+		if Checksum::checksum(hdr_bytes) != 0 {
 			return Err(HeaderError::InvalidChecksum);
 		}
-
-		let data_len = read_u48_from_slice(&bytes[4..4 + len_bytes]);
 
 		Ok(Some(Self { frame_num, data_len }))
 	}
 }
+
 /// TODO: docs
 #[allow(missing_debug_implementations)]
 #[must_use = "builders don't do anything unless you build them"]
 pub struct Builder {
 	frame_num: u6,
-	data_len: u48,
+	data_len: u32,
 }
 
 impl Builder {
@@ -144,7 +160,7 @@ impl Builder {
 
 	/// TODO: docs
 	#[inline]
-	pub const fn data_len(mut self, data_len: u48) -> Self {
+	pub const fn data_len(mut self, data_len: u32) -> Self {
 		self.data_len = data_len;
 		self
 	}
@@ -153,8 +169,10 @@ impl Builder {
 	#[inline]
 	#[must_use]
 	pub fn data_len_from_slice(self, data: &[u8]) -> Option<Self> {
-		u48::new(data.len() as u64)
+		data.len()
+			.try_into()
 			.map(|data_len| self.data_len(data_len))
+			.ok()
 	}
 
 	/// TODO: docs
@@ -169,41 +187,12 @@ impl Builder {
 /// TODO: docs
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HeaderBytes {
-	data: [u8; Header::MAX_SIZE],
-	len: u8,
-}
-
-impl HeaderBytes {
-	#[allow(clippy::cast_possible_truncation)]
-	fn from_header(hdr: Header) -> Self {
-		let mut data = [0u8; Header::MAX_SIZE];
-
-		let len_words = words_needed(hdr.data_len);
-		let len_bytes = (len_words.get() * 2) as usize;
-		let header_len = 4 + len_bytes;
-
-		data[0] = Header::VERSION;
-		data[1] = (hdr.frame_num.get() << 2) | len_words.get();
-
-		write_u48_to_slice(hdr.data_len, &mut data[4..10]);
-
-		unsafe {
-			let checksum = Checksum::checksum(&data[..header_len]);
-			data.as_mut_ptr()
-				.byte_add(2)
-				.cast::<u16>()
-				.write_unaligned(checksum);
-		}
-
-		// TODO: safety
-		Self { data, len: header_len as u8 }
-	}
+	data: [u8; Header::SIZE],
 }
 
 impl HeaderBytes {
 	const fn as_slice(&self) -> &[u8] {
-		let ptr = self.data.as_ptr();
-		unsafe { slice::from_raw_parts(ptr, self.len as usize) }
+		self.data.as_slice()
 	}
 }
 
@@ -236,37 +225,6 @@ impl fmt::Debug for HeaderBytes {
 	}
 }
 
-/// Read a variable sized `u48` value from `bytes` in little-endian order.
-#[allow(clippy::cast_lossless)]
-fn read_u48_from_slice(bytes: &[u8]) -> u48 {
-	assert!(
-		bytes.len() <= 6,
-		"data_len must not be larger than 6 bytes"
-	);
-
-	let x = bytes
-		.iter()
-		.rev()
-		.copied()
-		.fold(0, |acc, x| (acc << 8) | (x as u64));
-
-	u48::new(x).expect("data_len should fit inside a u48")
-}
-
-// Write `x` to `out` as a variable sized `u48` in little-endian order.
-fn write_u48_to_slice(x: u48, out: &mut [u8]) {
-	assert!(out.len() >= 6, "out must not be smaller than 6 bytes");
-
-	let x = u64::to_le_bytes(x.get());
-	out[..6].copy_from_slice(&x[..6]);
-}
-
-#[allow(clippy::cast_possible_truncation)]
-const fn words_needed(len: u48) -> u2 {
-	let leading_words = len.get().leading_zeros() >> 4;
-	u2::new_truncate((4 - leading_words) as u8)
-}
-
 #[cfg(test)]
 #[allow(clippy::unusual_byte_groupings)]
 mod tests {
@@ -274,59 +232,45 @@ mod tests {
 
 	struct Vector {
 		header: Header,
-		bytes: &'static [u8],
+		bytes: [u8; Header::SIZE],
 	}
 
 	#[rustfmt::skip]
     static TEST_VECTORS: &[Vector] = &[
         Vector {
             header: Header {
-                data_len: u48::new_truncate(0),
+                data_len: 0,
                 frame_num: u6::new_truncate(32),
             },
-            bytes: &[0x42, 0b100000_00, 0xbd, 0x7f],
+            bytes: [0x42, 0b100000_00, 0xbd, 0x7f, 0, 0, 0, 0],
         },
         Vector {
             header: Header {
-                data_len: u48::new_truncate(42),
+                data_len: 42,
                 frame_num: u6::new_truncate(34),
             },
-            bytes: &[0x42, 0b100010_01, 0x93, 0x76, 42, 00],
+            bytes: [0x42, 0b100010_00, 0x93, 0x77, 42, 0, 0, 0],
         },
         Vector {
             header: Header {
-                data_len: u48::new_truncate(0xffff),
+                data_len: 0xffff,
                 frame_num: u6::new_truncate(23),
             },
-            bytes: &[0x42, 0b010111_01, 0xbd, 0xa2, 0xff, 0xff],
+            bytes: [0x42, 0b010111_00, 0xbd, 0xa3, 0xff, 0xff, 0, 0],
         },
         Vector {
             header: Header {
-                data_len: u48::new_truncate(0x0001_0000),
+                data_len: 0x0001_0000,
                 frame_num: u6::new_truncate(5),
             },
-            bytes: &[0x42, 0b000101_10, 0xbc, 0xe9, 0x00, 0x00, 0x01, 0x00],
+            bytes: [0x42, 0b000101_00, 0xbc, 0xeb, 0x00, 0x00, 0x01, 0x00],
         },
         Vector {
             header: Header {
-                data_len: u48::new_truncate(0xffff_ffff),
+                data_len: 0xffff_ffff,
                 frame_num: u6::new_truncate(14),
             },
-            bytes: &[0x42, 0b001110_10, 0xbd, 0xc5, 0xff, 0xff, 0xff, 0xff],
-        },
-        Vector {
-            header: Header {
-                data_len: u48::new_truncate(0x0001_0000_0000),
-                frame_num: u6::new_truncate(0),
-            },
-            bytes: &[0x42, 0b000000_11, 0xbc, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00],
-        },
-        Vector {
-            header: Header {
-                data_len: u48::new_truncate(0xffff_ffff_ffff),
-                frame_num: u6::new_truncate(27),
-            },
-            bytes: &[0x42, 0b011011_11, 0xbd, 0x90, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+            bytes: [0x42, 0b001110_00, 0xbd, 0xc7, 0xff, 0xff, 0xff, 0xff],
         },
     ];
 
@@ -343,7 +287,7 @@ mod tests {
                 #[test]
                 fn $test_decode() {
                     let Vector { header, bytes } = TEST_VECTORS[$test_vector_idx];
-                    let x = Header::try_parse(bytes).unwrap().unwrap();
+                    let x = Header::try_parse(&bytes).unwrap().unwrap();
                     assert_eq!(header, x);
                 }
             )*
@@ -356,13 +300,12 @@ mod tests {
 		2 => test_header_encode_small_medium_payload, test_header_decode_small_medium_payload,
 		3 => test_header_encode_medium_payload,       test_header_decode_medium_payload,
 		4 => test_header_encode_medium_large_payload, test_header_decode_medium_large_payload,
-		5 => test_header_encode_large_payload,        test_header_decode_large_payload,
-		6 => test_header_encode_largest_payload,      test_header_decode_largest_payload,
 	}
 
 	#[test]
 	fn test_header_decode_invalid_version() {
-		let bytes: &[u8] = &[0x43, 0b000000_00, 0x00, 0x00];
+		let bytes: &[u8] =
+			&[0x43, 0b000000_00, 0x00, 0x00, 0, 0, 0, 0];
 		assert_eq!(
 			Header::try_parse(bytes),
 			Err(HeaderError::VersionMismatch)
@@ -372,7 +315,7 @@ mod tests {
 	#[test]
 	fn test_header_decode_invalid_checksum() {
 		let bytes: &[u8] =
-			&[0x42, 0b000100_01, 0xCC, 0xCC, 0x23, 0x00];
+			&[0x42, 0b000100_01, 0xCC, 0xCC, 0x23, 0x00, 0x00, 0x00];
 		assert_eq!(
 			Header::try_parse(bytes),
 			Err(HeaderError::InvalidChecksum)
@@ -388,17 +331,8 @@ mod tests {
 			&[0x42, 0b010101_01, 0xCC],
 			&[0x42, 0b010101_01, 0xCC, 0xCC],
 			&[0x42, 0b010101_01, 0xCC, 0xCC, 0x00],
-			&[
-				0x42,
-				0b010101_11,
-				0xCC,
-				0xCC,
-				0x00,
-				0x00,
-				0x00,
-				0x00,
-				0x00,
-			],
+			&[0x42, 0b010101_11, 0xCC, 0xCC, 0x00, 0x00],
+			&[0x42, 0b010101_11, 0xCC, 0xCC, 0x00, 0x00, 0x00],
 		];
 
 		HEADERS.iter().copied().for_each(|bytes| {

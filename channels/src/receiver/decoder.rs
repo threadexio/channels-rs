@@ -40,19 +40,16 @@ impl crate::io::framed::Decoder for Decoder {
 		let Some(hdr) = Header::try_parse(buf.as_slice())
 			.map_err(header_to_decode_error)?
 		else {
-			buf.reserve(Header::MAX_SIZE - buf.len());
+			buf.reserve(Header::SIZE - buf.len());
 			return Ok(None);
 		};
 
-		let hdr_len = hdr.length();
-
 		let payload_len: usize = hdr
 			.data_len
-			.get()
 			.try_into()
 			.map_err(|_| DecodeError::TooLarge)?;
 
-		let frame_len = hdr_len
+		let frame_len = Header::SIZE
 			.checked_add(payload_len)
 			.ok_or(DecodeError::TooLarge)?;
 
@@ -73,7 +70,7 @@ impl crate::io::framed::Decoder for Decoder {
 			return Ok(None);
 		}
 
-		let payload = buf[hdr_len..frame_len].to_vec();
+		let payload = buf[Header::SIZE..frame_len].to_vec();
 
 		let _ = self.seq.advance();
 		buf.drain(..frame_len);

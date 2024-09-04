@@ -2,8 +2,6 @@
 
 use core::fmt;
 
-use crate::num::u48;
-
 /// TODO: docs
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PayloadError<T> {
@@ -102,8 +100,9 @@ impl<T: AsRef<[u8]>> Payload<T> {
 
 	/// TODO: docs
 	#[inline]
-	pub fn length(&self) -> u48 {
-		u48::new_truncate(self.as_slice().len() as u64)
+	#[allow(clippy::cast_possible_truncation)]
+	pub fn length(&self) -> u32 {
+		self.as_slice().len() as u32
 	}
 }
 
@@ -120,7 +119,7 @@ impl<T: AsRef<[u8]>> fmt::Debug for Payload<T> {
 }
 
 const fn max_payload_length() -> usize {
-	let a = u48::MAX.get();
+	let a = u32::MAX as u64;
 	let b = usize::MAX as u64;
 
 	#[allow(clippy::cast_possible_truncation)]

@@ -7,6 +7,10 @@ const PACKET: &[u8] = &[
 	0b000000_00, // frame_num (6 bits) + len_words (2 bits)
 	0xbd,
 	0xff, // checksum
+	0x00, // data_len
+	0x00,
+	0x00,
+	0x00,
 ];
 
 #[test]

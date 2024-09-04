@@ -65,7 +65,7 @@ impl<T: AsRef<[u8]>> Frame<T> {
 	/// };
 	///
 	/// assert_eq!(frame.header(), Header {
-	///     data_len: u48::new_truncate(4),
+	///     data_len: 4,
 	///     frame_num: u6::new_truncate(13),
 	/// });
 	/// ```
@@ -121,19 +121,16 @@ impl<'a> Frame<&'a [u8]> {
 			Err(e) => return Err(FrameError::from(e)),
 		};
 
-		let payload_start = hdr.length();
-
 		let payload_len: usize = hdr
 			.data_len
-			.get()
 			.try_into()
 			.map_err(|_| FrameError::TooLarge)?;
 
-		let payload_end = payload_start
+		let payload_end = Header::SIZE
 			.checked_add(payload_len)
 			.ok_or(FrameError::TooLarge)?;
 
-		let Some(payload) = bytes.get(payload_start..payload_end)
+		let Some(payload) = bytes.get(Header::SIZE..payload_end)
 		else {
 			return Ok(None);
 		};
