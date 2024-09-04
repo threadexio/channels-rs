@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 
-use channels_packet::header::FrameNumSequence;
-use channels_packet::{Frame, Payload};
+use channels_packet::{Frame, FrameNumSequence, Payload};
 
 use crate::error::EncodeError;
 
@@ -41,7 +40,10 @@ impl crate::io::framed::Encoder for Encoder {
 		let payload =
 			Payload::new(item).map_err(|_| EncodeError::TooLarge)?;
 
-		let frame = Frame { payload, frame_num: self.seq.advance() };
+		let frame = Frame::builder()
+			.frame_num_from_seq(&mut self.seq)
+			.payload(payload);
+
 		let header = frame.header().to_bytes();
 		let payload = frame.payload;
 

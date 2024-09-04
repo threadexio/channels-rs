@@ -1,23 +1,21 @@
-//! TODO: docs
+//! [`Frame`] and helper types.
 
-use core::fmt;
 use core::marker::PhantomData;
 
-use crate::header::{FrameNumSequence, Header, HeaderError};
-use crate::num::u6;
+use crate::flags::Flags;
+use crate::header::Header;
 use crate::payload::Payload;
-
-mod encoded;
-
-pub use self::encoded::Encoded;
+use crate::seq::{FrameNum, FrameNumSequence};
 
 /// A protocol frame.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Frame<T> {
+	/// Frame flags.
+	pub flags: Flags,
+	/// Frame number.
+	pub frame_num: FrameNum,
 	/// Frame payload data.
 	pub payload: Payload<T>,
-	/// Frame number.
-	pub frame_num: u6,
 }
 
 impl<T> Frame<T> {
@@ -34,8 +32,9 @@ impl<T> Frame<T> {
 	#[inline]
 	pub fn as_ref(&self) -> Frame<&T> {
 		Frame {
-			payload: self.payload.as_ref(),
+			flags: self.flags,
 			frame_num: self.frame_num,
+			payload: self.payload.as_ref(),
 		}
 	}
 
@@ -46,8 +45,9 @@ impl<T> Frame<T> {
 	#[inline]
 	pub fn as_mut(&mut self) -> Frame<&mut T> {
 		Frame {
-			payload: self.payload.as_mut(),
+			flags: self.flags,
 			frame_num: self.frame_num,
+			payload: self.payload.as_mut(),
 		}
 	}
 }
@@ -58,96 +58,26 @@ impl<T: AsRef<[u8]>> Frame<T> {
 	/// # Example
 	///
 	/// ```
-	/// # use channels_packet::{Frame, Payload, Header, num::{u6, u48}};
+	/// # use channels_packet::{Frame, Payload, Header, FrameNum, Flags};
 	/// let frame = Frame {
+	///     flags: Flags::empty(),
+	///     frame_num: FrameNum::new(13),
 	///     payload: Payload::new([1, 2, 3, 4]).unwrap(),
-	///     frame_num: u6::new_truncate(13)
 	/// };
 	///
 	/// assert_eq!(frame.header(), Header {
+	///     flags: Flags::empty(),
+	///     frame_num: FrameNum::new(13),
 	///     data_len: 4,
-	///     frame_num: u6::new_truncate(13),
 	/// });
 	/// ```
 	#[inline]
 	pub fn header(&self) -> Header {
 		Header {
-			data_len: self.payload.length(),
+			flags: self.flags,
 			frame_num: self.frame_num,
+			data_len: self.payload.length(),
 		}
-	}
-
-	/// Encode the frame.
-	pub fn encode(self) -> Encoded<T> {
-		Encoded::new(self.header(), self.payload)
-	}
-}
-
-/// TODO: docs
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FrameError {
-	/// TODO: docs
-	Header(HeaderError),
-	/// TODO: docs
-	TooLarge,
-}
-
-impl From<HeaderError> for FrameError {
-	fn from(err: HeaderError) -> Self {
-		Self::Header(err)
-	}
-}
-
-impl fmt::Display for FrameError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match *self {
-			Self::Header(e) => e.fmt(f),
-			Self::TooLarge => f.write_str("payload too large"),
-		}
-	}
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for FrameError {}
-
-impl<'a> Frame<&'a [u8]> {
-	/// TODO: docs
-	pub fn try_parse(
-		bytes: &'a [u8],
-	) -> Result<Option<Self>, FrameError> {
-		let hdr = match Header::try_parse(bytes) {
-			Ok(Some(x)) => x,
-			Ok(None) => return Ok(None),
-			Err(e) => return Err(FrameError::from(e)),
-		};
-
-		let payload_len: usize = hdr
-			.data_len
-			.try_into()
-			.map_err(|_| FrameError::TooLarge)?;
-
-		let payload_end = Header::SIZE
-			.checked_add(payload_len)
-			.ok_or(FrameError::TooLarge)?;
-
-		let Some(payload) = bytes.get(Header::SIZE..payload_end)
-		else {
-			return Ok(None);
-		};
-
-		Ok(Some(Self {
-			payload: unsafe { Payload::new_unchecked(payload) },
-			frame_num: hdr.frame_num,
-		}))
-	}
-}
-
-impl<T: AsRef<[u8]>> fmt::Debug for Frame<T> {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_struct("Frame")
-			.field("payload", &self.payload)
-			.field("frame_num", &self.frame_num)
-			.finish()
 	}
 }
 
@@ -156,25 +86,48 @@ impl<T: AsRef<[u8]>> fmt::Debug for Frame<T> {
 /// # Example
 ///
 /// ```no_run
-/// # use channels_packet::{frame::{Builder, Frame}, Payload, num::u6};
+/// # use channels_packet::{frame::{Builder, Frame}, Payload, FrameNum};
 /// let payload = Payload::new([1u8, 1, 1, 1]).unwrap();
 ///
 /// let mut frame = Builder::new()
-///     .frame_num(u6::new_truncate(0))
+///     .frame_num(FrameNum::new(0))
 ///     .payload(payload);
 /// ```
 #[allow(missing_debug_implementations)]
 #[must_use = "builders don't do anything unless you build them"]
 pub struct Builder<T> {
 	_marker: PhantomData<T>,
-	frame_num: u6,
+	flags: Flags,
+	frame_num: FrameNum,
 }
 
 impl<T> Builder<T> {
 	/// Create a new [`Builder`].
 	#[inline]
 	pub const fn new() -> Self {
-		Self { _marker: PhantomData, frame_num: u6::new_truncate(0) }
+		Self {
+			_marker: PhantomData,
+			flags: Flags::empty(),
+			frame_num: FrameNum::new(0),
+		}
+	}
+
+	/// Set the frame flags.
+	///
+	/// # Example
+	///
+	/// ```no_run
+	/// # use channels_packet::{frame::Builder, Payload, Flags};
+	/// let frame = Builder::new()
+	///     // ...
+	///     .flags(Flags::empty())
+	///     // ...
+	/// #   .payload(Payload::new([]).unwrap());
+	/// ```
+	#[inline]
+	pub const fn flags(mut self, flags: Flags) -> Self {
+		self.flags = flags;
+		self
 	}
 
 	/// Set the frame number.
@@ -182,15 +135,15 @@ impl<T> Builder<T> {
 	/// # Example
 	///
 	/// ```no_run
-	/// # use channels_packet::{frame::Builder, Payload, num::u6};
+	/// # use channels_packet::{frame::Builder, Payload, FrameNum};
 	/// let frame = Builder::new()
 	///     // ...
-	///     .frame_num(u6::new_truncate(23))
+	///     .frame_num(FrameNum::new(23))
 	///     // ...
 	/// #   .payload(Payload::new([]).unwrap());
 	/// ```
 	#[inline]
-	pub const fn frame_num(mut self, frame_num: u6) -> Self {
+	pub const fn frame_num(mut self, frame_num: FrameNum) -> Self {
 		self.frame_num = frame_num;
 		self
 	}
@@ -202,7 +155,7 @@ impl<T> Builder<T> {
 	/// # Example
 	///
 	/// ```no_run
-	/// # use channels_packet::{frame::Builder, Payload, header::FrameNumSequence};
+	/// # use channels_packet::{frame::Builder, Payload, FrameNumSequence};
 	/// let mut seq = FrameNumSequence::new();
 	///
 	/// let frame = Builder::new()
@@ -235,9 +188,9 @@ impl<T> Builder<T> {
 	/// ```
 	#[inline]
 	pub const fn payload(self, payload: Payload<T>) -> Frame<T> {
-		let Self { _marker, frame_num } = self;
+		let Self { _marker, flags, frame_num } = self;
 
-		Frame { payload, frame_num }
+		Frame { flags, frame_num, payload }
 	}
 }
 

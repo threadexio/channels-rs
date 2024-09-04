@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
-use channels_packet::header::{FrameNumSequence, HeaderError};
-use channels_packet::Header;
+use channels_packet::header::{Header, HeaderError};
+use channels_packet::FrameNumSequence;
 
 use crate::error::DecodeError;
 

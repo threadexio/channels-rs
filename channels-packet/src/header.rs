@@ -1,16 +1,13 @@
-//! TODO: docs
+//! [`Header`] and helper types.
 
 use core::borrow::Borrow;
 use core::fmt;
 use core::ops::{Deref, Range};
 
-use crate::num::{u2, u6};
-
-mod checksum;
-mod seq;
-
-pub use self::checksum::Checksum;
-pub use self::seq::FrameNumSequence;
+use crate::checksum::Checksum;
+use crate::flags::Flags;
+use crate::payload::Payload;
+use crate::seq::{FrameNum, FrameNumSequence};
 
 const VERSION_MASK: u64 = 0x0000_0000_0000_00ff;
 const VERSION_SHIFT: u32 = 0;
@@ -26,28 +23,34 @@ const CHECKSUM_FIELD: Range<usize> = 2..4;
 const DATA_LEN_MASK: u64 = 0xffff_ffff_0000_0000;
 const DATA_LEN_SHIFT: u32 = 32;
 
-/// TODO: docs
+/// Header of a frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Header {
-	/// TODO: docs
-	pub frame_num: u6,
-	/// TODO: docs
+	/// Frame flags.
+	pub flags: Flags,
+	/// Frame number.
+	pub frame_num: FrameNum,
+	/// Data length.
 	pub data_len: u32,
 }
 
 impl Header {
 	const VERSION: u8 = 0x42;
 
-	/// TODO: docs
+	/// Size of the header in bytes.
 	pub const SIZE: usize = 8;
 
-	/// TODO: docs
+	/// Create a new [`Builder`] for [`Header`].
 	#[inline]
 	pub const fn builder() -> Builder {
-		Builder { data_len: 0, frame_num: u6::new_truncate(0) }
+		Builder {
+			flags: Flags::empty(),
+			frame_num: FrameNum::new(0),
+			data_len: 0,
+		}
 	}
 
-	/// TODO: docs
+	/// Convert the header to its byte representation.
 	#[inline]
 	#[must_use]
 	#[allow(clippy::cast_lossless)]
@@ -66,12 +69,12 @@ impl Header {
 	}
 }
 
-/// TODO: docs
+/// Errors when parsing a header.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HeaderError {
-	/// TODO: docs
+	/// The checksum did not verify correctly.
 	InvalidChecksum,
-	/// TODO: docs
+	/// Parsed header was of a different version.
 	VersionMismatch,
 }
 
@@ -88,7 +91,13 @@ impl fmt::Display for HeaderError {
 impl std::error::Error for HeaderError {}
 
 impl Header {
-	/// TODO: docs
+	/// Try to parse a header from `bytes`.
+	///
+	/// This method will try to parse a header from the first bytes of `bytes`. Returns:
+	///
+	/// - `Ok(None)` if `bytes` does not contain enough data to form a header,
+	/// - `Ok(Some(header))` if a header could be successfully parsed from bytes,
+	/// - `Err(...)` if there was an error while parsing the header
 	#[must_use = "unused parse result"]
 	#[allow(
 		clippy::missing_panics_doc,
@@ -109,11 +118,11 @@ impl Header {
 
 		let version = ((hdr & VERSION_MASK) >> VERSION_SHIFT) as u8;
 
-		let _flags = u2::new_truncate(
+		let flags = Flags::from_bits(
 			((hdr & FLAGS_MASK) >> FLAGS_SHIFT) as u8,
 		);
 
-		let frame_num = u6::new_truncate(
+		let frame_num = FrameNum::new(
 			((hdr & FRAME_NUM_MASK) >> FRAME_NUM_SHIFT) as u8,
 		);
 
@@ -129,27 +138,39 @@ impl Header {
 			return Err(HeaderError::InvalidChecksum);
 		}
 
-		Ok(Some(Self { frame_num, data_len }))
+		Ok(Some(Self { flags, frame_num, data_len }))
 	}
 }
 
-/// TODO: docs
+/// A builder for [`Header`].
 #[allow(missing_debug_implementations)]
 #[must_use = "builders don't do anything unless you build them"]
 pub struct Builder {
-	frame_num: u6,
+	flags: Flags,
+	frame_num: FrameNum,
 	data_len: u32,
 }
 
 impl Builder {
-	/// TODO: docs
+	/// Set the flags of the frame.
 	#[inline]
-	pub const fn frame_num(mut self, frame_num: u6) -> Self {
+	pub const fn flags(mut self, flags: Flags) -> Self {
+		self.flags = flags;
+		self
+	}
+
+	/// Set the frame number.
+	#[inline]
+	pub const fn frame_num(mut self, frame_num: FrameNum) -> Self {
 		self.frame_num = frame_num;
 		self
 	}
 
-	/// TODO: docs
+	/// Set the frame number from next one in `seq`.
+	///
+	/// This method will [`advance()`] `seq`.
+	///
+	/// [`advance()`]: FrameNumSequence::advance
 	#[inline]
 	pub fn frame_num_from_seq(
 		self,
@@ -158,34 +179,33 @@ impl Builder {
 		self.frame_num(seq.advance())
 	}
 
-	/// TODO: docs
+	/// Set the length of the frame's payload.
 	#[inline]
 	pub const fn data_len(mut self, data_len: u32) -> Self {
 		self.data_len = data_len;
 		self
 	}
 
-	/// TODO: docs
+	/// Set the length of frame's payload from `payload`.
 	#[inline]
-	#[must_use]
-	pub fn data_len_from_slice(self, data: &[u8]) -> Option<Self> {
-		data.len()
-			.try_into()
-			.map(|data_len| self.data_len(data_len))
-			.ok()
+	pub fn data_len_from_payload<T: AsRef<[u8]>>(
+		self,
+		payload: &Payload<T>,
+	) -> Self {
+		self.data_len(payload.length())
 	}
 
-	/// TODO: docs
+	/// Build the header.
 	#[inline]
 	#[must_use]
 	pub const fn build(self) -> Header {
-		let Self { frame_num, data_len } = self;
-		Header { frame_num, data_len }
+		let Self { flags, frame_num, data_len } = self;
+		Header { flags, frame_num, data_len }
 	}
 }
 
-/// TODO: docs
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+/// The byte representation of a [`Header`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HeaderBytes {
 	data: [u8; Header::SIZE],
 }
@@ -219,12 +239,6 @@ impl Deref for HeaderBytes {
 	}
 }
 
-impl fmt::Debug for HeaderBytes {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_list().entries(self.as_slice()).finish()
-	}
-}
-
 #[cfg(test)]
 #[allow(clippy::unusual_byte_groupings)]
 mod tests {
@@ -239,36 +253,41 @@ mod tests {
     static TEST_VECTORS: &[Vector] = &[
         Vector {
             header: Header {
+                flags: Flags::empty(),
+                frame_num: FrameNum::new(32),
                 data_len: 0,
-                frame_num: u6::new_truncate(32),
             },
             bytes: [0x42, 0b100000_00, 0xbd, 0x7f, 0, 0, 0, 0],
         },
         Vector {
             header: Header {
+                flags: Flags::empty(),
+                frame_num: FrameNum::new(34),
                 data_len: 42,
-                frame_num: u6::new_truncate(34),
             },
             bytes: [0x42, 0b100010_00, 0x93, 0x77, 42, 0, 0, 0],
         },
         Vector {
             header: Header {
+                flags: Flags::empty(),
+                frame_num: FrameNum::new(23),
                 data_len: 0xffff,
-                frame_num: u6::new_truncate(23),
             },
             bytes: [0x42, 0b010111_00, 0xbd, 0xa3, 0xff, 0xff, 0, 0],
         },
         Vector {
             header: Header {
+                flags: Flags::empty(),
                 data_len: 0x0001_0000,
-                frame_num: u6::new_truncate(5),
+                frame_num: FrameNum::new(5),
             },
             bytes: [0x42, 0b000101_00, 0xbc, 0xeb, 0x00, 0x00, 0x01, 0x00],
         },
         Vector {
             header: Header {
+                flags: Flags::empty(),
                 data_len: 0xffff_ffff,
-                frame_num: u6::new_truncate(14),
+                frame_num: FrameNum::new(14),
             },
             bytes: [0x42, 0b001110_00, 0xbd, 0xc7, 0xff, 0xff, 0xff, 0xff],
         },
