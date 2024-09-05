@@ -13,6 +13,7 @@ repository = "https://github.com/threadexio/channels-rs"
 license = "MIT"
 keywords = ["parser", "binary", "packet"]
 categories = ["parsing", "parser-implementations", "no-std"]
+autobenches = false
 
 [package.metadata.docs.rs]
 all-features = true
@@ -26,6 +27,11 @@ default-features = false
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "header"
+path = "benches/header.rs"
+harness = false
 
 [features]
 std = []
