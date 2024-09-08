@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 
-use channels_packet::header::{Header, HeaderError};
+use channels_packet::frame::{Frame, FrameError};
+use channels_packet::header::HeaderError;
 use channels_packet::FrameNumSequence;
 
 use crate::error::DecodeError;
@@ -37,21 +38,23 @@ impl crate::io::framed::Decoder for Decoder {
 		&mut self,
 		buf: &mut Vec<u8>,
 	) -> Result<Option<Self::Output>, Self::Error> {
-		let Some(hdr) = Header::try_parse(buf.as_slice())
-			.map_err(header_to_decode_error)?
-		else {
-			buf.reserve(Header::SIZE - buf.len());
-			return Ok(None);
+		let frame = match Frame::try_parse_range(buf) {
+			Ok(Ok(x)) => x,
+			Ok(Err(wants)) => {
+				buf.reserve(wants.get());
+				return Ok(None);
+			},
+			Err(e) => return Err(frame_to_decode_error(e)),
 		};
 
-		let payload_len: usize = hdr
-			.data_len
-			.try_into()
-			.map_err(|_| DecodeError::TooLarge)?;
+		let payload_len = frame.payload.len();
 
-		let frame_len = Header::SIZE
-			.checked_add(payload_len)
-			.ok_or(DecodeError::TooLarge)?;
+		// SAFETY: `frame` was just parsed from `buf`. This means that the entirety of `frame`
+		//         is contained in `buf`. And thus, the length of `frame` must fit inside
+		//         a `usize`.
+		let frame_len = frame
+			.length()
+			.expect("parsed frame should fit inside main memory");
 
 		if let Some(max_size) = self.config.max_size {
 			if payload_len > max_size.get() {
@@ -60,17 +63,12 @@ impl crate::io::framed::Decoder for Decoder {
 		}
 
 		if self.config.verify_order()
-			&& hdr.frame_num != self.seq.peek()
+			&& frame.frame_num != self.seq.peek()
 		{
 			return Err(DecodeError::OutOfOrder);
 		}
 
-		if buf.len() < frame_len {
-			buf.reserve(frame_len - buf.len());
-			return Ok(None);
-		}
-
-		let payload = buf[Header::SIZE..frame_len].to_vec();
+		let payload = buf[frame.payload.clone()].to_vec();
 
 		let _ = self.seq.advance();
 		buf.drain(..frame_len);
@@ -78,6 +76,7 @@ impl crate::io::framed::Decoder for Decoder {
 	}
 }
 
+#[inline]
 const fn header_to_decode_error(err: HeaderError) -> DecodeError {
 	use DecodeError as B;
 	use HeaderError as A;
@@ -85,5 +84,16 @@ const fn header_to_decode_error(err: HeaderError) -> DecodeError {
 	match err {
 		A::InvalidChecksum => B::InvalidChecksum,
 		A::VersionMismatch => B::VersionMismatch,
+	}
+}
+
+#[inline]
+const fn frame_to_decode_error(err: FrameError) -> DecodeError {
+	use DecodeError as B;
+	use FrameError as A;
+
+	match err {
+		A::Header(e) => header_to_decode_error(e),
+		A::TooLarge => B::TooLarge,
 	}
 }

@@ -5,6 +5,7 @@ mod checksum;
 mod flags;
 mod seq;
 mod util;
+mod wants;
 
 pub mod frame;
 pub mod header;
@@ -16,3 +17,4 @@ pub use self::frame::Frame;
 pub use self::header::Header;
 pub use self::payload::Payload;
 pub use self::seq::{FrameNum, FrameNumSequence};
+pub use self::wants::Wants;
