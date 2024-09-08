@@ -2,6 +2,8 @@
 
 use core::fmt;
 
+use crate::util::Error;
+
 /// Error returned when creating a payload.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PayloadError<T> {
@@ -28,8 +30,7 @@ impl<T> fmt::Display for PayloadError<T> {
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T> std::error::Error for PayloadError<T> {}
+impl<T> Error for PayloadError<T> {}
 
 /// A payload for a frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

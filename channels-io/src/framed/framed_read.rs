@@ -10,6 +10,7 @@ use crate::buf::Cursor;
 use crate::framed::Decoder;
 use crate::source::{AsyncSource, Source};
 use crate::util::slice_uninit_assume_init_mut;
+use crate::util::Error;
 use crate::{AsyncRead, AsyncReadExt, Read, ReadExt};
 
 /// Convert a [`Read`] to a [`Source`] or an [`AsyncRead`] to an [`AsyncSource`].
@@ -170,8 +171,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T, Io> std::error::Error for FramedReadError<T, Io> where
+impl<T, Io> Error for FramedReadError<T, Io> where
 	Self: fmt::Debug + fmt::Display
 {
 }

@@ -4,6 +4,7 @@
 mod checksum;
 mod flags;
 mod seq;
+mod util;
 
 pub mod frame;
 pub mod header;

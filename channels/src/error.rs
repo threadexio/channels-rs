@@ -4,6 +4,8 @@ use core::fmt::{self, Debug, Display};
 
 use channels_io::framed::{FramedReadError, FramedWriteError};
 
+use crate::util::Error;
+
 /// Errors during encoding of a frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EncodeError {
@@ -19,8 +21,7 @@ impl fmt::Display for EncodeError {
 	}
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for EncodeError {}
+impl Error for EncodeError {}
 
 /// The error type returned by [`Sender`].
 ///
@@ -56,11 +57,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<Ser, Io> std::error::Error for SendError<Ser, Io> where
-	Self: Debug + Display
-{
-}
+impl<Ser, Io> Error for SendError<Ser, Io> where Self: Debug + Display {}
 
 impl<Ser, Io> From<FramedWriteError<EncodeError, Io>>
 	for SendError<Ser, Io>
@@ -108,8 +105,7 @@ impl Display for DecodeError {
 	}
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for DecodeError {}
+impl Error for DecodeError {}
 
 /// The error type returned by [`Receiver`].
 ///
@@ -139,11 +135,7 @@ impl<Des: Display, Io: Display> Display for RecvError<Des, Io> {
 	}
 }
 
-#[cfg(feature = "std")]
-impl<Des, Io> std::error::Error for RecvError<Des, Io> where
-	Self: Debug + Display
-{
-}
+impl<Des, Io> Error for RecvError<Des, Io> where Self: Debug + Display {}
 
 impl<Des, Io> From<FramedReadError<DecodeError, Io>>
 	for RecvError<Des, Io>

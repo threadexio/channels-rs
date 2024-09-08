@@ -6,6 +6,7 @@ use std::io::{Read, Write};
 
 use flate2::{read::DeflateDecoder, write::DeflateEncoder};
 
+use crate::util::Error;
 use crate::{Deserializer, Serializer};
 
 pub use flate2::Compression;
@@ -72,8 +73,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T: std::error::Error> std::error::Error for SerializeError<T> {}
+impl<T: Error> Error for SerializeError<T> {}
 
 impl<T, U> Serializer<T> for Deflate<U>
 where
@@ -122,8 +122,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T: std::error::Error> std::error::Error for DeserializeError<T> {}
+impl<T: Error> Error for DeserializeError<T> {}
 
 impl<T, U> Deserializer<T> for Deflate<U>
 where

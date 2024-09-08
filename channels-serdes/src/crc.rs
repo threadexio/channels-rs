@@ -5,6 +5,7 @@ use core::fmt;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
+use crate::util::Error;
 use crate::{Deserializer, Serializer};
 
 /// Middleware that verifies data with a CRC checksum.
@@ -123,8 +124,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T: std::error::Error> std::error::Error for DeserializeError<T> {}
+impl<T: Error> Error for DeserializeError<T> {}
 
 impl<T, U> Deserializer<T> for Crc<U>
 where

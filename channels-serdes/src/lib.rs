@@ -46,6 +46,8 @@
 
 extern crate alloc;
 
+mod util;
+
 use alloc::vec::Vec;
 
 /// The [`Serializer`] trait allows converting a type `T` to safe-to-transport

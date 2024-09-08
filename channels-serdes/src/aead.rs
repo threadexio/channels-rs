@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 
 use ring::aead::{self, Aad};
 
+use crate::util::Error;
 use crate::{Deserializer, Serializer};
 
 /// Algorithms usable with this middleware.
@@ -80,8 +81,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T: std::error::Error> std::error::Error for SerializeError<T> {}
+impl<T: Error> Error for SerializeError<T> {}
 
 impl<T, U, N> Serializer<T> for Encrypt<U, N>
 where
@@ -166,8 +166,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T: std::error::Error> std::error::Error for DeserializeError<T> {}
+impl<T: Error> Error for DeserializeError<T> {}
 
 impl<T, U, N> Deserializer<T> for Decrypt<U, N>
 where

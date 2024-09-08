@@ -8,6 +8,7 @@ use crate::checksum::Checksum;
 use crate::flags::Flags;
 use crate::payload::Payload;
 use crate::seq::{FrameNum, FrameNumSequence};
+use crate::util::Error;
 
 const VERSION_MASK: u64 = 0x0000_0000_0000_00ff;
 const VERSION_SHIFT: u32 = 0;
@@ -87,8 +88,7 @@ impl fmt::Display for HeaderError {
 	}
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for HeaderError {}
+impl Error for HeaderError {}
 
 impl Header {
 	/// Try to parse a header from `bytes`.

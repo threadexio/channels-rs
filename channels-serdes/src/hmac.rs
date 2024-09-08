@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 
 use ring::hmac;
 
+use crate::util::Error;
 use crate::{Deserializer, Serializer};
 
 /// Algorithms usable with [`Key`].
@@ -88,8 +89,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T: std::error::Error> std::error::Error for DeserializeError<T> {}
+impl<T: Error> Error for DeserializeError<T> {}
 
 impl<T, U> Deserializer<T> for Hmac<U>
 where

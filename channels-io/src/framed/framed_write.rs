@@ -9,6 +9,7 @@ use pin_project::pin_project;
 use crate::buf::Cursor;
 use crate::framed::Encoder;
 use crate::sink::{AsyncSink, Sink};
+use crate::util::Error;
 use crate::{AsyncWrite, AsyncWriteExt, Write, WriteExt};
 
 /// Convert a [`Write`] to a [`Sink`] or an [`AsyncWrite`] to an [`AsyncSink`].
@@ -180,8 +181,7 @@ where
 	}
 }
 
-#[cfg(feature = "std")]
-impl<T, Io> std::error::Error for FramedWriteError<T, Io> where
+impl<T, Io> Error for FramedWriteError<T, Io> where
 	Self: fmt::Debug + fmt::Display
 {
 }

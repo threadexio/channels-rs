@@ -9,6 +9,7 @@
 extern crate alloc;
 
 mod statistics;
+mod util;
 
 pub mod error;
 
