@@ -9,6 +9,7 @@ use crate::flags::Flags;
 use crate::payload::Payload;
 use crate::seq::{FrameNum, FrameNumSequence};
 use crate::util::Error;
+use crate::wants::Wants;
 
 const VERSION_MASK: u64 = 0x0000_0000_0000_00ff;
 const VERSION_SHIFT: u32 = 0;
@@ -105,9 +106,9 @@ impl Header {
 	)]
 	pub fn try_parse(
 		bytes: &[u8],
-	) -> Result<Option<Self>, HeaderError> {
+	) -> Result<Result<Self, Wants>, HeaderError> {
 		let Some(hdr_bytes) = bytes.get(..Self::SIZE) else {
-			return Ok(None);
+			return Ok(Err(Wants(Self::SIZE - bytes.len())));
 		};
 
 		let hdr_bytes: &[u8; Self::SIZE] = hdr_bytes
@@ -137,7 +138,7 @@ impl Header {
 			return Err(HeaderError::InvalidChecksum);
 		}
 
-		Ok(Some(Self { flags, frame_num, data_len }))
+		Ok(Ok(Self { flags, frame_num, data_len }))
 	}
 }
 
@@ -354,7 +355,10 @@ mod tests {
 		];
 
 		HEADERS.iter().copied().for_each(|bytes| {
-			assert_eq!(Header::try_parse(bytes), Ok(None), "fail");
+			assert!(
+				matches!(Header::try_parse(bytes), Ok(Err(_))),
+				"fail"
+			);
 		});
 	}
 }

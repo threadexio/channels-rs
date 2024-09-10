@@ -75,9 +75,10 @@ impl Frame<Range<usize>> {
 	/// Try to parse a frame from `bytes` returning an indice to the payload.
 	///
 	/// Returns a [`Frame`] whose payload is a [`Range`] inside `bytes`. If `bytes` does not
-	/// have a complete frame, this method returns `Ok(None)`. If `bytes` has a complete
+	/// have a complete frame, this method returns `Ok(Err(Wants))`, the provided [`Wants`]
+	/// type can be used as an optimization hint for outside code. If `bytes` has a complete
 	/// frame but that frame contains errors or cannot be parsed, it returns `Err(...)`.
-	/// Otherwise, it returns `Ok(Some(frame))`.
+	/// Otherwise, it returns `Ok(Ok(frame))`.
 	///
 	/// The implementation makes no assumptions about the platform's pointer width and thus
 	/// it is possible for parsing to fail if the entire frame is larger than the address
@@ -85,10 +86,10 @@ impl Frame<Range<usize>> {
 	pub fn try_parse_range(
 		bytes: &[u8],
 	) -> Result<Result<Self, Wants>, FrameError> {
-		let Some(header) =
-			Header::try_parse(bytes).map_err(FrameError::Header)?
-		else {
-			return Ok(Err(Wants(Header::SIZE - bytes.len())));
+		let header = match Header::try_parse(bytes) {
+			Ok(Ok(x)) => x,
+			Ok(Err(wants)) => return Ok(Err(wants)),
+			Err(e) => return Err(FrameError::Header(e)),
 		};
 
 		let data_len = header
@@ -154,9 +155,10 @@ impl<'a> Frame<Payload<&'a [u8]>> {
 	/// Try to parse a frame from `bytes` returning the payload as a slice.
 	///
 	/// Returns a [`Frame`] whose payload is a slice of `bytes`. If `bytes` does not
-	/// have a complete frame, this method returns `Ok(None)`. If `bytes` has a complete
+	/// have a complete frame, this method returns `Ok(Err(Wants))`, the provided [`Wants`]
+	/// type can be used as an optimization hint for outside code. If `bytes` has a complete
 	/// frame but that frame contains errors or cannot be parsed, it returns `Err(...)`.
-	/// Otherwise, it returns `Ok(Some(frame))`.
+	/// Otherwise, it returns `Ok(Ok(frame))`.
 	///
 	/// The implementation makes no assumptions about the platform's pointer width and thus
 	/// it is possible for parsing to fail if the entire frame is larger than the address
