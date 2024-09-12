@@ -2,6 +2,9 @@ use core::cmp::min;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 use crate::buf::{Chain, Take};
 use crate::error::{IoError, ReadError};
 use crate::util::copy_slice;
@@ -42,6 +45,21 @@ pub trait Buf {
 		}
 
 		n
+	}
+
+	#[cfg(feature = "alloc")]
+	/// Copy the buffer into `vec`.
+	fn copy_to_vec(mut self, vec: &mut Vec<u8>)
+	where
+		Self: Sized,
+	{
+		vec.reserve(self.remaining());
+
+		while self.has_remaining() {
+			let c = self.chunk();
+			vec.extend_from_slice(c);
+			self.advance(c.len());
+		}
 	}
 
 	/// Create a "by reference" adapter that takes the current instance of [`Buf`]

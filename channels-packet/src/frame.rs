@@ -4,8 +4,10 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::ops::Range;
 
+use channels_io::buf::{Buf, Chain, Cursor};
+
 use crate::flags::Flags;
-use crate::header::{Header, HeaderError};
+use crate::header::{Header, HeaderBytes, HeaderError};
 use crate::payload::Payload;
 use crate::seq::{FrameNum, FrameNumSequence};
 use crate::util::Error;
@@ -223,6 +225,34 @@ impl<T: AsRef<[u8]>> Frame<Payload<T>> {
 	pub fn header(&self) -> Header {
 		self.get_header(self.payload.length())
 	}
+
+	/// Encode the frame.
+	///
+	/// Returns a [`Buf`] that contains the entire frame.
+	///
+	/// # Example
+	///
+	/// ```rust
+	/// # use channels_packet::{Frame, Payload, FrameNum, Flags};
+	/// let frame = Frame {
+	///    flags: Flags::empty(),
+	///    frame_num: FrameNum::new(5),
+	///    payload: Payload::new([1, 2, 3, 4]).unwrap()
+	/// };
+	///
+	/// // encode by borrowing the payload
+	/// let bytes = frame.as_ref().encode();
+	/// # let _ = bytes;
+	///
+	/// // or, take ownership of the payload
+	/// let bytes = frame.encode();
+	/// # let _ = bytes;
+	/// ```
+	#[inline]
+	#[must_use]
+	pub fn encode(self) -> EncodedFrame<T> {
+		EncodedFrame::new(self)
+	}
 }
 
 impl<T> Frame<Payload<T>> {
@@ -249,6 +279,39 @@ impl<T> Frame<Payload<T>> {
 			frame_num: self.frame_num,
 			payload: self.payload.as_mut(),
 		}
+	}
+}
+
+/// An encoded frame exposed as a [`Buf`].
+#[derive(Debug, Clone)]
+pub struct EncodedFrame<T> {
+	inner: Chain<Cursor<HeaderBytes>, Cursor<T>>,
+}
+
+impl<T> EncodedFrame<T>
+where
+	T: AsRef<[u8]>,
+{
+	#[inline]
+	fn new(frame: Frame<Payload<T>>) -> Self {
+		let header = Cursor::new(frame.header().to_bytes());
+		let payload = Cursor::new(frame.payload.into_inner());
+
+		Self { inner: Buf::chain(header, payload) }
+	}
+}
+
+impl<T: AsRef<[u8]>> Buf for EncodedFrame<T> {
+	fn remaining(&self) -> usize {
+		self.inner.remaining()
+	}
+
+	fn chunk(&self) -> &[u8] {
+		self.inner.chunk()
+	}
+
+	fn advance(&mut self, n: usize) {
+		self.inner.advance(n);
 	}
 }
 
