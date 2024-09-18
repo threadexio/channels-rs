@@ -34,17 +34,19 @@
 
 </div>
 
-Sender/Receiver types for communicating with a channel-like API across generic IO streams. It takes the burden on serializing, deserializing and transporting data off your back and let's you focus on the important logic of your project. It is:
+Sender/Receiver types for communicating with a channel-like API across generic IO streams.
+It takes the burden on serializing, deserializing and transporting data off your back and
+let's you focus on the important logic of your project.
 
-- **Fast**: The simple protocol allows low-overhead transporting of data.
+## Contents
 
-- **Modular**: Channels' _sans-io_ approach means it can be used on top of any medium, be it a network socket, a pipe, a shared memory region, a file, anything.
+* [Contents](#contents)
+* [Examples](#examples)
+* [Features](#features)
+* [How it works](#how-it-works)
+* [License](#license)
 
-- **Ergonomic**: The API offered empowers you to use your time on building the logic of your application instead of worrying about data transport.
-
-- **Async & sync first**: Channels natively supports both synchronous and asynchronous operation with no hacky workarounds like spawning threads or running a separate runtime.
-
-# In action
+## Examples
 
 ```toml
 [dependencies.channels]
@@ -85,24 +87,57 @@ async fn main() {
 
 For more, see: [examples/][examples]
 
-# How it works
+## Features
 
-Channels implements a communication protocol that allows sending and receiving data across any medium. It works over _any_ stream synchronous or asynchronous. Currently it can work with any of the following IO traits:
+| Flag          | Description                                                                                               |
+|---------------|-----------------------------------------------------------------------------------------------------------|
+| `aead`        | Encrypt and authenticate data with [`ring::aead`].                                                        |
+| `bincode`     | Serialize/Deserialize data with [`bincode`]. (Enabled by default)                                         |
+| `borsh`       | Serialize/Deserialize data with [`borsh`].                                                                |
+| `cbor`        | Serialize/Deserialize data with [`ciborium`].                                                             |
+| `core2`       | Support for [`core2::io::{Read, Write}`][].                                                               |
+| `crc`         | Validate data with a CRC checksum.                                                                        |
+| `deflate`     | Compress data with DEFLATE.                                                                               |
+| `embedded-io` | Support for [`embedded_io::{Read, Write}`][].                                                             |
+| `full-io`     | Enable support for all of the IO traits.                                                                  |
+| `full-serdes` | Enable features: `aead`, `bincode`, `borsh`, `cbor`, `crc`, `deflate`, `hmac`, `json`.                    |
+| `futures`     | Support for [`futures::io::{AsyncRead, AsyncWrite}`][].                                                   |
+| `hmac`        | Authenticate data with a HMAC using [`ring::hmac`].                                                       |
+| `json`        | Serialize/Deserialize data with [`serde_json`].                                                           |
+| `smol`        | Support for [`smol::io::{AsyncRead, AsyncWrite}`][].                                                      |
+| `statistics`  | Collect IO metrics such as total bytes sent/received. See: [`Statistics`][].                              |
+| `std`         | Support for [`std::io::{Read, Write}`][]. If disabled also makes the crate `no_std`. (Enabled by default) |
+| `tokio`       | Support for [`tokio::io::{AsyncRead, AsyncWrite}`][].                                                     |
 
-- [`std::io::{Read, Write}`][]
-- [`tokio::io::{AsyncRead, AsyncWrite}`][]
-- [`futures::io::{AsyncRead, AsyncWrite}`][]
-- [`core2::io::{Read, Write}`][]
-- [`smol::io::{AsyncRead, AsyncWrite}`][]
-- [`embedded_io::{Read, Write}`][]
+No two features of the crate are mutually exclusive. Instead, everything is implemented in
+a way to be infinitely extensible. This means, that even if you have other IO traits or another
+way to serialize or deserialize data, you can either add support for them directly in your own
+project by using the rich type system.
 
-You can find out more about how the underlying communication protocol works [here][spec].
+## How it works
 
-# License
+Channels implements a communication protocol that allows sending and receiving data in
+frames. The main API of the crate is intended to work over IO traits. However, if desired,
+the logic of the underlying protocol is available standalone without coupling it to the
+usage of any IO traits. It works over _any_ stream synchronous or asynchronous with first
+class support for following IO traits:
 
-- All code in this repository is licensed under the MIT license, a copy of which can be found [here][license].
+* [`std::io::{Read, Write}`][]
+* [`tokio::io::{AsyncRead, AsyncWrite}`][]
+* [`futures::io::{AsyncRead, AsyncWrite}`][]
+* [`core2::io::{Read, Write}`][]
+* [`smol::io::{AsyncRead, AsyncWrite}`][]
+* [`embedded_io::{Read, Write}`][]
 
-- All artwork in this repository is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/). A copy of the license can be found [here][art-license].
+Support for each IO trait can be enabled via the corresponding feature flag. See: [Features](#features).
+You can read more about how the underlying communication protocol works [here][spec].
+
+## License
+
+* All code in this repository is licensed under the MIT license, a copy of which can be
+  found [here][license].
+
+* All artwork in this repository is licensed under [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/). A copy of the license can be found [here][art-license].
 
 [`std::io::{Read, Write}`]: https://doc.rust-lang.org/stable/std/io
 [`tokio::io::{AsyncRead, AsyncWrite}`]: https://docs.rs/tokio/latest/tokio/io
@@ -110,3 +145,11 @@ You can find out more about how the underlying communication protocol works [her
 [`core2::io::{Read, Write}`]: https://docs.rs/core2
 [`smol::io::{AsyncRead, AsyncWrite}`]: https://docs.rs/smol
 [`embedded_io::{Read, Write}`]: https://docs.rs/embedded-io
+[`Statistics`]: https://docs.rs/channels/latest/channels/struct.Statistics.html
+
+[`ring::aead`]: https://docs.rs/ring/latest/ring/aead/index.html
+[`bincode`]: https://github.com/bincode-org/bincode
+[`borsh`]: https://github.com/near/borsh-rs
+[`ciborium`]: https://github.com/enarx/ciborium
+[`ring::hmac`]: https://docs.rs/ring/latest/ring/hmac/index.html
+[`serde_json`]: https://github.com/serde-rs/json
