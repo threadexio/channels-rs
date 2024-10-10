@@ -50,7 +50,7 @@ let's you focus on the important logic of your project.
 
 ```toml
 [dependencies.channels]
-version = "0.12"
+version = "0.13"
 features = ["full"]
 ```
 

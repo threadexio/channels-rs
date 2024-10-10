@@ -1,6 +1,6 @@
 [package]
 name = "channels-packet"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["1337"]
 edition = "2021"
 description = """
@@ -21,7 +21,7 @@ rustc-args = ["--cfg", "channels_nightly"]
 rustdoc-args = ["--cfg", "channels_nightly"]
 
 [dependencies.channels-io]
-version = "=0.2.1"
+version = "=0.3.0"
 path = "../channels-io"
 default-features = false
 
